@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { signOut } from "@/lib/auth";
 import { currentUser } from "@/lib/session";
 import { Avatar, Badge, Card } from "@/components/ui";
+import { ProfileForm } from "@/components/ProfileForm";
 
 export const metadata = { title: "You" };
 
@@ -30,6 +31,10 @@ export default async function MePage() {
           </Badge>
         </div>
       </Card>
+      <ProfileForm
+        initialName={user.displayName}
+        initialVenmo={user.venmoHandle ? `@${user.venmoHandle}` : ""}
+      />
       <form action={doSignOut}>
         <button
           type="submit"

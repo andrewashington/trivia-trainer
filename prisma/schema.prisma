@@ -38,6 +38,7 @@ model User {
   avatarUrl     String?
   role          Role      @default(member)
   discordUserId String?   @unique // reserved for phase 2 (Discord bot), unused in v1
+  venmoHandle   String? // payments stay person-to-person — we just link to Venmo
   emailVerified DateTime? // managed by Auth.js
   icalToken     String    @unique @default(cuid())
   createdAt     DateTime  @default(now())
@@ -55,6 +56,8 @@ model User {
   mapPins       MapPin[]
   ideas         Idea[]
   ideaVotes     IdeaVote[]
+  listings      Listing[] @relation("listings")
+  claims        Listing[] @relation("claims")
 }
 
 model Recipe {
@@ -229,6 +232,41 @@ enum IdeaStatus {
   open
   planned
   done
+}
+
+enum DeliveryMethod {
+  pickup
+  delivery
+  either
+}
+
+enum ListingStatus {
+  available
+  claimed
+  gone
+}
+
+// The group garage sale. Claiming is first-come-first-served and
+// atomic (see the claim route) so two people can't "get" the toaster.
+// Money changes hands on Venmo, not here.
+model Listing {
+  id          String         @id @default(cuid())
+  sellerId    String
+  title       String
+  description String?        @db.Text
+  priceCents  Int? // null = free
+  delivery    DeliveryMethod @default(pickup)
+  imageKey    String?
+  status      ListingStatus  @default(available)
+  claimedById String?
+  claimedAt   DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  seller    User  @relation("listings", fields: [sellerId], references: [id], onDelete: Cascade)
+  claimedBy User? @relation("claims", fields: [claimedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
 }
 
 // The suggestion box: anything the group should do, buy, build, or try.

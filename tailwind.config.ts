@@ -27,6 +27,7 @@ const config: Config = {
           orange: "#FF9F1C",
           teal: "#16C2A3",
           lime: "#B5E631",
+          magenta: "#E0218A",
         },
       },
       fontFamily: {

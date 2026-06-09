@@ -25,7 +25,12 @@ export type OutboxEventType =
   | "idea.created"
   | "idea.updated"
   | "idea.deleted"
-  | "idea.vote.changed";
+  | "idea.vote.changed"
+  | "listing.created"
+  | "listing.claimed"
+  | "listing.unclaimed"
+  | "listing.updated"
+  | "listing.deleted";
 
 /**
  * Run `fn` and write a domain event in the SAME database transaction, so

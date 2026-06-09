@@ -87,6 +87,14 @@ export const modules: ModuleDef[] = [
     href: "/ideas",
     accentBg: "bg-accent-lime",
   },
+  {
+    key: "marketplace",
+    label: "Market",
+    icon: "🏷️",
+    navOrder: 10,
+    href: "/marketplace",
+    accentBg: "bg-accent-magenta",
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {
