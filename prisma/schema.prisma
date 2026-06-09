@@ -60,6 +60,14 @@ model User {
   claims        Listing[] @relation("claims")
   polls         Poll[]
   pollVotes     PollVote[]
+  revealPrompts     RevealPrompt[]
+  revealSubmissions RevealSubmission[]
+  claimsCreated     Claim[]            @relation("claimsCreated")
+  claimsAgainst     Claim[]            @relation("claimsAgainst")
+  forfeits          Forfeit[]
+  spinsReceived     ForfeitSpin[]      @relation("spinsReceived")
+  spinsMade         ForfeitSpin[]      @relation("spinsMade")
+  petNudges         PetNudge[]
 }
 
 model Recipe {
@@ -352,6 +360,132 @@ model PollVote {
 
   @@unique([pollId, userId, optionId])
   @@index([pollId, userId])
+}
+
+// ============ The Reveal: submit blind, reveal together ============
+
+enum RevealType {
+  rank // everyone privately ranks a list; consensus revealed
+  sealed // a note locked until a date — hidden from EVERYONE, author included
+  oracle // a 1–N scale question; only the blend is ever shown
+}
+
+enum RevealStatus {
+  open
+  revealed
+}
+
+model RevealPrompt {
+  id            String       @id @default(cuid())
+  creatorId     String
+  type          RevealType
+  title         String
+  items         Json? // rank: the labels being ranked, fixed at creation
+  scaleMax      Int? // oracle: answers run 1..scaleMax
+  deadline      DateTime? // rank/oracle: reveal at deadline if enough submitted
+  unlockAt      DateTime? // sealed: auto-open date
+  minSubmitters Int          @default(3) // rank/oracle: floor so answers can't be reverse-engineered
+  status        RevealStatus @default(open)
+  revealedAt    DateTime?
+  createdAt     DateTime     @default(now())
+
+  creator     User               @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  submissions RevealSubmission[]
+
+  @@index([status, createdAt])
+}
+
+// Hidden payloads. Never returned to other members raw — reveals expose
+// only computed aggregates (and a sealed note's body after unlockAt).
+model RevealSubmission {
+  id        String   @id @default(cuid())
+  promptId  String
+  userId    String
+  payload   Json // rank: {order:number[]} · oracle: {value:number} · sealed: {body:string}
+  createdAt DateTime @default(now())
+
+  prompt RevealPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, userId])
+}
+
+// ============ Stakes: claim → lock → resolve ============
+
+enum ClaimOutcome {
+  right
+  wrong
+  void
+}
+
+// A prediction, optionally with a counterparty and a favor at stake.
+// Immutable once created ("locked"); only status/outcome ever change.
+// Stakes are favors and chores, never money — money lives in Market.
+model Claim {
+  id             String        @id @default(cuid())
+  creatorId      String
+  text           String
+  resolvesAt     DateTime
+  hidden         Boolean       @default(false) // conceal text until resolved (solo predictions only)
+  counterpartyId String?
+  stake          String? // "loser buys coffee"
+  outcome        ClaimOutcome?
+  resolvedAt     DateTime?
+  resolvedById   String?
+  settledAt      DateTime? // favor delivered
+  createdAt      DateTime      @default(now())
+
+  creator      User  @relation("claimsCreated", fields: [creatorId], references: [id], onDelete: Cascade)
+  counterparty User? @relation("claimsAgainst", fields: [counterpartyId], references: [id], onDelete: SetNull)
+
+  @@index([resolvedAt, resolvesAt])
+}
+
+// The group-authored pool of dares. Reusable — spins don't consume.
+model Forfeit {
+  id        String   @id @default(cuid())
+  authorId  String
+  text      String
+  createdAt DateTime @default(now())
+
+  author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  spins  ForfeitSpin[]
+}
+
+model ForfeitSpin {
+  id        String   @id @default(cuid())
+  forfeitId String
+  targetId  String
+  spunById  String
+  reason    String?
+  createdAt DateTime @default(now())
+
+  forfeit Forfeit @relation(fields: [forfeitId], references: [id], onDelete: Cascade)
+  target  User    @relation("spinsReceived", fields: [targetId], references: [id], onDelete: Cascade)
+  spunBy  User    @relation("spinsMade", fields: [spunById], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+}
+
+// ============ The Pet: derived state, zero required input ============
+
+// The only stored pet data: its name. Mood is computed live from the
+// outbox (the app-wide activity stream) — see modules/pet/engine.
+model PetState {
+  id        Int      @id @default(1)
+  name      String   @default("Wiggle")
+  updatedAt DateTime @updatedAt
+}
+
+// The one optional input: a daily pat. Everything else is derived.
+model PetNudge {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 // --- Auth.js (NextAuth) support models ---

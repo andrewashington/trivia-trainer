@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { sortedModules } from "@/modules/registry";
 import { Badge, Card } from "@/components/ui";
+import { getPetView, MOOD_META } from "@/modules/pet/engine";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ function greeting(): string {
 
 export default async function HomePage() {
   const user = await currentUser();
-  const [nextEvent, latestRecipe, activeCount, fileCount] = await Promise.all([
+  const [nextEvent, latestRecipe, activeCount, fileCount, pet] = await Promise.all([
     db.event.findFirst({
       where: { startAt: { gte: new Date() } },
       orderBy: { startAt: "asc" },
@@ -28,6 +29,7 @@ export default async function HomePage() {
     }),
     db.nowPlayingItem.count({ where: { status: "active" } }),
     db.fileObject.count(),
+    user ? getPetView(user.id) : null,
   ]);
 
   const firstName = user?.displayName.split(" ")[0] ?? "friend";
@@ -42,6 +44,31 @@ export default async function HomePage() {
           The group home base
         </p>
       </div>
+
+      {/* The Pet: the group's vibe, front and center. */}
+      {pet && (
+        <Link href="/pet" className="no-underline">
+          <div
+            className={`brutal-card flex items-center gap-4 p-4 transition-transform hover:-translate-y-1 ${MOOD_META[pet.mood].bg}`}
+          >
+            <span
+              className={`flex h-14 w-14 shrink-0 items-center justify-center border-3 border-ink bg-card text-3xl shadow-brutal ${
+                pet.mood === "thriving" || pet.mood === "happy" ? "animate-wiggle" : ""
+              }`}
+            >
+              {MOOD_META[pet.mood].face}
+            </span>
+            <div>
+              <p className="font-display font-bold leading-tight">
+                {pet.name} {MOOD_META[pet.mood].line}
+              </p>
+              <p className="font-mono text-[10px] uppercase text-ink/50">
+                the group vibe, in creature form →
+              </p>
+            </div>
+          </div>
+        </Link>
+      )}
 
       {/* What's-new tiles, one per module, in module accent colors. */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

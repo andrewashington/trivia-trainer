@@ -4,6 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { sortedModules } from "@/modules/registry";
 
+// Accents dark enough to need white label text when active.
+const DARK_ACCENTS = new Set([
+  "bg-accent-blue",
+  "bg-accent-forest",
+  "bg-accent-indigo",
+  "bg-accent-magenta",
+  "bg-ink",
+]);
+
 export function NavTabs({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
   const tabs = [
@@ -30,7 +39,7 @@ export function NavTabs({ isAdmin }: { isAdmin: boolean }) {
               <span className="text-xl leading-none">{tab.icon}</span>
               <span
                 className={`font-mono text-[10px] font-bold uppercase tracking-wide ${
-                  active && tab.accentBg === "bg-accent-blue" ? "text-white" : "text-ink"
+                  active && DARK_ACCENTS.has(tab.accentBg) ? "text-white" : "text-ink"
                 }`}
               >
                 {tab.label}

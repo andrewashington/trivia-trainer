@@ -34,7 +34,19 @@ export type OutboxEventType =
   | "poll.created"
   | "poll.voted"
   | "poll.closed"
-  | "poll.deleted";
+  | "poll.deleted"
+  | "reveal.created"
+  | "reveal.submitted"
+  | "reveal.revealed"
+  | "reveal.deleted"
+  | "claim.created"
+  | "claim.resolved"
+  | "claim.settled"
+  | "claim.deleted"
+  | "forfeit.added"
+  | "forfeit.spun"
+  | "pet.nudged"
+  | "pet.renamed";
 
 /**
  * Run `fn` and write a domain event in the SAME database transaction, so

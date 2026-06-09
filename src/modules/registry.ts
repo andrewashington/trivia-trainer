@@ -103,6 +103,30 @@ export const modules: ModuleDef[] = [
     href: "/polls",
     accentBg: "bg-accent-indigo",
   },
+  {
+    key: "reveal",
+    label: "Reveal",
+    icon: "🎭",
+    navOrder: 12,
+    href: "/reveal",
+    accentBg: "bg-ink",
+  },
+  {
+    key: "stakes",
+    label: "Stakes",
+    icon: "🎯",
+    navOrder: 13,
+    href: "/stakes",
+    accentBg: "bg-accent-forest",
+  },
+  {
+    key: "pet",
+    label: "Pet",
+    icon: "🐣",
+    navOrder: 14,
+    href: "/pet",
+    accentBg: "bg-accent-sky",
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {

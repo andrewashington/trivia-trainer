@@ -29,6 +29,8 @@ const config: Config = {
           lime: "#B5E631",
           magenta: "#E0218A",
           indigo: "#6A5CFF",
+          forest: "#0B9E63",
+          sky: "#38BDF8",
         },
       },
       fontFamily: {
