@@ -33,6 +33,14 @@ colors, a chunky pixel-cartridge logo), boring-in-a-good-way on the inside
   end-to-end encryption, which would defeat "shared by the group".
 - **Wishlist link previews** are scraped server-side (Open Graph tags,
   no external API) with an SSRF guard that refuses private addresses.
+- **The Map runs entirely on free services** — Leaflet (library) +
+  OpenStreetMap tiles + Nominatim geocoding (proxied server-side with
+  the User-Agent their policy asks for). No API keys required. To swap
+  in nicer tiles later (MapTiler/Stadia free tiers), set
+  `NEXT_PUBLIC_MAP_TILE_URL` — no code change needed.
+- **Ideas** is the group suggestion box: one vote per person per idea
+  (toggleable), ranked by votes; admins move ideas through
+  open → planned → done, and shipped ideas settle to the bottom.
 - **API-first.** Every capability is exposed under `/api` (session-cookie
   auth). The phase-2 Discord bot becomes a second client of the same API.
   Server-rendered pages read through the shared data layer the shell owns;

@@ -52,6 +52,9 @@ model User {
   vaultEntries  VaultEntry[]
   contactCard   ContactCard?
   wishlistItems WishlistItem[]
+  mapPins       MapPin[]
+  ideas         Idea[]
+  ideaVotes     IdeaVote[]
 }
 
 model Recipe {
@@ -196,6 +199,62 @@ model WishlistItem {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+enum PinCategory {
+  food
+  drink
+  outdoors
+  fun
+  home
+  other
+}
+
+// The group atlas: favorite restaurants, the good taco truck, trip pins.
+model MapPin {
+  id        String      @id @default(cuid())
+  creatorId String
+  name      String
+  category  PinCategory @default(other)
+  lat       Float
+  lng       Float
+  address   String?
+  note      String?
+  createdAt DateTime    @default(now())
+
+  creator User @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+}
+
+enum IdeaStatus {
+  open
+  planned
+  done
+}
+
+// The suggestion box: anything the group should do, buy, build, or try.
+model Idea {
+  id        String     @id @default(cuid())
+  authorId  String
+  title     String
+  detail    String?    @db.Text
+  status    IdeaStatus @default(open)
+  createdAt DateTime   @default(now())
+
+  author User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes  IdeaVote[]
+
+  @@index([status, createdAt])
+}
+
+model IdeaVote {
+  ideaId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  idea Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([ideaId, userId])
 }
 
 // --- Auth.js (NextAuth) support models ---

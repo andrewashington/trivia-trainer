@@ -25,6 +25,8 @@ const config: Config = {
           cyan: "#00CFE8",
           pink: "#FF6FB5",
           orange: "#FF9F1C",
+          teal: "#16C2A3",
+          lime: "#B5E631",
         },
       },
       fontFamily: {

@@ -29,11 +29,10 @@ A shared watch-queue with voting — distinct from Now Playing (which is
 (free key)** for search, posters, runtime, and where-to-stream data;
 one fetch on add, cached in your DB.
 
-## 5. The Map 🗺️
+## 5. ~~The Map 🗺️~~ — SHIPPED
 Group atlas: favorite restaurants, the good taco truck, "Dave's new
-apartment", trip pins. **Libraries/APIs: Leaflet (free) +
-OpenStreetMap tiles (free) + Nominatim geocoding (free)** — zero API
-keys needed for the whole module.
+apartment", trip pins. Built with Leaflet + OpenStreetMap tiles +
+Nominatim geocoding — zero API keys, as promised.
 
 ## 6. Quotes Board 💬
 The inside-jokes archive: "things we said at 2am", attributed and
