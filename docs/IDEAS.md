@@ -5,11 +5,10 @@ registry entry + a few API routes — no shell changes). Ordered roughly
 by bang-for-buck. External services listed are free or nearly free at
 friend-group scale.
 
-## 1. Polls & Decisions 🗳️
-The single highest-leverage add for a group chat crowd: "which
-restaurant?", "which weekend works?", ranked or simple votes, optional
-deadline, results bar charts in brutalist style. Pairs perfectly with
-the outbox → future Discord bot ("vote now: …"). **No external deps.**
+## 1. ~~Polls & Decisions 🗳️~~ — SHIPPED
+"Which restaurant?", pick-one / pick-any / rate-1–5 single-question
+polls with an anonymous toggle and brutalist result bars. No external
+deps, as promised.
 
 ## 2. Tabs & Splits 💸
 Splitwise-lite: log shared expenses ("I got the pizzas — $42"), pick

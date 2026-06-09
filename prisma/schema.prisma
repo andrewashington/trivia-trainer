@@ -58,6 +58,8 @@ model User {
   ideaVotes     IdeaVote[]
   listings      Listing[] @relation("listings")
   claims        Listing[] @relation("claims")
+  polls         Poll[]
+  pollVotes     PollVote[]
 }
 
 model Recipe {
@@ -293,6 +295,63 @@ model IdeaVote {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([ideaId, userId])
+}
+
+enum PollType {
+  single // pick one
+  multi // pick any
+  scale // rate 1–5
+}
+
+// Single-question polls. `anonymous` is fixed at creation: votes are
+// always stored with a userId (one ballot per member, changeable while
+// open) but anonymous polls never expose who voted for what — not in
+// the API responses and not in outbox payloads.
+model Poll {
+  id        String    @id @default(cuid())
+  creatorId String
+  question  String
+  type      PollType  @default(single)
+  anonymous Boolean   @default(false)
+  closedAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  creator User         @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  options PollOption[]
+  votes   PollVote[]
+
+  @@index([createdAt])
+}
+
+model PollOption {
+  id     String @id @default(cuid())
+  pollId String
+  label  String
+  order  Int
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+
+  @@index([pollId, order])
+}
+
+// One row per (user, option) for choice polls; one row with `rating`
+// for scale polls. A re-vote replaces all of the user's rows for the
+// poll in one transaction.
+model PollVote {
+  id        String   @id @default(cuid())
+  pollId    String
+  userId    String
+  optionId  String?
+  rating    Int?
+  createdAt DateTime @default(now())
+
+  poll   Poll        @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  option PollOption? @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId, optionId])
+  @@index([pollId, userId])
 }
 
 // --- Auth.js (NextAuth) support models ---

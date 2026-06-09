@@ -28,6 +28,7 @@ const config: Config = {
           teal: "#16C2A3",
           lime: "#B5E631",
           magenta: "#E0218A",
+          indigo: "#6A5CFF",
         },
       },
       fontFamily: {

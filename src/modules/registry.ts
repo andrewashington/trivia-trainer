@@ -95,6 +95,14 @@ export const modules: ModuleDef[] = [
     href: "/marketplace",
     accentBg: "bg-accent-magenta",
   },
+  {
+    key: "polls",
+    label: "Polls",
+    icon: "🗳️",
+    navOrder: 11,
+    href: "/polls",
+    accentBg: "bg-accent-indigo",
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {
