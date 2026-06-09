@@ -13,7 +13,13 @@ export type OutboxEventType =
   | "file.uploaded"
   | "file.deleted"
   | "member.added"
-  | "member.removed";
+  | "member.removed"
+  | "vault.created"
+  | "vault.updated"
+  | "vault.deleted"
+  | "contact.updated"
+  | "wishlist.added"
+  | "wishlist.removed";
 
 /**
  * Run `fn` and write a domain event in the SAME database transaction, so

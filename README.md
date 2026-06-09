@@ -1,9 +1,9 @@
 # UDM+
 
 The friend-group home base. A private, invite-only PWA for the persistent
-stuff Discord is bad at: **recipes, events, what everyone's watching, and
-shared files** — architected so a Discord bot can plug in later without a
-rewrite.
+stuff Discord is bad at: **recipes, events, what everyone's watching,
+shared files, wishlists, contact cards, and shared logins** — architected
+so a Discord bot can plug in later without a rewrite.
 
 Retro-brutalist on the outside (thick borders, hard shadows, loud flat
 colors, a chunky pixel-cartridge logo), boring-in-a-good-way on the inside
@@ -20,9 +20,19 @@ colors, a chunky pixel-cartridge logo), boring-in-a-good-way on the inside
 
 ## Architecture cheat sheet
 
-- **Shell + modules.** Each feature (Cookbook, Events, Now Playing, Files)
-  lives in `src/modules/<key>` with its API routes in `src/app/api/...`.
-  New module = new folder + one entry in `src/modules/registry.ts`.
+- **Shell + modules.** Each feature (Cookbook, Events, Now Playing,
+  Files, Wishlist, People, Vault) lives in `src/modules/<key>` with its
+  API routes in `src/app/api/...`. New module = new folder + one entry
+  in `src/modules/registry.ts`. Candidates for the next ones live in
+  [`docs/IDEAS.md`](docs/IDEAS.md).
+- **Vault security model.** Shared passwords are AES-256-GCM encrypted
+  at rest with a key derived from `VAULT_KEY` (fallback: `AUTH_SECRET`).
+  Listings never include secrets; decryption happens only in the
+  per-entry reveal endpoint, and outbox payloads never carry them. This
+  protects the database and backups — it is deliberately *not*
+  end-to-end encryption, which would defeat "shared by the group".
+- **Wishlist link previews** are scraped server-side (Open Graph tags,
+  no external API) with an SSRF guard that refuses private addresses.
 - **API-first.** Every capability is exposed under `/api` (session-cookie
   auth). The phase-2 Discord bot becomes a second client of the same API.
   Server-rendered pages read through the shared data layer the shell owns;

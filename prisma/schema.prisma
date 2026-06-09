@@ -42,13 +42,16 @@ model User {
   icalToken     String    @unique @default(cuid())
   createdAt     DateTime  @default(now())
 
-  accounts Account[]
-  sessions Session[]
-  recipes  Recipe[]
-  events   Event[]
-  rsvps    Rsvp[]
-  playing  NowPlayingItem[]
-  files    FileObject[]
+  accounts      Account[]
+  sessions      Session[]
+  recipes       Recipe[]
+  events        Event[]
+  rsvps         Rsvp[]
+  playing       NowPlayingItem[]
+  files         FileObject[]
+  vaultEntries  VaultEntry[]
+  contactCard   ContactCard?
+  wishlistItems WishlistItem[]
 }
 
 model Recipe {
@@ -133,6 +136,66 @@ model OutboxEvent {
   processedAt DateTime?
 
   @@index([processedAt, createdAt])
+}
+
+// Shared site logins. The password is AES-256-GCM encrypted at rest
+// (see lib/crypto) and is NEVER included in list responses or outbox
+// payloads — it's fetched one entry at a time via the reveal endpoint.
+model VaultEntry {
+  id          String   @id @default(cuid())
+  creatorId   String
+  siteName    String
+  siteUrl     String?
+  username    String
+  passwordEnc String // iv:tag:ciphertext, base64
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creator User @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([siteName])
+}
+
+// One contact card per member, self-maintained (admin can edit any).
+model ContactCard {
+  userId    String   @id
+  phone     String?
+  email     String? // a preferred contact email, if different from login
+  birthday  DateTime? @db.Date
+  address   String?  @db.Text
+  notes     String?  @db.Text
+  updatedAt DateTime @updatedAt
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedParties RelatedParty[]
+}
+
+// Spouse / partner / emergency contact attached to a member's card.
+model RelatedParty {
+  id       String  @id @default(cuid())
+  cardId   String
+  name     String
+  relation String? // "spouse", "partner", "mom", …
+  phone    String?
+  email    String?
+
+  card ContactCard @relation(fields: [cardId], references: [userId], onDelete: Cascade)
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  url       String?
+  imageUrl  String? // og:image scraped from the link, if any
+  siteName  String? // og:site_name scraped from the link, if any
+  note      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 // --- Auth.js (NextAuth) support models ---

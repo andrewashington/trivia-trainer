@@ -47,6 +47,30 @@ export const modules: ModuleDef[] = [
     href: "/files",
     accentBg: "bg-accent-green",
   },
+  {
+    key: "wishlist",
+    label: "Wishlist",
+    icon: "🎁",
+    navOrder: 5,
+    href: "/wishlist",
+    accentBg: "bg-accent-orange",
+  },
+  {
+    key: "contacts",
+    label: "People",
+    icon: "📇",
+    navOrder: 6,
+    href: "/contacts",
+    accentBg: "bg-accent-pink",
+  },
+  {
+    key: "vault",
+    label: "Vault",
+    icon: "🔐",
+    navOrder: 7,
+    href: "/vault",
+    accentBg: "bg-accent-cyan",
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {

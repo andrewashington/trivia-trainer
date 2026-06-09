@@ -13,7 +13,7 @@ export function NavTabs({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t-3 border-ink bg-card pb-[env(safe-area-inset-bottom)]">
-      <div className="mx-auto flex max-w-3xl items-stretch justify-around">
+      <div className="mx-auto flex max-w-3xl items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((tab) => {
           const active =
             tab.href === "/"
@@ -23,7 +23,7 @@ export function NavTabs({ isAdmin }: { isAdmin: boolean }) {
             <Link
               key={tab.key}
               href={tab.href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 no-underline transition-transform ${
+              className={`flex min-w-[64px] flex-1 flex-col items-center gap-0.5 py-2 no-underline transition-transform ${
                 active ? `${tab.accentBg} border-x-2 border-ink -translate-y-0.5` : ""
               }`}
             >
@@ -41,7 +41,7 @@ export function NavTabs({ isAdmin }: { isAdmin: boolean }) {
         {isAdmin && (
           <Link
             href="/admin"
-            className={`flex flex-1 flex-col items-center gap-0.5 py-2 no-underline ${
+            className={`flex min-w-[64px] flex-1 flex-col items-center gap-0.5 py-2 no-underline ${
               pathname.startsWith("/admin")
                 ? "bg-accent-grape border-x-2 border-ink -translate-y-0.5"
                 : ""
