@@ -1,0 +1,53 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-paper text-ink;
+  }
+  body {
+    @apply font-body antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display font-bold tracking-tight;
+  }
+  a {
+    @apply underline-offset-2;
+  }
+}
+
+@layer components {
+  /* The brutalist card: white surface, thick border, hard shadow. */
+  .brutal-card {
+    @apply border-3 border-ink bg-card shadow-brutal;
+  }
+
+  /* Buttons physically "press" toward their shadow when clicked. */
+  .brutal-press {
+    @apply transition-[transform,box-shadow] duration-75 active:translate-x-[3px] active:translate-y-[3px] active:shadow-brutal-pressed;
+  }
+
+  .brutal-input {
+    @apply w-full border-3 border-ink bg-card px-3 py-2 font-body text-ink placeholder:text-ink/40 focus:outline-none focus:shadow-brutal-sm;
+  }
+
+  .brutal-label {
+    @apply mb-1 block font-mono text-xs font-bold uppercase tracking-widest;
+  }
+}
+
+@layer utilities {
+  /* Slight intentional off-grid tilt, per the design brief. */
+  .tilt-l {
+    transform: rotate(-1deg);
+  }
+  .tilt-r {
+    transform: rotate(1deg);
+  }
+}

@@ -1,0 +1,57 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://udm:udm@db:5432/udmplus
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: udm
+      POSTGRES_PASSWORD: udm
+      POSTGRES_DB: udmplus
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U udm -d udmplus"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Local S3-compatible storage. In production, point the S3_* env vars
+  # at Cloudflare R2 / Backblaze B2 instead and drop this service.
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3 &&
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/udmplus &&
+      exit 0
+      "
+
+volumes:
+  pgdata:
+  miniodata:

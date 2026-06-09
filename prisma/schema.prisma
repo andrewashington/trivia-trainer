@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  member
+  admin
+}
+
+enum RsvpStatus {
+  going
+  maybe
+  no
+}
+
+enum MediaType {
+  show
+  movie
+  book
+}
+
+enum PlayStatus {
+  active
+  finished
+}
+
+// The User table doubles as the allowlist: only emails present here may
+// sign in. Admins add members by creating rows (see /api/admin/members).
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  displayName   String
+  avatarUrl     String?
+  role          Role      @default(member)
+  discordUserId String?   @unique // reserved for phase 2 (Discord bot), unused in v1
+  emailVerified DateTime? // managed by Auth.js
+  icalToken     String    @unique @default(cuid())
+  createdAt     DateTime  @default(now())
+
+  accounts Account[]
+  sessions Session[]
+  recipes  Recipe[]
+  events   Event[]
+  rsvps    Rsvp[]
+  playing  NowPlayingItem[]
+  files    FileObject[]
+}
+
+model Recipe {
+  id        String   @id @default(cuid())
+  authorId  String
+  title     String
+  body      String   @db.Text // freeform markdown
+  imageKey  String? // object-storage key, single image
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  creatorId   String
+  title       String
+  description String?   @db.Text
+  location    String?
+  startAt     DateTime
+  endAt       DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  creator User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  rsvps   Rsvp[]
+
+  @@index([startAt])
+}
+
+model Rsvp {
+  eventId   String
+  userId    String
+  status    RsvpStatus
+  updatedAt DateTime   @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+}
+
+model NowPlayingItem {
+  id        String     @id @default(cuid())
+  userId    String
+  mediaType MediaType
+  title     String
+  note      String?
+  status    PlayStatus @default(active)
+  updatedAt DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+model FileObject {
+  id         String   @id @default(cuid())
+  uploaderId String
+  filename   String
+  mimeType   String // images + pdf only (validated server-side)
+  sizeBytes  Int
+  storageKey String
+  createdAt  DateTime @default(now())
+
+  uploader User @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+}
+
+// Domain-event outbox. Nothing consumes it in v1; the phase-2 Discord
+// worker will poll rows where processedAt IS NULL. Rows must be written
+// in the same transaction as the change they describe (see lib/outbox).
+model OutboxEvent {
+  id          String    @id @default(cuid())
+  type        String
+  payload     Json
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([processedAt, createdAt])
+}
+
+// --- Auth.js (NextAuth) support models ---
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
