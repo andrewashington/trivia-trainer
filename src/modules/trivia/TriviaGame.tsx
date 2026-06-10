@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { StaggerItem, StaggerList } from "@/components/Motion";
 import { api } from "@/lib/client";
 import { confettiBurst, confettiCelebrate } from "@/lib/confetti";
 import { playSfx } from "@/lib/sfx";
@@ -36,6 +38,7 @@ const DIFFICULTY_BG: Record<TriviaQuestion["difficulty"], string> = {
 
 export function TriviaGame() {
   const router = useRouter();
+  const reduced = useReducedMotion();
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -190,8 +193,27 @@ export function TriviaGame() {
         </div>
       </div>
 
-      {/* Question card */}
-      <div className="brutal-card space-y-3 p-4">
+      {/* Question card: old question slides out left, new one springs in from the right */}
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.div
+          key={index}
+          initial={reduced ? { opacity: 0 } : { x: 80, opacity: 0 }}
+          animate={
+            reduced
+              ? { opacity: 1 }
+              : {
+                  x: 0,
+                  opacity: 1,
+                  transition: { type: "spring", stiffness: 450, damping: 28 },
+                }
+          }
+          exit={
+            reduced
+              ? { opacity: 0, transition: { duration: 0.1 } }
+              : { x: -80, opacity: 0, transition: { duration: 0.15, ease: "easeIn" } }
+          }
+          className="brutal-card space-y-3 p-4"
+        >
         <div className="flex flex-wrap items-center gap-2">
           <span
             className={`border-2 border-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${DIFFICULTY_BG[q.difficulty]}`}
@@ -249,7 +271,8 @@ export function TriviaGame() {
             </Button>
           </div>
         )}
-      </div>
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }

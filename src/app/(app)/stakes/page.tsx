@@ -9,6 +9,7 @@ import { ClaimForm } from "@/modules/stakes/ClaimForm";
 import { HeroBanner } from "@/components/Hero";
 import { Countdown } from "@/components/Countdown";
 import { ClaimCard, type ClaimView } from "@/modules/stakes/ClaimCard";
+import { StaggerItem, StaggerList } from "@/components/Motion";
 import { settleDueSportsClaims } from "@/modules/stakes/settle";
 
 export const metadata = { title: "Stakes" };
@@ -194,14 +195,14 @@ export default async function StakesPage({
               <p className="brutal-label flex items-center gap-1.5">
                 <PixelIcon name="notebook" size={14} /> The favor ledger
               </p>
-              <ul className="space-y-1">
+              <StaggerList className="space-y-1">
                 {ledger.map((entry) => (
-                  <li key={entry.id} className="text-sm">
+                  <StaggerItem key={entry.id} className="text-sm">
                     <strong>{entry.loser}</strong> owes <strong>{entry.winner}</strong>:{" "}
                     {entry.stake}
-                  </li>
+                  </StaggerItem>
                 ))}
-              </ul>
+              </StaggerList>
             </Card>
           )}
 
@@ -210,9 +211,9 @@ export default async function StakesPage({
               <p className="brutal-label flex items-center gap-1.5">
                 <PixelIcon name="sparkles" size={14} /> Track record
               </p>
-              <ul className="space-y-1.5">
+              <StaggerList className="space-y-1.5">
                 {standings.map((s, i) => (
-                  <li key={s.name} className="flex items-center gap-2 text-sm">
+                  <StaggerItem key={s.name} className="flex items-center gap-2 text-sm">
                     <span className="font-display font-bold">
                       {i === 0 ? <PixelIcon name="crown" size={16} className="-mt-0.5 inline" /> : `${i + 1}.`}
                     </span>
@@ -221,9 +222,9 @@ export default async function StakesPage({
                     <Badge className="ml-auto bg-paper">
                       {s.right}/{s.total} · {Math.round((s.right / s.total) * 100)}%
                     </Badge>
-                  </li>
+                  </StaggerItem>
                 ))}
-              </ul>
+              </StaggerList>
             </Card>
           )}
 

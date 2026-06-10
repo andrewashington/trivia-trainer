@@ -7,6 +7,7 @@ import { confettiCelebrate } from "@/lib/confetti";
 import { Avatar, Badge, Button } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { StampOverlay, useActionStamp } from "@/components/ActionFx";
+import { StaggerItem, StaggerList } from "@/components/Motion";
 import type { PromptView, RankResults, SealedResults } from "@/modules/reveal/engine";
 import { REVEAL_TYPE_META } from "@/modules/reveal/schema";
 
@@ -235,9 +236,10 @@ function RankReveal({
   membersByName: Map<string, MemberView>;
 }) {
   return (
-    <div className="mt-3 space-y-1.5 animate-pop-in">
+    <StaggerList as="div" className="mt-3 space-y-1.5">
       {results.consensus.map((entry, pos) => (
-        <div
+        <StaggerItem
+          as="div"
           key={entry.label}
           className={`flex items-center gap-2 border-2 border-ink px-3 py-1.5 ${
             pos === 0 ? "bg-accent-yellow" : "bg-card"
@@ -252,9 +254,9 @@ function RankReveal({
             />
           )}
           <span className="font-bold">{entry.label}</span>
-        </div>
+        </StaggerItem>
       ))}
-      <div className="flex flex-wrap gap-1.5 pt-1">
+      <StaggerItem as="div" className="flex flex-wrap gap-1.5 pt-1">
         {results.mostOff && (
           <Badge className="inline-flex items-center gap-1.5 bg-accent-red text-white">
             <PixelIcon name="target" size={13} /> Most off: {results.mostOff.name} (Δ{results.mostOff.delta})
@@ -263,15 +265,17 @@ function RankReveal({
         {results.myDelta !== null && (
           <Badge className="bg-paper">You: Δ{results.myDelta}</Badge>
         )}
-      </div>
-    </div>
+      </StaggerItem>
+    </StaggerList>
   );
 }
 
 function SealedReveal({ results }: { results: SealedResults }) {
   return (
-    <div className="mt-3 animate-pop-in border-2 border-ink bg-paper p-3">
-      <p className="whitespace-pre-wrap text-sm leading-relaxed">{results.body}</p>
-    </div>
+    <StaggerList as="div" className="mt-3">
+      <StaggerItem as="div" className="border-2 border-ink bg-paper p-3">
+        <p className="whitespace-pre-wrap text-sm leading-relaxed">{results.body}</p>
+      </StaggerItem>
+    </StaggerList>
   );
 }
