@@ -40,7 +40,8 @@ model User {
   id            String    @id @default(cuid())
   email         String    @unique
   displayName   String
-  avatarUrl     String?
+  avatarUrl     String? // rendered DiceBear URL — denormalized from avatarConfig for the render path
+  avatarConfig  Json? // structured Open Peeps choices (seed + pinned features); source of truth for the builder
   role          Role      @default(member)
   discordUserId String?   @unique // reserved for phase 2 (Discord bot), unused in v1
   venmoHandle   String? // payments stay person-to-person — we just link to Venmo

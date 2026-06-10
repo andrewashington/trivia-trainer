@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { categories } from "@/modules/registry";
-import { dicebearUrl } from "@/lib/avatar";
-import { AvatarPicker } from "@/components/AvatarPicker";
+import { defaultAvatarConfig, type AvatarConfig } from "@/lib/avatar";
+import { AvatarBuilder } from "@/components/AvatarBuilder";
 import { PixelIcon } from "@/components/icons";
 import { Logo } from "@/components/Logo";
 import { Button, Field, Input } from "@/components/ui";
@@ -31,7 +31,7 @@ export function OnboardingWizard({
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initialName);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<AvatarConfig>(() => defaultAvatarConfig(initialName));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,10 +42,10 @@ export function OnboardingWizard({
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
-      const draft = JSON.parse(raw) as { step?: number; name?: string; avatarUrl?: string | null };
+      const draft = JSON.parse(raw) as { step?: number; name?: string; avatar?: AvatarConfig };
       if (typeof draft.step === "number") setStep(Math.min(Math.max(draft.step, 0), 3));
       if (typeof draft.name === "string" && draft.name.trim()) setName(draft.name);
-      if (typeof draft.avatarUrl === "string") setAvatarUrl(draft.avatarUrl);
+      if (draft.avatar && typeof draft.avatar.seed === "string") setAvatar(draft.avatar);
     } catch {
       // A corrupt draft just means starting from the top.
     }
@@ -53,9 +53,9 @@ export function OnboardingWizard({
 
   useEffect(() => {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ step, name, avatarUrl }));
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ step, name, avatar }));
     } catch {}
-  }, [step, name, avatarUrl]);
+  }, [step, name, avatar]);
 
   async function finish() {
     setSaving(true);
@@ -66,7 +66,7 @@ export function OnboardingWizard({
       body: JSON.stringify({
         action: "complete",
         displayName: name.trim() || undefined,
-        avatarUrl: avatarUrl ?? undefined,
+        avatarConfig: avatar,
       }),
     });
     if (!res.ok) {
@@ -113,13 +113,13 @@ export function OnboardingWizard({
     </div>,
 
     <div key="avatar">
-      <h2 className="font-display text-2xl font-bold">Meet your peep.</h2>
+      <h2 className="font-display text-2xl font-bold">Make your peep.</h2>
       <p className="mt-2 text-sm text-ink/70">
         We drew you a face. It shows up on everything you do here —
-        keep it, pick a neighbor, or hit shuffle until one feels right.
+        tweak the hair, skin tone, and backdrop, or reroll for a fresh one.
       </p>
       <div className="mt-4">
-        <AvatarPicker name={name} value={avatarUrl} onChange={setAvatarUrl} />
+        <AvatarBuilder name={name} value={avatar} onChange={setAvatar} />
       </div>
     </div>,
 
@@ -185,12 +185,11 @@ export function OnboardingWizard({
             ) : (
               <Button
                 onClick={() => {
-                  // Arriving at the avatar step generates a starting
-                  // face — every new member leaves onboarding with one.
-                  if (step === 1 && !avatarUrl) {
-                    // Same seed scheme as AvatarPicker's first option,
-                    // so the grid shows it selected.
-                    setAvatarUrl(dicebearUrl(`${name || "friend"}-0`));
+                  // Arriving at the avatar step: seed the face off the
+                  // name they just typed, unless they've already rerolled
+                  // or customized it (seed no longer matches the name).
+                  if (step === 1 && avatar.seed === defaultAvatarConfig(initialName).seed) {
+                    setAvatar((a) => ({ ...a, seed: name.trim() || "friend" }));
                   }
                   setStep(step + 1);
                 }}

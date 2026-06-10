@@ -3,7 +3,7 @@ import { z } from "zod";
 import { apiHandler, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { isDicebearUrl } from "@/lib/avatar";
+import { avatarUrlFromConfig, parseAvatarConfig } from "@/lib/avatar";
 
 export const GET = apiHandler(async () => {
   const user = await requireUser();
@@ -19,12 +19,9 @@ export const GET = apiHandler(async () => {
 
 const mePatch = z.object({
   displayName: z.string().trim().min(1).max(100).optional(),
-  // null clears a custom avatar (falls back to the name-seeded one).
-  avatarUrl: z
-    .string()
-    .max(300)
-    .refine(isDicebearUrl, "Avatars must come from DiceBear.")
-    .nullish(),
+  // Structured Open Peeps choices; the URL is rebuilt server-side so we
+  // never trust a client-supplied avatarUrl. Anything malformed is dropped.
+  avatarConfig: z.unknown().optional(),
   venmoHandle: z
     .string()
     .trim()
@@ -36,10 +33,17 @@ const mePatch = z.object({
 
 export const PATCH = apiHandler(async (req: Request) => {
   const user = await requireUser();
-  const data = await parseBody(req, mePatch);
+  const { avatarConfig, ...rest } = await parseBody(req, mePatch);
+
+  // Validate + rebuild the avatar server-side; ignore an unparseable config.
+  const config = avatarConfig !== undefined ? parseAvatarConfig(avatarConfig) : undefined;
+
   const updated = await db.user.update({
     where: { id: user.id },
-    data,
+    data: {
+      ...rest,
+      ...(config ? { avatarConfig: config, avatarUrl: avatarUrlFromConfig(config) } : {}),
+    },
     select: { id: true, displayName: true, avatarUrl: true, venmoHandle: true },
   });
   return NextResponse.json({ user: updated });
