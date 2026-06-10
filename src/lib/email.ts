@@ -59,8 +59,16 @@ export async function sendMagicLink(to: string, url: string) {
     return;
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    console.log(`\n🔑 [dev] Magic link for ${to}:\n${url}\n`);
+  // Dev always prints the link. In production, the same is allowed only
+  // when ALLOW_LOG_MAGIC_LINK=true — a deliberate bridge so you can sign
+  // in (and verify the deploy) BEFORE email is configured. Turn it off
+  // once RESEND_API_KEY / SMTP is set: anyone who can read the server
+  // logs could otherwise sign in as a member.
+  if (
+    process.env.NODE_ENV !== "production" ||
+    process.env.ALLOW_LOG_MAGIC_LINK === "true"
+  ) {
+    console.log(`\n🔑 Magic link for ${to}:\n${url}\n`);
     return;
   }
 

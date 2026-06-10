@@ -57,6 +57,15 @@ git push -u origin main
 
 ## Phase 2 — Email sender
 
+> **Deploying before you've set up email?** Set `ALLOW_LOG_MAGIC_LINK=true`
+> in your app variables. Then a magic link is printed to the **Railway
+> deploy logs** instead of emailed — so *you* can sign in and walk the
+> live app. Grab the link from the logs, paste it in your browser.
+> **Remove this flag** the moment real email works: anyone who can read
+> the logs could otherwise sign in. (Friends can't sign in over logs —
+> set up real email below before inviting them.)
+
+
 ### Option A — Resend + your domain (recommended)
 1. Sign up at resend.com → **API Keys** → create one → copy it
    (`re_...`). This is `RESEND_API_KEY`.
