@@ -348,6 +348,22 @@ export const modules: ModuleDef[] = [
       "Your best round goes on the leaderboard. No pressure",
     ],
   },
+  {
+    key: "howgay",
+    label: "How Gay?",
+    icon: "sparkles",
+    category: "arcade",
+    navOrder: 18,
+    href: "/howgay",
+    accentBg: "bg-accent-fuchsia",
+    intro:
+      "Press the button, receive today's scientifically* unimpeachable gayness reading. (*not science)",
+    tips: [
+      "One reading per day — the meter knows, re-pressing won't reroll it",
+      "Hit 90%+ and the confetti cannons agree with you",
+      "Check the board to see who's serving today",
+    ],
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {

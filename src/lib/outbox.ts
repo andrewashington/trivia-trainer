@@ -52,7 +52,8 @@ export type OutboxEventType =
   | "arcade.tanks.finished"
   | "countdown.created"
   | "countdown.deleted"
-  | "feedback.created";
+  | "feedback.created"
+  | "howgay.checked";
 
 /**
  * Write a domain event (and apply any coin award it earns) on an open

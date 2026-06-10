@@ -86,6 +86,24 @@ model User {
   tanksTurns        TanksTurn[]
   coinTransactions  CoinTransaction[]
   gameChatMessages  GameChatMessage[]
+  gayReadings       GayReading[]
+}
+
+// --- How Gay?: one deterministic reading per user per day ---
+// percent = hash(userId + date) — the row just records that you checked,
+// so the same-day leaderboard knows who's shown up.
+
+model GayReading {
+  id        String   @id @default(cuid())
+  userId    String
+  date      String // YYYY-MM-DD (server-local day)
+  percent   Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([date])
 }
 
 // ============ Coins: the household currency ============
