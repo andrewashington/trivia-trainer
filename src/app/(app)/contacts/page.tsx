@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
@@ -75,12 +76,17 @@ export default async function ContactsPage() {
           const card = p.contactCard;
           return (
             <Card key={p.id} className={i % 2 === 0 ? "tilt-l" : "tilt-r"}>
-              <div className="flex items-center gap-3 border-b-2 border-ink pb-2">
+              <Link
+                href={`/people/${p.id}`}
+                className="flex items-center gap-3 border-b-2 border-ink pb-2 no-underline"
+                title={`${p.displayName}'s profile`}
+              >
                 <Avatar name={p.displayName} src={p.avatarUrl} size="sm" />
                 <span className="font-display font-bold">
                   {p.id === user.id ? `${p.displayName} (you)` : p.displayName}
                 </span>
-              </div>
+                <PixelIcon name="chevron-right" size={13} className="ml-auto text-ink/40" />
+              </Link>
               <dl className="mt-3 space-y-1.5 text-sm">
                 <Row label="email" value={card?.email ?? p.email} href={`mailto:${card?.email ?? p.email}`} />
                 {card?.phone && <Row label="phone" value={card.phone} href={`tel:${card.phone}`} />}

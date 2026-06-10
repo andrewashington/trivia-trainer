@@ -5,10 +5,14 @@ import { db } from "@/lib/db";
  * the user-generated content across modules and sorted newest-first.
  * Each item is flattened to a common shape so the feed renders uniformly;
  * `module` keys back into the registry for the icon + accent color.
+ *
+ * Pass `userId` to scope the feed to one person — that's what powers the
+ * "lately" column on profile pages (/people/[id]).
  */
 export type Activity = {
   id: string;
   module: string;
+  actorId: string;
   actor: string;
   actorAvatarUrl: string | null;
   verb: string;
@@ -20,33 +24,38 @@ export type Activity = {
 // How many of each kind to pull before merging — keeps the union small.
 const PER_KIND = 6;
 
-export async function recentActivity(limit = 16): Promise<Activity[]> {
-  const who = { select: { displayName: true, avatarUrl: true } };
-  const recent = { take: PER_KIND, orderBy: { createdAt: "desc" } } as const;
-
+export async function recentActivity(limit = 16, userId?: string): Promise<Activity[]> {
+  const who = { select: { id: true, displayName: true, avatarUrl: true } };
+  // When scoped to one person, pull deeper per kind so a prolific module
+  // doesn't starve the merged feed.
+  const recent = {
+    take: userId ? Math.min(limit, 12) : PER_KIND,
+    orderBy: { createdAt: "desc" },
+  } as const;
   const [recipes, events, listings, ideas, polls, wishlist, pins, files, reveals, claims, countdowns, playing] =
     await Promise.all([
-      db.recipe.findMany({ ...recent, include: { author: who } }),
-      db.event.findMany({ ...recent, include: { creator: who } }),
-      db.listing.findMany({ ...recent, include: { seller: who } }),
-      db.idea.findMany({ ...recent, include: { author: who } }),
-      db.poll.findMany({ ...recent, include: { creator: who } }),
-      db.wishlistItem.findMany({ ...recent, include: { user: who } }),
-      db.mapPin.findMany({ ...recent, include: { creator: who } }),
-      db.fileObject.findMany({ ...recent, include: { uploader: who } }),
-      db.revealPrompt.findMany({ ...recent, include: { creator: who } }),
-      db.claim.findMany({ ...recent, include: { creator: who } }),
-      db.countdown.findMany({ ...recent, include: { creator: who } }),
+      db.recipe.findMany({ ...recent, where: userId ? { authorId: userId } : undefined, include: { author: who } }),
+      db.event.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
+      db.listing.findMany({ ...recent, where: userId ? { sellerId: userId } : undefined, include: { seller: who } }),
+      db.idea.findMany({ ...recent, where: userId ? { authorId: userId } : undefined, include: { author: who } }),
+      db.poll.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
+      db.wishlistItem.findMany({ ...recent, where: userId ? { userId } : undefined, include: { user: who } }),
+      db.mapPin.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
+      db.fileObject.findMany({ ...recent, where: userId ? { uploaderId: userId } : undefined, include: { uploader: who } }),
+      db.revealPrompt.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
+      db.claim.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
+      db.countdown.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
       db.nowPlayingItem.findMany({
-        take: PER_KIND,
+        take: recent.take,
         orderBy: { updatedAt: "desc" },
+        where: userId ? { userId } : undefined,
         include: { user: who },
       }),
     ]);
 
   const items: Activity[] = [
-    ...recipes.map((r) => mk(r.id, "cookbook", r.author, "added a recipe", r.title, "/cookbook", r.createdAt)),
-    ...events.map((e) => mk(e.id, "events", e.creator, "planned", e.title, "/events", e.createdAt)),
+    ...recipes.map((r) => mk(r.id, "cookbook", r.author, "added a recipe", r.title, `/cookbook/${r.id}`, r.createdAt)),
+    ...events.map((e) => mk(e.id, "events", e.creator, "planned", e.title, `/events/${e.id}`, e.createdAt)),
     ...listings.map((l) => mk(l.id, "marketplace", l.seller, "listed", l.title, "/marketplace", l.createdAt)),
     ...ideas.map((i) => mk(i.id, "ideas", i.author, "pitched an idea", i.title, "/ideas", i.createdAt)),
     ...polls.map((p) => mk(p.id, "polls", p.creator, "opened a poll", p.question, "/polls", p.createdAt)),
@@ -75,11 +84,11 @@ export async function recentActivity(limit = 16): Promise<Activity[]> {
 function mk(
   id: string,
   module: string,
-  who: { displayName: string; avatarUrl: string | null },
+  who: { id: string; displayName: string; avatarUrl: string | null },
   verb: string,
   title: string,
   href: string,
   at: Date
 ): Activity {
-  return { id, module, actor: who.displayName, actorAvatarUrl: who.avatarUrl, verb, title, href, at };
+  return { id, module, actorId: who.id, actor: who.displayName, actorAvatarUrl: who.avatarUrl, verb, title, href, at };
 }
