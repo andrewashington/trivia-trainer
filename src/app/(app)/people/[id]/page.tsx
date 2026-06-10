@@ -7,6 +7,8 @@ import { modules } from "@/modules/registry";
 import { Avatar, Badge, Card, LinkButton } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { daysUntilBirthday, formatBirthday } from "@/modules/contacts/birthdays";
+import { KeyBadge } from "@/modules/thekey/KeyBadge";
+import { buildKeyCode } from "@/modules/thekey/keycode";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +88,10 @@ export default async function PersonPage({ params }: { params: { id: string } })
   ]);
   if (!person) notFound();
 
+  // The Key: only the encoded string, only if its owner left it visible.
+  const keySub = await db.keySubmission.findUnique({ where: { userId: params.id } });
+  const keyCode = keySub && keySub.visibility === "group" ? buildKeyCode(keySub) : null;
+
   const isMe = viewer.id === person.id;
   const card = person.contactCard;
   const bdayDays = card?.birthday ? daysUntilBirthday(card.birthday) : null;
@@ -141,6 +147,19 @@ export default async function PersonPage({ params }: { params: { id: string } })
           )}
         </div>
       </Card>
+
+      {/* ---- The Key: a sealed curio for those who know ---- */}
+      {keyCode && (
+        <Card className="tilt-r">
+          <p className="brutal-label flex items-center gap-1.5">
+            <PixelIcon name="door-closed" size={14} /> The Key
+          </p>
+          <KeyBadge keyCode={keyCode} isMe={isMe} />
+          <p className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink/40">
+            an encoded field-guide entry · readable only with the chart
+          </p>
+        </Card>
+      )}
 
       {/* ---- Footprint: what they've contributed, module by module ---- */}
       {stats.length > 0 && (

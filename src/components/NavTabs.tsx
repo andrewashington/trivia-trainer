@@ -11,6 +11,7 @@ import {
 } from "@/modules/registry";
 import { PixelIcon, solidIcon } from "@/components/icons";
 import { Logo } from "@/components/Logo";
+import { KeyFlare } from "@/modules/thekey/KeyFlare";
 
 // Accents dark enough to need white label text when active.
 const DARK_ACCENTS = new Set([
@@ -202,6 +203,8 @@ export function SideNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts 
           );
         })}
       </div>
+
+      <KeyFlare />
 
       {isAdmin && (
         <div className="border-t-3 border-ink p-3">

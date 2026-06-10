@@ -31,6 +31,8 @@ export const COIN_RULES: Partial<Record<OutboxEventType, CoinRule>> = {
   "arcade.played": { amount: 5, userId: (p) => p.userId, dailyCap: 10, label: "Arcade run" },
   "arcade.tanks.finished": { amount: 40, userId: (p) => p.winnerId, label: "Won a tanks duel" },
   "challenge.won": { amount: 25, userId: (p) => p.winnerId, label: "Won a challenge" },
+  // One-time by construction: the event only fires on first filing.
+  "key.submitted": { amount: 500, userId: (p) => p.userId, label: "Filed the secret quiz" },
 
   // ---- Posting content ----
   "poll.created": { amount: 15, userId: (p) => p.createdBy, dailyCap: 5, label: "Posted a poll" },

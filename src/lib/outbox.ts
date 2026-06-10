@@ -62,7 +62,8 @@ export type OutboxEventType =
   | "challenge.won"
   | "tierlist.created"
   | "tierlist.ranked"
-  | "tierlist.deleted";
+  | "tierlist.deleted"
+  | "key.submitted";
 
 /**
  * Write a domain event (and apply any coin award it earns) on an open

@@ -95,6 +95,7 @@ model User {
   challengeVotes    ChallengeVote[]
   tierLists         TierList[]
   tierPlacements    TierPlacement[]
+  keyCard           KeySubmission?
 }
 
 // ============ Blackjack: casino hands wagering coins ============
@@ -922,4 +923,34 @@ model ChallengeVote {
 
   @@id([challengeId, voterId])
   @@index([entryId])
+}
+
+// ============ The Key: the hidden anatomy quiz ============
+
+// One self-reported card per member. Sensitive at rest: every trait is
+// optional, answers stay concealed unless visibility="group", and other
+// members only ever see rows that opted in. The archetype is computed
+// server-side — never accepted from the client.
+model KeySubmission {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  unitPreference String   @default("imperial") // display only; storage is mm
+  lengthMm       Int? // canonical millimetres; null = prefer not to say
+  girthMm        Int?
+  glansShape     String?
+  shaftProfile   String?
+  foreskinStatus String?
+  pubicHair      String?
+  veinVisibility String?
+  curveVertical  String?
+  curveLateral   String?
+  curveIntensity String?
+  visibility     String   @default("concealed") // "concealed" | "group"
+  archetypeId    String?
+  archetypeLabel String?
+  archetypeBlurb String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

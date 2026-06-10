@@ -211,7 +211,7 @@ export default async function HomePage() {
   // Modules with a live bento tile right now; everything else becomes a chip.
   const tiled = new Set(["events", "pet", "polls", "nowplaying", "stakes"]);
   if (nextCountdown) tiled.add("countdowns");
-  const chipModules = modules.filter((m) => !tiled.has(m.key));
+  const chipModules = modules.filter((m) => !tiled.has(m.key) && !m.hidden);
 
   const tileLabel = "brutal-label !mb-0 text-[10px] opacity-60";
 

@@ -75,6 +75,12 @@ export type ModuleDef = {
   intro: string;
   /** 2-3 "try this" pointers on the intro card — concrete first moves. */
   tips: string[];
+  /**
+   * Hidden modules never show in nav, the home chips, or category
+   * shelves — you have to know the URL. Intro cards and seen-tracking
+   * still work once you're there.
+   */
+  hidden?: boolean;
 };
 
 export const modules: ModuleDef[] = [
@@ -426,6 +432,23 @@ export const modules: ModuleDef[] = [
       "Check the consensus tab once a few people have ranked",
     ],
   },
+  {
+    key: "thekey",
+    label: "The Key",
+    icon: "door-closed",
+    category: "arcade",
+    navOrder: 99,
+    href: "/key",
+    accentBg: "bg-accent-eggplant",
+    hidden: true,
+    intro:
+      "You found the hidden room. The field guide quiz — chart your specs, get your archetype. Nobody ever sees your answers.",
+    tips: [
+      "Answer by picture — every option has a diagram, no essay questions",
+      "Slide the rulers, pick your cards, file it",
+      "Your card is for your eyes only. Always. The wall does not exist",
+    ],
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {
@@ -433,5 +456,5 @@ export function sortedModules(): ModuleDef[] {
 }
 
 export function modulesByCategory(key: CategoryKey): ModuleDef[] {
-  return sortedModules().filter((m) => m.category === key);
+  return sortedModules().filter((m) => m.category === key && !m.hidden);
 }
