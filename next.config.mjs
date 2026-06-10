@@ -8,6 +8,8 @@ const nextConfig = {
   experimental: {
     // Keep server bundles lean for the Docker standalone output.
     serverComponentsExternalPackages: ["@prisma/client", "nodemailer"],
+    // Boots the Discord outbox drainer (src/instrumentation.ts).
+    instrumentationHook: true,
   },
 };
 
