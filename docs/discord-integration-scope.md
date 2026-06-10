@@ -1,6 +1,6 @@
 # Discord Integration — Scope
 
-Status: **scoped, not started** · Owner: whichever session picks up a phase — claim it by updating this doc.
+Status: **Phase 1 shipped** (interactions endpoint, /link + /unlink, bot-mode drainer, registration script). Phases 2–3 open — claim one by updating this doc.
 
 ## Where we are
 

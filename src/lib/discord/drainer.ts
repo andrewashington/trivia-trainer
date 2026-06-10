@@ -29,12 +29,13 @@ const attempts = new Map<string, number>();
 
 export function startDiscordDrainer() {
   if (started) return;
-  if (!process.env.DISCORD_WEBHOOK_URL) {
-    console.log("[discord] DISCORD_WEBHOOK_URL not set; feed disabled");
+  const bot = !!(process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CHANNEL_ID);
+  if (!bot && !process.env.DISCORD_WEBHOOK_URL) {
+    console.log("[discord] no bot token/channel or webhook URL set; feed disabled");
     return;
   }
   started = true;
-  console.log("[discord] outbox drainer started");
+  console.log(`[discord] outbox drainer started (${bot ? "bot" : "webhook"} mode)`);
   setInterval(() => void drain(), TICK_MS).unref?.();
   // First pass shortly after boot so a deploy doesn't sit on a backlog.
   setTimeout(() => void drain(), 5_000).unref?.();

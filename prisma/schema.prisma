@@ -669,6 +669,20 @@ model Feedback {
   @@index([resolvedAt, createdAt])
 }
 
+// --- Discord bot: account linking ---
+// `/link` in Discord mints a short code; entering it on /me (signed in)
+// sets User.discordUserId. Codes are single-use and short-lived.
+
+model DiscordLinkCode {
+  code            String   @id
+  discordUserId   String
+  discordUsername String
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  @@index([discordUserId])
+}
+
 // --- Auth.js (NextAuth) support models ---
 
 model Account {

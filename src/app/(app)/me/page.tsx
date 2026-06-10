@@ -8,6 +8,7 @@ import { PixelIcon } from "@/components/icons";
 import { ProfileForm } from "@/components/ProfileForm";
 import { parseAvatarConfig } from "@/lib/avatar";
 import { ContactCardForm } from "@/modules/contacts/ContactCardForm";
+import { DiscordLinkCard } from "@/components/DiscordLinkCard";
 
 export const metadata = { title: "You" };
 export const dynamic = "force-dynamic";
@@ -56,6 +57,8 @@ export default async function MePage() {
         initialVenmo={user.venmoHandle ? `@${user.venmoHandle}` : ""}
         initialAvatarConfig={parseAvatarConfig(user.avatarConfig)}
       />
+
+      <DiscordLinkCard linked={!!user.discordUserId} />
 
       <div id="card">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

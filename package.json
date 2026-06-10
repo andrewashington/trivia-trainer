@@ -16,6 +16,7 @@
     "db:demo": "tsx prisma/seed-demo.ts",
     "db:demo:remove": "tsx prisma/seed-demo-remove.ts",
     "triage:export": "tsx scripts/export-triage.ts",
+    "discord:register": "tsx scripts/register-discord-commands.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {
