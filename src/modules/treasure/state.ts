@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 
 export const GRID_SIZE = 10;
 export const BASE_POT = 500;
+export const EXTRA_DIG_COST = 500;
 
 /** The treasure day rolls on UTC, matching the coin ledger's daily caps. */
 export function utcDay(): string {
@@ -43,6 +44,7 @@ export type TreasureState = {
   gridSize: number;
   pot: number;
   digs: {
+    id: string;
     x: number;
     y: number;
     found: boolean;
@@ -50,7 +52,9 @@ export type TreasureState = {
     name: string;
     avatarUrl: string | null;
   }[];
-  myDig: { x: number; y: number; found: boolean } | null;
+  /** Digs the viewer has used today — the first is free, extras cost coins. */
+  myDigCount: number;
+  extraDigCost: number;
   foundBy: { id: string; name: string } | null;
   /** Revealed only once the chest has been found. */
   treasure: { x: number; y: number } | null;
@@ -70,13 +74,12 @@ export async function treasureState(viewerId: string): Promise<TreasureState> {
         select: { id: true, displayName: true },
       })
     : null;
-  const mine = digs.find((d) => d.userId === viewerId) ?? null;
-
   return {
     day,
     gridSize: GRID_SIZE,
     pot: row.pot,
     digs: digs.map((d) => ({
+      id: d.id,
       x: d.x,
       y: d.y,
       found: d.found,
@@ -84,7 +87,8 @@ export async function treasureState(viewerId: string): Promise<TreasureState> {
       name: d.user.displayName,
       avatarUrl: d.user.avatarUrl,
     })),
-    myDig: mine ? { x: mine.x, y: mine.y, found: mine.found } : null,
+    myDigCount: digs.filter((d) => d.userId === viewerId).length,
+    extraDigCost: EXTRA_DIG_COST,
     foundBy: foundBy ? { id: foundBy.id, name: foundBy.displayName } : null,
     treasure: row.foundById ? { x: row.x, y: row.y } : null,
   };

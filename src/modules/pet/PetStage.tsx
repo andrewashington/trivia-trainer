@@ -81,6 +81,8 @@ export function PetStage({
 
   async function rename(e: React.FormEvent) {
     e.preventDefault();
+    // Server charges 500 coins for a real rename — make sure it's meant.
+    if (!confirm(`Rename the pet to “${newName}” for 500 coins?`)) return;
     setBusy(true);
     try {
       await api("/api/pet", { method: "PATCH", body: { name: newName } });
@@ -216,7 +218,7 @@ export function PetStage({
             </span>
           </Button>
           <Button variant="ghost" onClick={() => setRenaming(true)} className="shrink-0">
-            Rename
+            Rename · 500🪙
           </Button>
         </div>
       )}

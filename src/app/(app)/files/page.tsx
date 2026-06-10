@@ -22,13 +22,18 @@ export default async function FilesPage() {
   const maxMb = Number(process.env.MAX_FILE_SIZE_MB ?? 25);
   const counts = await commentCounts("file");
 
-  // Presign inline-view URLs for image files so the list can show a
-  // thumbnail (signing is local/cheap; the page is force-dynamic so these
-  // stay fresh within the URL's TTL).
+  // Presign inline-view URLs for anything the browser can render natively
+  // (signing is local/cheap; the page is force-dynamic so these stay fresh
+  // within the URL's TTL).
+  const renderable = (mime: string) =>
+    mime.startsWith("image/") ||
+    mime.startsWith("video/") ||
+    mime.startsWith("audio/") ||
+    mime === "application/pdf";
   const previews = new Map<string, string>(
     await Promise.all(
       files
-        .filter((f) => f.mimeType.startsWith("image/"))
+        .filter((f) => renderable(f.mimeType))
         .map(async (f): Promise<[string, string]> => {
           try {
             return [f.id, await presignView(f.storageKey)];
@@ -62,6 +67,7 @@ export default async function FilesPage() {
                 mimeType: f.mimeType,
                 sizeBytes: f.sizeBytes,
                 createdAt: f.createdAt.toISOString(),
+                uploaderId: f.uploader.id,
                 uploaderName: f.uploader.displayName,
                 uploaderAvatarUrl: f.uploader.avatarUrl,
                 previewUrl: previews.get(f.id) || null,

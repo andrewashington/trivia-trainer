@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { emitOutbox } from "@/lib/outbox";
 import { HttpError, requireUser } from "@/lib/session";
 import {
+  EXTRA_DIG_COST,
   GRID_SIZE,
   ensureTreasureDay,
   treasureState,
@@ -32,14 +33,40 @@ export const POST = apiHandler(async (req: Request) => {
       throw new HttpError(400, "Today's treasure has already been found. Come back tomorrow.");
     }
 
-    const found = x === row.x && y === row.y;
-    try {
-      await tx.treasureDig.create({
-        data: { day, userId: user.id, x, y, found },
+    const taken = await tx.treasureDig.findFirst({ where: { day, x, y } });
+    if (taken) throw new HttpError(400, "Someone already dug that square today.");
+
+    // First dig is free; every extra shovel today costs coins.
+    const myDigs = await tx.treasureDig.count({ where: { day, userId: user.id } });
+    if (myDigs >= 1) {
+      const me = await tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+        select: { coins: true },
       });
-    } catch {
-      throw new HttpError(400, "You already dug today. One shovel per day.");
+      if (me.coins < EXTRA_DIG_COST) {
+        throw new HttpError(
+          400,
+          `An extra dig costs ${EXTRA_DIG_COST} coins — you have ${me.coins}.`
+        );
+      }
+      await tx.coinTransaction.create({
+        data: {
+          userId: user.id,
+          amount: -EXTRA_DIG_COST,
+          reason: "treasure.extra_dig",
+          meta: { label: "Bought an extra dig", day },
+        },
+      });
+      await tx.user.update({
+        where: { id: user.id },
+        data: { coins: { decrement: EXTRA_DIG_COST } },
+      });
     }
+
+    const found = x === row.x && y === row.y;
+    await tx.treasureDig.create({
+      data: { day, userId: user.id, x, y, found },
+    });
 
     if (found) {
       await tx.treasureDay.update({

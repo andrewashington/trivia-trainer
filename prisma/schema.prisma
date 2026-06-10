@@ -1006,6 +1006,8 @@ model TreasureDig {
   treasureDay TreasureDay @relation(fields: [day], references: [day], onDelete: Cascade)
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([day, userId]) // one dig per person per day, enforced by the DB
+  // One free dig per person per day; extra digs cost coins (route-enforced),
+  // so no unique constraint here.
+  @@index([day, userId])
   @@index([day])
 }

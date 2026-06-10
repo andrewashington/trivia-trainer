@@ -17,7 +17,8 @@ export function TreasureGrid({ initial }: { initial: TreasureState }) {
   const [justFound, setJustFound] = useState(false);
 
   const dayOver = state.foundBy !== null;
-  const canDig = !dayOver && state.myDig === null;
+  const canDig = !dayOver;
+  const isExtra = state.myDigCount >= 1;
 
   const digAt = new Map(state.digs.map((d) => [`${d.x},${d.y}`, d]));
 
@@ -63,11 +64,13 @@ export function TreasureGrid({ initial }: { initial: TreasureState }) {
             ? justFound
               ? "YOU FOUND IT! The pot is yours. 🏴‍☠️"
               : `${state.foundBy!.name} found the chest! New treasure buried tomorrow.`
-            : state.myDig
-              ? "You dug today — nothing but sand. If nobody finds it, the pot rolls over."
-              : armed
-                ? "Click the marked square again to dig. Choose wisely — one shovel a day."
-                : "One dig a day. Find the chest, take the whole pot."}
+            : armed
+              ? isExtra
+                ? `Click the marked square again to dig — this one costs ${state.extraDigCost} coins.`
+                : "Click the marked square again to dig. The first shovel is free."
+              : isExtra
+                ? `Nothing but sand so far. Another dig costs ${state.extraDigCost} coins — pick a square if you're feeling it.`
+                : "One free dig a day. Find the chest, take the whole pot."}
         </p>
       </div>
 
@@ -119,7 +122,7 @@ export function TreasureGrid({ initial }: { initial: TreasureState }) {
           <p className="brutal-label mb-2">Today&apos;s digs ({state.digs.length})</p>
           <ul className="space-y-1">
             {state.digs.map((d) => (
-              <li key={d.userId} className="flex items-center gap-2 font-mono text-xs">
+              <li key={d.id} className="flex items-center gap-2 font-mono text-xs">
                 <Avatar name={d.name} src={d.avatarUrl} size="sm" />
                 <span>{d.name}</span>
                 <span className="text-ink/50">
