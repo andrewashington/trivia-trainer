@@ -55,6 +55,21 @@ export type OutboxEventType =
   | "feedback.created";
 
 /**
+ * Write a domain event (and apply any coin award it earns) on an open
+ * transaction. Use this instead of `tx.outboxEvent.create` directly so
+ * events and coins can never diverge.
+ */
+export async function emitOutbox(
+  tx: Prisma.TransactionClient,
+  type: OutboxEventType,
+  payload: Prisma.InputJsonValue
+): Promise<void> {
+  await tx.outboxEvent.create({ data: { type, payload } });
+  const { applyCoinRule } = await import("@/lib/coins"); // lazy: avoids a module cycle
+  await applyCoinRule(tx, type, payload);
+}
+
+/**
  * Run `fn` and write a domain event in the SAME database transaction, so
  * the outbox can never disagree with the data. Nothing consumes the
  * outbox in v1; the phase-2 Discord worker drains it.
@@ -66,7 +81,7 @@ export async function withOutbox<T>(
   return db.$transaction(async (tx) => {
     const result = await fn(tx);
     const { type, payload } = event(result);
-    await tx.outboxEvent.create({ data: { type, payload } });
+    await emitOutbox(tx, type, payload);
     return result;
   });
 }

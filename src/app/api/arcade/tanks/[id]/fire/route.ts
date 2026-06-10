@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiHandler, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
+import { emitOutbox } from "@/lib/outbox";
 import { HttpError, requireUser } from "@/lib/session";
 import {
   ammoLeft,
@@ -84,18 +85,13 @@ export const POST = apiHandler(async (req: Request, { params }: Ctx) => {
       include: gameInclude,
     });
     if (finished && winnerIdx !== null) {
-      await tx.outboxEvent.create({
-        data: {
-          type: "arcade.tanks.finished",
-          payload: {
-            gameId: game.id,
-            winnerId: ids[winnerIdx],
-            winner: names[winnerIdx],
-            loserId: ids[winnerIdx === 0 ? 1 : 0],
-            loser: names[winnerIdx === 0 ? 1 : 0],
-            turns: priorTurns.length + 1,
-          },
-        },
+      await emitOutbox(tx, "arcade.tanks.finished", {
+        gameId: game.id,
+        winnerId: ids[winnerIdx],
+        winner: names[winnerIdx],
+        loserId: ids[winnerIdx === 0 ? 1 : 0],
+        loser: names[winnerIdx === 0 ? 1 : 0],
+        turns: priorTurns.length + 1,
       });
     }
     return g;

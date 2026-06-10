@@ -103,6 +103,19 @@ const config: Config = {
           "0%, 100%": { outline: "0 solid transparent", outlineOffset: "3px" },
           "25%, 65%": { outline: "4px solid #FFD60A", outlineOffset: "3px" },
         },
+        // Header coin badge: the coin flips when a reward lands…
+        "coin-flip": {
+          "0%": { transform: "rotateY(0deg) scale(1)" },
+          "50%": { transform: "rotateY(180deg) scale(1.35)" },
+          "100%": { transform: "rotateY(360deg) scale(1)" },
+        },
+        // …and a "+N" chip pops up and drifts away.
+        "coin-rise": {
+          "0%": { transform: "translate(-50%, 0) scale(0.6)", opacity: "0" },
+          "20%": { transform: "translate(-50%, -10px) scale(1.1)", opacity: "1" },
+          "75%": { transform: "translate(-50%, -22px) scale(1)", opacity: "1" },
+          "100%": { transform: "translate(-50%, -34px) scale(0.9)", opacity: "0" },
+        },
         // Gentle continuous bob — floating logo letters & confetti.
         float: {
           "0%, 100%": { transform: "translateY(0)" },
@@ -178,6 +191,8 @@ const config: Config = {
         "pulse-ring": "pulse-ring 1.6s ease-in-out infinite",
         flash: "flash 1.4s ease-out 1",
         float: "float 3.6s ease-in-out infinite",
+        "coin-flip": "coin-flip 650ms cubic-bezier(0.3, 1.4, 0.5, 1) both",
+        "coin-rise": "coin-rise 1.6s ease-out both",
         sparkle: "sparkle 1.3s ease-in-out infinite",
         sheen: "sheen 2.8s ease-in-out infinite",
         "drop-in": "drop-in 520ms cubic-bezier(0.2, 1.5, 0.4, 1) both",

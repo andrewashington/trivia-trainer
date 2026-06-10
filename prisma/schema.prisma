@@ -48,6 +48,7 @@ model User {
   emailVerified DateTime? // managed by Auth.js
   icalToken     String    @unique @default(cuid())
   onboardedAt   DateTime? // null until the first-login wizard is finished
+  coins         Int       @default(0) // denormalized balance; CoinTransaction is the ledger
   introsSeen    String[]  @default([]) // module keys whose intro card was dismissed
   moduleSeenAt  Json? // { [moduleKey]: ISO } — last time the user opened each module, for unread badges
   createdAt     DateTime  @default(now())
@@ -83,6 +84,24 @@ model User {
   tanksDefenses     TanksGame[]        @relation("tanksOpponent")
   tanksWins         TanksGame[]        @relation("tanksWinner")
   tanksTurns        TanksTurn[]
+  coinTransactions  CoinTransaction[]
+}
+
+// ============ Coins: the household currency ============
+
+// Append-only ledger; User.coins is kept in sync in the same transaction.
+// `reason` is the outbox event type that earned the coins.
+model CoinTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  reason    String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, reason, createdAt])
 }
 
 // ============ Tanks: async turn-based artillery duels ============

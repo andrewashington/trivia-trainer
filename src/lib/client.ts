@@ -16,5 +16,10 @@ export async function api<T = unknown>(
       (data as { error?: string }).error ?? `Request failed (${res.status})`
     );
   }
+  // Mutations may have earned coins — let the header badge refetch/animate.
+  const method = (init?.method ?? "GET").toUpperCase();
+  if (method !== "GET") {
+    window.dispatchEvent(new Event("coins:refresh"));
+  }
   return data as T;
 }
