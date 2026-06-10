@@ -2,6 +2,9 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
+# openssl so `prisma generate` detects the right engine at build time.
+RUN apk add --no-cache openssl
+
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
 RUN npm ci
@@ -29,6 +32,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# The generated client + its query-engine .so.node live here. Next's
+# standalone tracing can miss the dynamically-loaded engine binary, so
+# copy it explicitly — needed by both the app server and bootstrap-admin.
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 

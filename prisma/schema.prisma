@@ -1,5 +1,10 @@
 generator client {
   provider = "prisma-client-js"
+  // "native" for local dev (macOS/Linux); the musl+openssl3 target is
+  // what the Alpine-based production container needs. Without this the
+  // generated client lacks the right query-engine binary and crashes
+  // on boot ("could not locate the Query Engine for linux-musl-openssl-3.0.x").
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {

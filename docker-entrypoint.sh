@@ -8,7 +8,9 @@ echo "Applying database migrations…"
 node node_modules/prisma/build/index.js migrate deploy
 
 echo "Ensuring admin account…"
-node prisma/bootstrap-admin.mjs
+# Non-fatal: a bootstrap hiccup (e.g. missing SEED_ADMIN_EMAIL) must not
+# crash-loop the whole app — start the server regardless and surface it.
+node prisma/bootstrap-admin.mjs || echo "⚠ admin bootstrap failed — starting the app anyway"
 
 echo "Starting UDM+…"
 exec node server.js
