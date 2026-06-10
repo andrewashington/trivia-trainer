@@ -80,6 +80,26 @@ model User {
   pollRevealVotes   PollRevealVote[]
   revealUnlockVotes RevealUnlockVote[]
   feedback          Feedback[]
+  arcadeScores      ArcadeScore[]
+}
+
+// One row per finished run of an arcade game. We keep every run (not
+// just a personal best) so the leaderboard can show recent activity and
+// the pet can feed on plays; "personal best" is just a max() at query
+// time, mirroring how Stakes computes its accuracy board on the fly.
+model ArcadeScore {
+  id        String   @id @default(cuid())
+  userId    String
+  game      String // which arcade game, e.g. "snake" — room for more later
+  score     Int
+  // Lightweight run stats for flavor on the board (longest combo, etc.).
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([game, score])
+  @@index([game, userId, score])
 }
 
 model Recipe {

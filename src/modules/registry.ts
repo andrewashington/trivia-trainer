@@ -280,6 +280,21 @@ export const modules: ModuleDef[] = [
       "Give it a nudge if it's looking rough",
     ],
   },
+  {
+    key: "snake",
+    label: "Snake",
+    icon: "fish",
+    category: "arcade",
+    navOrder: 15,
+    href: "/snake",
+    accentBg: "bg-accent-grape",
+    intro: "Feed the snake. Chase combos, dodge yourself, and stamp your name on the leaderboard.",
+    tips: [
+      "Arrow keys or WASD on desktop, swipe on your phone",
+      "Eat fast to build a combo multiplier — it decays if you dawdle",
+      "Grab the golden snack before it vanishes for a fat bonus",
+    ],
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {

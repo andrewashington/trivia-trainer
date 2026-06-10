@@ -48,6 +48,8 @@ export type OutboxEventType =
   | "forfeit.spun"
   | "pet.nudged"
   | "pet.renamed"
+  | "arcade.played"
+  | "arcade.highscore"
   | "feedback.created";
 
 /**
