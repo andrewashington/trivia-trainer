@@ -22,11 +22,13 @@ RUN apk add --no-cache openssl
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-# Prisma CLI + schema for running migrations on boot.
+# Prisma CLI + schema + engines for running migrations on boot. We invoke
+# it via node node_modules/prisma/build/index.js (see entrypoint), so the
+# .bin symlink is intentionally NOT copied — Docker flattens it and breaks
+# the CLI's relative .wasm lookup.
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
