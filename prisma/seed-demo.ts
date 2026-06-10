@@ -413,15 +413,7 @@ async function main() {
       },
     ],
   });
-  const forfeits = await Promise.all([
-    db.forfeit.create({ data: { authorId: maya.id, text: "Speak only in movie quotes for one hour" } }),
-    db.forfeit.create({ data: { authorId: jordan.id, text: "Bring homemade snacks to the next three hangs" } }),
-    db.forfeit.create({ data: { authorId: riley.id, text: "Profile picture of the group's choosing for a week" } }),
-  ]);
-  await db.forfeitSpin.create({
-    data: { forfeitId: forfeits[0].id, targetId: riley.id, spunById: maya.id, reason: "Lost the rain bet" },
-  });
-  console.log("✓ 3 claims + 3 forfeits + 1 spin");
+  console.log("✓ 3 claims");
 
   // ---- New-feature samples: sealed-results poll + early-unseal sealed note ----
   await db.poll.create({

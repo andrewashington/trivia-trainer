@@ -1,7 +1,7 @@
 /**
  * Wipe everything `seed-demo.ts` created: demo users (cascades take
  * their recipes, events, RSVPs, items, listings, polls, votes, claims,
- * forfeits, spins, pins, cards, vault entries, files, submissions…)
+ * pins, cards, vault entries, files, submissions…)
  * plus the demo-flagged outbox rows. Real members' data is untouched.
  * Run before the final deploy.
  */

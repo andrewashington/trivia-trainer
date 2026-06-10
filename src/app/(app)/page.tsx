@@ -48,6 +48,16 @@ const QUICK_ACTIONS: { label: string; href: string; icon: IconName; bg: string }
   { label: "Add a recipe", href: "/cookbook", icon: "book-open", bg: "bg-accent-red text-white" },
   { label: "Pitch an idea", href: "/ideas", icon: "lightbulb", bg: "bg-accent-lime" },
   { label: "List something", href: "/marketplace", icon: "store", bg: "bg-accent-magenta text-white" },
+  { label: "Ask a poll", href: "/polls", icon: "chart-bar-big", bg: "bg-accent-indigo text-white" },
+  { label: "Start a reveal", href: "/reveal", icon: "eye", bg: "bg-ink text-white" },
+  { label: "Make a claim", href: "/stakes", icon: "target", bg: "bg-accent-forest text-white" },
+  { label: "Add a wish", href: "/wishlist", icon: "gift", bg: "bg-accent-orange" },
+  { label: "Pin a place", href: "/map", icon: "map-pin", bg: "bg-accent-teal text-white" },
+  { label: "Log a watch", href: "/nowplaying", icon: "tv", bg: "bg-accent-yellow" },
+  { label: "Add a person", href: "/contacts", icon: "contact", bg: "bg-accent-pink" },
+  { label: "Upload a file", href: "/files", icon: "folder", bg: "bg-accent-green" },
+  { label: "Stash a secret", href: "/vault", icon: "lock", bg: "bg-accent-cyan" },
+  { label: "Play snake", href: "/snake", icon: "fish", bg: "bg-accent-grape text-white" },
 ];
 
 export default async function HomePage() {

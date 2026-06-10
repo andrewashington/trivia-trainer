@@ -73,9 +73,6 @@ model User {
   revealSubmissions RevealSubmission[]
   claimsCreated     Claim[]            @relation("claimsCreated")
   claimsAgainst     Claim[]            @relation("claimsAgainst")
-  forfeits          Forfeit[]
-  spinsReceived     ForfeitSpin[]      @relation("spinsReceived")
-  spinsMade         ForfeitSpin[]      @relation("spinsMade")
   petNudges         PetNudge[]
   pollRevealVotes   PollRevealVote[]
   revealUnlockVotes RevealUnlockVote[]
@@ -506,32 +503,6 @@ model Claim {
   counterparty User? @relation("claimsAgainst", fields: [counterpartyId], references: [id], onDelete: SetNull)
 
   @@index([resolvedAt, resolvesAt])
-}
-
-// The group-authored pool of dares. Reusable — spins don't consume.
-model Forfeit {
-  id        String   @id @default(cuid())
-  authorId  String
-  text      String
-  createdAt DateTime @default(now())
-
-  author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  spins  ForfeitSpin[]
-}
-
-model ForfeitSpin {
-  id        String   @id @default(cuid())
-  forfeitId String
-  targetId  String
-  spunById  String
-  reason    String?
-  createdAt DateTime @default(now())
-
-  forfeit Forfeit @relation(fields: [forfeitId], references: [id], onDelete: Cascade)
-  target  User    @relation("spinsReceived", fields: [targetId], references: [id], onDelete: Cascade)
-  spunBy  User    @relation("spinsMade", fields: [spunById], references: [id], onDelete: Cascade)
-
-  @@index([createdAt])
 }
 
 // ============ The Pet: derived state, zero required input ============

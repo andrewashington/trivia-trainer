@@ -37,12 +37,3 @@ export const claimInput = z
 export const resolveInput = z.object({
   outcome: z.enum(["right", "wrong", "void"]),
 });
-
-export const forfeitInput = z.object({
-  text: z.string().trim().min(1, "Write the dare").max(300),
-});
-
-export const spinInput = z.object({
-  targetId: z.string().min(1),
-  reason: z.string().trim().max(300).nullish(),
-});

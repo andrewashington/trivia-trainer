@@ -9,7 +9,6 @@ import { ClaimForm } from "@/modules/stakes/ClaimForm";
 import { HeroBanner } from "@/components/Hero";
 import { Countdown } from "@/components/Countdown";
 import { ClaimCard, type ClaimView } from "@/modules/stakes/ClaimCard";
-import { Wheel } from "@/modules/stakes/Wheel";
 
 export const metadata = { title: "Stakes" };
 export const dynamic = "force-dynamic";
@@ -23,25 +22,12 @@ export default async function StakesPage({
   if (!user) redirect("/signin");
   const showHistory = searchParams.history === "1";
 
-  const [claims, forfeits, spins, members] = await Promise.all([
+  const [claims, members] = await Promise.all([
     db.claim.findMany({
       orderBy: { createdAt: "desc" },
       include: {
         creator: { select: { id: true, displayName: true, avatarUrl: true } },
         counterparty: { select: { id: true, displayName: true, avatarUrl: true } },
-      },
-    }),
-    db.forfeit.findMany({
-      orderBy: { createdAt: "asc" },
-      include: { author: { select: { displayName: true, avatarUrl: true } } },
-    }),
-    db.forfeitSpin.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      include: {
-        forfeit: { select: { text: true } },
-        target: { select: { displayName: true, avatarUrl: true } },
-        spunBy: { select: { displayName: true, avatarUrl: true } },
       },
     }),
     db.user.findMany({ select: { id: true, displayName: true, avatarUrl: true }, orderBy: { displayName: "asc" } }),
@@ -250,51 +236,7 @@ export default async function StakesPage({
               ))}
             </ul>
           )}
-        
-      <Wheel
-        members={members.map((m) => ({ id: m.id, name: m.displayName }))}
-        forfeitCount={forfeits.length}
-      />
-
-      {(forfeits.length > 0 || spins.length > 0) && (
-        <div className="space-y-3">
-          {forfeits.length > 0 && (
-            <Card>
-              <p className="brutal-label">The pool</p>
-              <ul className="space-y-1">
-                {forfeits.map((f) => (
-                  <li key={f.id} className="text-sm">
-                    <PixelIcon name="skull" size={14} className="-mt-0.5 mr-1 inline" />
-                    {f.text}{" "}
-                    <span className="font-mono text-[10px] uppercase text-ink/40">
-                      — {f.author.displayName}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-          {spins.length > 0 && (
-            <Card>
-              <p className="brutal-label">Spin history</p>
-              <ul className="space-y-1">
-                {spins.map((s) => (
-                  <li key={s.id} className="text-sm">
-                    <strong>{s.target.displayName}</strong> got &ldquo;{s.forfeit.text}&rdquo;
-                    {s.reason && <span className="text-ink/60"> ({s.reason})</span>}
-                    <span className="font-mono text-[10px] uppercase text-ink/40">
-                      {" "}
-                      — spun by {s.spunBy.displayName},{" "}
-                      {s.createdAt.toLocaleDateString()}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-        </div>
-      )}
-            </>
+        </>
       )}
     </div>
   );

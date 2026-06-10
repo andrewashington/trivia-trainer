@@ -44,8 +44,6 @@ export type OutboxEventType =
   | "claim.resolved"
   | "claim.settled"
   | "claim.deleted"
-  | "forfeit.added"
-  | "forfeit.spun"
   | "pet.nudged"
   | "pet.renamed"
   | "arcade.played"

@@ -83,7 +83,6 @@ const DIET_MAP: [string, IconName, string][] = [
   ["poll.", "chart-bar-big", "poll energy"],
   ["reveal.", "eye", "secrets"],
   ["claim.", "target", "hot takes"],
-  ["forfeit.", "skull", "consequences"],
   ["member.", "user", "roster moves"],
 ];
 
