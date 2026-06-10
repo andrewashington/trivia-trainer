@@ -85,6 +85,7 @@ model User {
   tanksWins         TanksGame[]        @relation("tanksWinner")
   tanksTurns        TanksTurn[]
   coinTransactions  CoinTransaction[]
+  gameChatMessages  GameChatMessage[]
 }
 
 // ============ Coins: the household currency ============
@@ -149,6 +150,21 @@ model TanksTurn {
   player User      @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([gameId, index])
+}
+
+// Smack talk + crowd chat alongside a game. Generic by design: `channel`
+// scopes a conversation (e.g. "tanks:<gameId>") so other games can reuse
+// the same table and API without new migrations.
+model GameChatMessage {
+  id        String   @id @default(cuid())
+  channel   String // "<game>:<id>", e.g. "tanks:cmq..."
+  userId    String
+  text      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([channel, createdAt])
 }
 
 // A thing the group is counting down to. Past countdowns linger in a

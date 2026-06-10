@@ -24,6 +24,7 @@ import {
   type WeaponKey,
 } from "@/modules/tanks/engine";
 import type { TanksGamePayload } from "@/modules/tanks/server";
+import { GameChat } from "@/modules/gamechat/GameChat";
 
 // Palette — the brutalist tokens from tailwind.config.ts.
 const C = {
@@ -456,6 +457,9 @@ export function TanksGame({ initial, meId }: { initial: TanksGamePayload; meId: 
           )}
         </div>
       )}
+
+      {/* Smack talk / crowd chat */}
+      <GameChat channel={`tanks:${game.id}`} meId={meId} isPlayer={meIdx !== null} />
     </div>
   );
 }
