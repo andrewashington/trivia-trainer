@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 import { confettiBurst, confettiCelebrate } from "@/lib/confetti";
+import { playSfx } from "@/lib/sfx";
 import { Button } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import {
@@ -85,6 +86,8 @@ export function TriviaGame() {
         if (res.correct) {
           setScore(newScore);
           confettiBurst();
+        } else {
+          playSfx("lose");
         }
         if (res.done) {
           setFinal({

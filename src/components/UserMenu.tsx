@@ -5,6 +5,30 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
+import { playSfx, setSfxMuted, sfxMuted } from "@/lib/sfx";
+
+/** Sound-stings mute toggle; the state lives in localStorage (lib/sfx). */
+function SfxMenuItem() {
+  // Read after mount — localStorage doesn't exist during SSR.
+  const [muted, setMuted] = useState(true);
+  useEffect(() => setMuted(sfxMuted()), []);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const next = !muted;
+        setSfxMuted(next);
+        setMuted(next);
+        if (!next) playSfx("blip"); // audible proof it's back on
+      }}
+      className="flex w-full items-center gap-2.5 px-3 py-2 font-mono text-xs font-bold uppercase tracking-wide text-ink hover:bg-paper"
+    >
+      <PixelIcon name="megaphone" size={16} />
+      Sounds: {muted ? "off" : "on"}
+    </button>
+  );
+}
 
 /**
  * The header avatar, made legible: a labeled dropdown with Profile,
@@ -72,6 +96,7 @@ export function UserMenu({
               Admin
             </Link>
           )}
+          <SfxMenuItem />
           <form action={signOutAction} className="border-t-2 border-ink">
             <button
               type="submit"

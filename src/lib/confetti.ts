@@ -4,8 +4,11 @@
  * Shared confetti presets, tinted with the module accent palette
  * (tailwind.config.ts). Client-only: canvas-confetti is loaded lazily so
  * nothing touches the DOM during SSR, and every preset is a no-op when
- * the user prefers reduced motion.
+ * the user prefers reduced motion. Each preset also fires its sound
+ * sting (lib/sfx) — sound has its own mute, separate from motion.
  */
+
+import { playSfx } from "@/lib/sfx";
 
 const ACCENTS = [
   "#2563FF", // blue
@@ -32,12 +35,14 @@ async function fire(opts: object): Promise<void> {
 
 /** Quick centered pop — for one-shot wins (a claim resolved, a listing claimed). */
 export function confettiBurst(): void {
+  playSfx("win");
   if (!canParty()) return;
   void fire({ particleCount: 90, spread: 75, startVelocity: 38, origin: { y: 0.65 } });
 }
 
 /** Side cannons over ~1.5s — the big celebration (records, settled bets, unmasks). */
 export function confettiCelebrate(): void {
+  playSfx("fanfare");
   if (!canParty()) return;
   const end = Date.now() + 1500;
   const volley = () => {
@@ -50,6 +55,7 @@ export function confettiCelebrate(): void {
 
 /** A subtle drift from the top — a wink, not a parade. */
 export function confettiSprinkle(): void {
+  playSfx("blip");
   if (!canParty()) return;
   void fire({
     particleCount: 40,
