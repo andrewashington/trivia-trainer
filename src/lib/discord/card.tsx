@@ -55,7 +55,7 @@ export async function renderCardPng(spec: CardSpec, actorName: string | null): P
           width: W,
           height: H,
           display: "flex",
-          backgroundColor: "#F4F1EA",
+          backgroundColor: style.accent,
           padding: "34px 44px",
           fontFamily: "Space Grotesk",
         }}
