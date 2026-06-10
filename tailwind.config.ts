@@ -113,6 +113,46 @@ const config: Config = {
           "60%": { transform: "scale(0.94) translateY(0)", opacity: "1" },
           "100%": { transform: "scale(1) translateY(0)", opacity: "1" },
         },
+        // ----- The Pet creature: one idle loop per mood -----
+        // Calm rise-and-fall, like breathing (the "okay" mood).
+        breathe: {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.05)" },
+        },
+        // Loose happy sway.
+        sway: {
+          "0%, 100%": { transform: "rotate(-3deg)" },
+          "50%": { transform: "rotate(3deg)" },
+        },
+        // Slow sleepy bob.
+        snooze: {
+          "0%, 100%": { transform: "translateY(0) rotate(-1deg)" },
+          "50%": { transform: "translateY(-2px) rotate(1deg)" },
+        },
+        // Periodic eye blink (scaleY squash, step-held open most of the cycle).
+        blink: {
+          "0%, 90%, 100%": { transform: "scaleY(1)" },
+          "95%": { transform: "scaleY(0.08)" },
+        },
+        // Pat reaction: squash-and-stretch pop.
+        squish: {
+          "0%": { transform: "scale(1)" },
+          "25%": { transform: "scale(1.18, 0.82)" },
+          "55%": { transform: "scale(0.92, 1.1)" },
+          "100%": { transform: "scale(1)" },
+        },
+        // Hearts/sparkles puffing up off the pet when patted.
+        "pat-burst": {
+          "0%": { transform: "translateY(0) scale(0.5)", opacity: "0" },
+          "25%": { opacity: "1" },
+          "100%": { transform: "translateY(-46px) scale(1.1)", opacity: "0" },
+        },
+        // Floating "Z" over a sleeping pet.
+        zfloat: {
+          "0%": { transform: "translateY(0) scale(0.7)", opacity: "0" },
+          "30%": { opacity: "1" },
+          "100%": { transform: "translateY(-18px) scale(1.1)", opacity: "0" },
+        },
       },
       animation: {
         "pop-in": "pop-in 150ms ease-out both",
@@ -128,6 +168,13 @@ const config: Config = {
         sparkle: "sparkle 1.3s ease-in-out infinite",
         sheen: "sheen 2.8s ease-in-out infinite",
         "drop-in": "drop-in 520ms cubic-bezier(0.2, 1.5, 0.4, 1) both",
+        breathe: "breathe 2.8s ease-in-out infinite",
+        sway: "sway 3.4s ease-in-out infinite",
+        snooze: "snooze 3s ease-in-out infinite",
+        blink: "blink 4.5s step-end infinite",
+        squish: "squish 560ms cubic-bezier(0.3, 1.6, 0.5, 1) both",
+        "pat-burst": "pat-burst 800ms ease-out forwards",
+        zfloat: "zfloat 2.8s ease-in-out infinite",
       },
     },
   },

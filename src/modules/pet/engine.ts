@@ -22,7 +22,32 @@ export type PetView = {
   diet: { icon: IconName; label: string; count: number }[];
   nudgesToday: number;
   canNudge: boolean;
+  /**
+   * Evolution stage 0–3, DERIVED from the group's lifetime activity —
+   * the pet visibly grows (antenna → crown → sparkle aura) as the group
+   * lives in the app. Like everything else here, nothing is stored.
+   */
+  stage: number;
+  /** Lifetime pats crossed the "well-loved" line → the pet earns shades. */
+  beloved: boolean;
+  /** Wall-clock flavor for the habitat behind the pet. */
+  partOfDay: "day" | "night";
 };
+
+/** Loud, number-free read of the mood — we never expose the raw score. */
+export const MOOD_LABEL: Record<PetMood, string> = {
+  thriving: "buzzing",
+  happy: "lively",
+  okay: "mellow",
+  sleepy: "drowsy",
+  sad: "lonely",
+};
+
+/** Playful name for each evolution stage (shown instead of a level number). */
+export const STAGE_TITLE = ["sprout", "critter", "regal", "mythic"] as const;
+
+// Lifetime thresholds for the four evolution stages.
+const STAGE_CUTOFFS = [500, 200, 50, 0];
 
 const MOOD_THRESHOLDS: [number, PetMood][] = [
   [20, "thriving"],
@@ -68,16 +93,20 @@ export async function getPetView(viewerId: string): Promise<PetView> {
   const d7 = new Date(now - 7 * 86_400_000);
   const todayStart = new Date(now - 86_400_000);
 
-  const [state, events, nudges3d, myNudgeToday, nudgesToday] = await Promise.all([
-    db.petState.upsert({ where: { id: 1 }, create: {}, update: {} }),
-    db.outboxEvent.findMany({
-      where: { createdAt: { gte: d7 }, NOT: { type: { startsWith: "pet." } } },
-      select: { type: true, createdAt: true },
-    }),
-    db.petNudge.count({ where: { createdAt: { gte: d3 } } }),
-    db.petNudge.count({ where: { userId: viewerId, createdAt: { gte: todayStart } } }),
-    db.petNudge.count({ where: { createdAt: { gte: todayStart } } }),
-  ]);
+  const [state, events, nudges3d, myNudgeToday, nudgesToday, lifeEvents, lifePats] =
+    await Promise.all([
+      db.petState.upsert({ where: { id: 1 }, create: {}, update: {} }),
+      db.outboxEvent.findMany({
+        where: { createdAt: { gte: d7 }, NOT: { type: { startsWith: "pet." } } },
+        select: { type: true, createdAt: true },
+      }),
+      db.petNudge.count({ where: { createdAt: { gte: d3 } } }),
+      db.petNudge.count({ where: { userId: viewerId, createdAt: { gte: todayStart } } }),
+      db.petNudge.count({ where: { createdAt: { gte: todayStart } } }),
+      // Lifetime totals power the (derived) evolution — group activity ever.
+      db.outboxEvent.count({ where: { NOT: { type: { startsWith: "pet." } } } }),
+      db.petNudge.count(),
+    ]);
 
   const recent = events.filter((e) => e.createdAt >= d3).length;
   const older = events.length - recent;
@@ -95,6 +124,10 @@ export async function getPetView(viewerId: string): Promise<PetView> {
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
 
+  const stage = STAGE_CUTOFFS.length - 1 - STAGE_CUTOFFS.findIndex((c) => lifeEvents >= c);
+  const hour = new Date().getHours();
+  const partOfDay: "day" | "night" = hour < 6 || hour >= 20 ? "night" : "day";
+
   return {
     name: state.name,
     mood,
@@ -102,5 +135,8 @@ export async function getPetView(viewerId: string): Promise<PetView> {
     diet,
     nudgesToday,
     canNudge: myNudgeToday === 0,
+    stage,
+    beloved: lifePats >= 50,
+    partOfDay,
   };
 }

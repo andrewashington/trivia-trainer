@@ -50,6 +50,12 @@
   .tilt-r {
     transform: rotate(1deg);
   }
+
+  /* Let SVG sub-groups transform around their own box (eye blink, etc.). */
+  .fill-box {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
 }
 
 /* Respect reduced-motion: keep the look, drop the perpetual movement. */

@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/session";
-import { Badge, Card, PageHeader } from "@/components/ui";
+import { Card, PageHeader } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { getPetView, MOOD_META } from "@/modules/pet/engine";
-import { PetActions } from "@/modules/pet/PetActions";
+import { PetStage } from "@/modules/pet/PetStage";
 
 export const metadata = { title: "The Pet" };
 export const dynamic = "force-dynamic";
@@ -19,22 +19,16 @@ export default async function PetPage() {
     <div className="mx-auto max-w-md space-y-6">
       <PageHeader title="The Pet" icon="robot-face-happy" accentBg="bg-accent-sky" />
 
-      {/* The creature itself */}
-      <div className={`brutal-card flex flex-col items-center gap-3 p-8 ${meta.bg}`}>
-        <div
-          className={`flex h-32 w-32 items-center justify-center border-3 border-ink bg-card shadow-brutal-lg ${
-            pet.mood === "thriving" || pet.mood === "happy" ? "animate-wiggle" : ""
-          } ${pet.mood === "sleepy" || pet.mood === "sad" ? "tilt-r opacity-90" : "tilt-l"}`}
-        >
-          <PixelIcon name={meta.face} size={88} />
-        </div>
-        <p className="text-center font-display text-xl font-bold">
-          {pet.name} {meta.line}
-        </p>
-        <Badge className="bg-card">vibe score: {pet.score}</Badge>
-      </div>
-
-      <PetActions name={pet.name} canNudge={pet.canNudge} />
+      <PetStage
+        name={pet.name}
+        mood={pet.mood}
+        moodLine={meta.line}
+        moodBg={meta.bg}
+        canNudge={pet.canNudge}
+        stage={pet.stage}
+        beloved={pet.beloved}
+        partOfDay={pet.partOfDay}
+      />
 
       <Card>
         <p className="brutal-label">This week&apos;s diet</p>
@@ -44,15 +38,19 @@ export default async function PetPage() {
             RSVP to something, call a shot — it all counts.
           </p>
         ) : (
-          <ul className="space-y-1">
+          <div className="flex flex-wrap gap-2">
             {pet.diet.map((d) => (
-              <li key={d.label} className="flex items-center gap-2 text-sm">
-                <PixelIcon name={d.icon} size={15} className="text-ink/70" />
-                <span className="font-bold">{d.count}</span>
-                <span className="text-ink/60">{d.label}</span>
-              </li>
+              <span
+                key={d.label}
+                title={`${d.count} ${d.label}`}
+                className="inline-flex items-center gap-1.5 border-3 border-ink bg-paper px-2 py-1 shadow-brutal-sm"
+              >
+                <PixelIcon name={d.icon} size={16} className="text-ink/80" />
+                <span className="font-mono text-xs font-bold">{d.count}</span>
+                <span className="text-xs text-ink/60">{d.label}</span>
+              </span>
             ))}
-          </ul>
+          </div>
         )}
         {pet.nudgesToday > 0 && (
           <p className="mt-2 font-mono text-[10px] uppercase text-ink/40">

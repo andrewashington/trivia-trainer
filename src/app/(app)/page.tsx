@@ -6,6 +6,7 @@ import { modules } from "@/modules/registry";
 import { Card } from "@/components/ui";
 import { PixelIcon, type IconName } from "@/components/icons";
 import { getPetView, MOOD_META } from "@/modules/pet/engine";
+import { Creature } from "@/modules/pet/Creature";
 
 export const dynamic = "force-dynamic";
 
@@ -87,12 +88,8 @@ export default async function HomePage() {
           <div
             className={`brutal-card flex items-center gap-4 p-4 transition-transform hover:-translate-y-1 ${MOOD_META[pet.mood].bg}`}
           >
-            <span
-              className={`flex h-14 w-14 shrink-0 items-center justify-center border-3 border-ink bg-card shadow-brutal ${
-                pet.mood === "thriving" || pet.mood === "happy" ? "animate-wiggle" : ""
-              }`}
-            >
-              <PixelIcon name={MOOD_META[pet.mood].face} size={36} />
+            <span className="shrink-0">
+              <Creature mood={pet.mood} size={56} stage={pet.stage} beloved={pet.beloved} />
             </span>
             <div>
               <p className="font-display font-bold leading-tight">
