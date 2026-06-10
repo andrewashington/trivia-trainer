@@ -93,6 +93,8 @@ model User {
   challenges        Challenge[]
   challengeEntries  ChallengeEntry[]
   challengeVotes    ChallengeVote[]
+  tierLists         TierList[]
+  tierPlacements    TierPlacement[]
 }
 
 // ============ Blackjack: casino hands wagering coins ============
@@ -117,6 +119,51 @@ model BlackjackHand {
 
   @@index([userId, status])
   @@index([userId, createdAt])
+}
+
+// --- Tiermaker: group tier lists ---
+// One list, shared items, per-user placements. Consensus is computed
+// live (S=0..F=5, averaged) — never stored.
+
+model TierList {
+  id          String   @id @default(cuid())
+  creatorId   String
+  title       String
+  description String?
+  createdAt   DateTime @default(now())
+
+  creator    User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  items      TierItem[]
+  placements TierPlacement[]
+}
+
+model TierItem {
+  id       String @id @default(cuid())
+  listId   String
+  label    String
+  position Int    @default(0)
+
+  list       TierList        @relation(fields: [listId], references: [id], onDelete: Cascade)
+  placements TierPlacement[]
+
+  @@index([listId])
+}
+
+model TierPlacement {
+  id        String   @id @default(cuid())
+  listId    String
+  itemId    String
+  userId    String
+  tier      String // "S" | "A" | "B" | "C" | "D" | "F"
+  position  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  list TierList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  item TierItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, userId])
+  @@index([listId, userId])
 }
 
 // --- How Gay?: one deterministic reading per user per day ---

@@ -37,6 +37,7 @@ const config: Config = {
           coral: "#FF7F50", // photobook
           felt: "#177245", // blackjack
           rust: "#C1440E", // challenges
+          crimson: "#D7263D", // tiers
 
         },
       },

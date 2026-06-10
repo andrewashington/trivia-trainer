@@ -59,7 +59,10 @@ export type OutboxEventType =
   | "arcade.blackjack.won"
   | "challenge.created"
   | "challenge.entry.submitted"
-  | "challenge.won";
+  | "challenge.won"
+  | "tierlist.created"
+  | "tierlist.ranked"
+  | "tierlist.deleted";
 
 /**
  * Write a domain event (and apply any coin award it earns) on an open

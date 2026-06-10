@@ -411,6 +411,21 @@ export const modules: ModuleDef[] = [
       "The shoe is shuffled server-side — no peeking, no counting",
     ],
   },
+  {
+    key: "tiers",
+    label: "Tiers",
+    icon: "crown",
+    category: "forum",
+    navOrder: 20,
+    href: "/tiers",
+    accentBg: "bg-accent-crimson",
+    intro: "We deserve to make lists. Rank anything S through F — then see what the group really thinks.",
+    tips: [
+      "Make a list: a title plus the things to rank",
+      "Drag (or tap) items into S–F tiers, then save your board",
+      "Check the consensus tab once a few people have ranked",
+    ],
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {
