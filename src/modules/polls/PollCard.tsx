@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
+import { confettiBurst } from "@/lib/confetti";
 import { Avatar, Badge, Button } from "@/components/ui";
 import { StampOverlay, useActionStamp } from "@/components/ActionFx";
 import type { PollResults } from "@/modules/polls/results";
@@ -52,6 +53,8 @@ export function PollCard({ poll }: { poll: PollResults }) {
     try {
       await api(`/api/polls/${poll.id}/reveal`, { method: "PUT" });
       fire(poll.iVotedReveal ? "VOTE WITHDRAWN" : "REVEAL VOTE ✓", poll.iVotedReveal ? "ink" : "yellow");
+      // My ballot tipped the threshold — the results unmask right now.
+      if (!poll.iVotedReveal && poll.revealVoteCount + 1 >= (poll.revealThreshold ?? Infinity)) confettiBurst();
     } catch (err) {
       alert(err instanceof Error ? err.message : "That didn't work.");
     } finally {
@@ -64,6 +67,7 @@ export function PollCard({ poll }: { poll: PollResults }) {
     try {
       await api(`/api/polls/${poll.id}`, { method: "PATCH", body: { closed } });
       fire(closed ? "CLOSED" : "REOPENED", closed ? "ink" : "green", { leave: true });
+      if (closed && !poll.resultsHidden) confettiBurst();
     } catch (err) {
       alert(err instanceof Error ? err.message : "That didn't work.");
     } finally {

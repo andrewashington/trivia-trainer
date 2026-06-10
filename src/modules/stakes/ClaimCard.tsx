@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/client";
+import { confettiBurst, confettiCelebrate } from "@/lib/confetti";
 import { Avatar, Badge } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { StampOverlay, useActionStamp, type StampTone } from "@/components/ActionFx";
@@ -57,14 +58,17 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
   } as const;
   const resolve = (outcome: "right" | "wrong" | "void") =>
     act(
-      () => api(`/api/stakes/claims/${claim.id}`, { method: "PATCH", body: { outcome } }),
+      () =>
+        api(`/api/stakes/claims/${claim.id}`, { method: "PATCH", body: { outcome } }).then(
+          () => outcome !== "void" && confettiBurst()
+        ),
       RESOLVE_STAMPS[outcome][0],
       RESOLVE_STAMPS[outcome][1],
       true
     );
   const settle = () =>
     act(
-      () => api(`/api/stakes/claims/${claim.id}/settle`, { method: "POST" }),
+      () => api(`/api/stakes/claims/${claim.id}/settle`, { method: "POST" }).then(confettiCelebrate),
       "SETTLED ✓",
       "green",
       false

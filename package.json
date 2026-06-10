@@ -26,6 +26,8 @@
     "@aws-sdk/client-s3": "^3.665.0",
     "@aws-sdk/s3-request-presigner": "^3.665.0",
     "@prisma/client": "^5.20.0",
+    "@types/canvas-confetti": "^1.9.0",
+    "canvas-confetti": "^1.9.4",
     "ics": "^3.8.1",
     "leaflet": "^1.9.4",
     "next": "^14.2.35",

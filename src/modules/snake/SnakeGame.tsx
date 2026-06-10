@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
+import { confettiCelebrate } from "@/lib/confetti";
 import { Button } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import {
@@ -188,6 +189,7 @@ export function SnakeGame() {
         }
       );
       setResult({ isHighScore: res.isHighScore, isPersonalBest: res.isPersonalBest });
+      if (res.isHighScore || res.isPersonalBest) confettiCelebrate();
       router.refresh();
     } catch {
       // Score submission is best-effort; the run still counts on screen.

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/client";
+import { confettiBurst } from "@/lib/confetti";
 import { Avatar, Badge } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { StampOverlay, useActionStamp, type StampTone } from "@/components/ActionFx";
@@ -49,7 +50,7 @@ export function ListingCard({ listing }: { listing: ListingView }) {
   }
 
   const claim = () =>
-    act(() => api(`/api/marketplace/${listing.id}/claim`, { method: "POST" }), "CLAIMED ✓", "yellow");
+    act(() => api(`/api/marketplace/${listing.id}/claim`, { method: "POST" }).then(confettiBurst), "CLAIMED ✓", "yellow");
   const unclaim = () =>
     act(() => api(`/api/marketplace/${listing.id}/claim`, { method: "DELETE" }), "UNCLAIMED", "ink");
   const markGone = () =>

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
+import { confettiCelebrate } from "@/lib/confetti";
 import { Avatar, Badge, Button } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { StampOverlay, useActionStamp } from "@/components/ActionFx";
@@ -56,6 +57,8 @@ export function PromptCard({ prompt, members }: { prompt: PromptView; members: M
         body: { order: ranked },
       });
       fire("LOCKED IN ✓", "green");
+      // Mine was the last ballot in — everything unmasks right now.
+      if (prompt.submittedCount + 1 >= prompt.memberCount) confettiCelebrate();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Couldn't lock that in.");
     } finally {
