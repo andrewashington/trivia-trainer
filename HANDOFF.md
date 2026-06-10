@@ -73,9 +73,12 @@ resolve an item in the Admin page and re-run to clear its card.
    `S3_REGION=auto`, `S3_FORCE_PATH_STYLE=false`, plus the bucket's
    access key / secret. **Bucket CORS is required** for the browser's
    direct presigned PUT — a policy allowing `PUT/GET/HEAD` from the live
-   origin was applied via the S3 API (`PutBucketCors`). If uploads ever
-   start failing with a CORS/preflight error (e.g. after changing the
-   domain), re-apply CORS for the new origin. Credentials come from the
+   origin(s). **If uploads start failing with a CORS/preflight error after
+   the app URL/domain changes, re-apply CORS:** edit the origins in
+   `scripts/set-bucket-cors.ts` and run `railway run npx tsx
+   scripts/set-bucket-cors.ts` (uses the prod S3_* creds). Currently
+   allows `https://udm-plus.up.railway.app` + the
+   `deliciouscommunications.com` apex/www. Credentials come from the
    Railway API (`bucketS3Credentials` query) or the bucket's Connect tab,
    not the repo.
 2. **Add the friends.** Sign in as admin → avatar menu → **Admin** → add
