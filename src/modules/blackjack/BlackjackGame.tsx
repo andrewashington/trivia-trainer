@@ -115,6 +115,8 @@ export function BlackjackGame() {
   const [shown, setShown] = useState<Shown | null>(null);
   const [bet, setBet] = useState(10);
   const [busy, setBusy] = useState(false);
+  // After a hand settles, hold on the result until "Play again" is clicked.
+  const [acked, setAcked] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Bumped on every new animation so a stale async timeline aborts itself.
   const animToken = useRef(0);
@@ -216,6 +218,7 @@ export function BlackjackGame() {
         await sleep(600);
       }
       if (!live()) return;
+      setAcked(false);
       paint(false, true);
     },
     []
@@ -357,6 +360,13 @@ export function BlackjackGame() {
             )}
             <span className="ml-auto self-center font-mono text-xs text-ink/50">
               bet {hand!.bet}
+            </span>
+          </div>
+        ) : showBanner && !acked ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={() => setAcked(true)}>Play again</Button>
+            <span className="ml-auto font-mono text-xs text-ink/50">
+              balance {table.coins}
             </span>
           </div>
         ) : (
