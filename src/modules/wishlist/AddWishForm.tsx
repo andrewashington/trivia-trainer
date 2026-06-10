@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input } from "@/components/ui";
+import { useCloseModuleForm } from "@/components/ModuleHeader";
 import { PixelIcon } from "@/components/icons";
 
 export function AddWishForm() {
   const router = useRouter();
+  const closeForm = useCloseModuleForm();
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
@@ -63,6 +65,7 @@ export function AddWishForm() {
       setImageUrl(null);
       setSiteName(null);
       router.refresh();
+      closeForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't add that.");
     } finally {

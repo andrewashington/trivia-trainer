@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Input } from "@/components/ui";
+import { useCloseModuleForm } from "@/components/ModuleHeader";
 import { PixelIcon, type IconName } from "@/components/icons";
 
 const TYPES = [
@@ -17,6 +18,7 @@ type TmdbMeta = { tmdbId: number; posterPath: string | null; releaseYear: number
 
 export function AddItemForm() {
   const router = useRouter();
+  const closeForm = useCloseModuleForm();
   const [mediaType, setMediaType] = useState<"show" | "movie" | "book">("show");
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
@@ -85,6 +87,7 @@ export function AddItemForm() {
       setNote("");
       setMeta(null);
       router.refresh();
+      closeForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't add that.");
     } finally {

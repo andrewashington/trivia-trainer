@@ -4,9 +4,11 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { api } from "@/lib/client";
 import { Button } from "@/components/ui";
+import { useCloseModuleForm } from "@/components/ModuleHeader";
 
 export function UploadForm({ maxMb }: { maxMb: number }) {
   const router = useRouter();
+  const closeForm = useCloseModuleForm();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +32,7 @@ export function UploadForm({ maxMb }: { maxMb: number }) {
       if (!put.ok) throw new Error("Upload to storage failed.");
       if (inputRef.current) inputRef.current.value = "";
       router.refresh();
+      closeForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {

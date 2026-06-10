@@ -14,6 +14,20 @@ export function useCloseModuleForm() {
 }
 
 /**
+ * Exposes the same close-form context to other modal hosts (the global
+ * command launcher), so create forms work unmodified in either modal.
+ */
+export function CloseFormProvider({
+  onClose,
+  children,
+}: {
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return <CloseFormContext.Provider value={onClose}>{children}</CloseFormContext.Provider>;
+}
+
+/**
  * Module page header. The create form (children) opens in a modal so
  * the contribution gets room to breathe instead of squeezing between
  * the header and the feed.

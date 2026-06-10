@@ -10,6 +10,7 @@ import { ModuleIntro } from "@/components/ModuleIntro";
 import { OnboardingWizard } from "@/components/OnboardingWizard";
 import { SeenTracker } from "@/components/SeenTracker";
 import { UserMenu } from "@/components/UserMenu";
+import { CommandButton } from "@/components/command/CommandButton";
 import { FeedbackButton } from "@/components/FeedbackButton";
 
 export default async function AppLayout({
@@ -42,12 +43,15 @@ export default async function AppLayout({
           <Link href="/" className="no-underline md:hidden">
             <Logo size="md" />
           </Link>
-          <UserMenu
-            name={user.displayName}
-            avatarUrl={user.avatarUrl}
-            isAdmin={isAdmin}
-            signOutAction={doSignOut}
-          />
+          <div className="flex items-center gap-2 md:gap-3">
+            <CommandButton />
+            <UserMenu
+              name={user.displayName}
+              avatarUrl={user.avatarUrl}
+              isAdmin={isAdmin}
+              signOutAction={doSignOut}
+            />
+          </div>
         </header>
 
         <main className="flex-1">

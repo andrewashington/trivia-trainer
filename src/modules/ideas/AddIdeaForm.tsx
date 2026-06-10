@@ -4,9 +4,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Input, Textarea } from "@/components/ui";
+import { useCloseModuleForm } from "@/components/ModuleHeader";
 
 export function AddIdeaForm() {
   const router = useRouter();
+  const closeForm = useCloseModuleForm();
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
   const [expanded, setExpanded] = useState(false);
@@ -26,6 +28,7 @@ export function AddIdeaForm() {
       setDetail("");
       setExpanded(false);
       router.refresh();
+      closeForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't post that.");
     } finally {

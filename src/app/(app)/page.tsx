@@ -6,7 +6,7 @@ import { modules } from "@/modules/registry";
 import { Avatar } from "@/components/ui";
 import { Countdown } from "@/components/Countdown";
 import { PixelIcon } from "@/components/icons";
-import { DoSomethingMenu, type QuickAction } from "@/components/DoSomethingMenu";
+import { OpenLauncherButton } from "@/components/command/OpenLauncherButton";
 import { getPetView, MOOD_META, MOOD_LABEL } from "@/modules/pet/engine";
 import { Creature } from "@/modules/pet/Creature";
 
@@ -54,25 +54,6 @@ function dayGroup(d: Date): string {
   if (diff < 7) return "This week";
   return "Earlier";
 }
-
-// Every create-action in the app, served from the "+ Do something" launcher.
-const QUICK_ACTIONS: QuickAction[] = [
-  { label: "Plan an event", href: "/events", icon: "calendar", bg: "bg-accent-blue text-white" },
-  { label: "Add a recipe", href: "/cookbook", icon: "book-open", bg: "bg-accent-red text-white" },
-  { label: "Pitch an idea", href: "/ideas", icon: "lightbulb", bg: "bg-accent-lime" },
-  { label: "List something", href: "/marketplace", icon: "store", bg: "bg-accent-magenta text-white" },
-  { label: "Ask a poll", href: "/polls", icon: "chart-bar-big", bg: "bg-accent-indigo text-white" },
-  { label: "Start a reveal", href: "/reveal", icon: "eye", bg: "bg-ink text-white" },
-  { label: "Make a claim", href: "/stakes", icon: "target", bg: "bg-accent-forest text-white" },
-  { label: "Add a wish", href: "/wishlist", icon: "gift", bg: "bg-accent-orange" },
-  { label: "Pin a place", href: "/map", icon: "map-pin", bg: "bg-accent-teal text-white" },
-  { label: "Log a watch", href: "/nowplaying", icon: "tv", bg: "bg-accent-yellow" },
-  { label: "Add a person", href: "/contacts", icon: "contact", bg: "bg-accent-pink" },
-  { label: "Upload a file", href: "/files", icon: "folder", bg: "bg-accent-green" },
-  { label: "Stash a secret", href: "/vault", icon: "lock", bg: "bg-accent-cyan" },
-  { label: "Start a countdown", href: "/countdowns", icon: "clock", bg: "bg-accent-punch text-white" },
-  { label: "Play snake", href: "/snake", icon: "fish", bg: "bg-accent-grape text-white" },
-];
 
 type NeedsYouItem = {
   key: string;
@@ -219,7 +200,7 @@ export default async function HomePage() {
             The group home base
           </p>
         </div>
-        <DoSomethingMenu actions={QUICK_ACTIONS} />
+        <OpenLauncherButton />
       </div>
 
       {/* Needs you: only rendered when something is actually waiting. */}
