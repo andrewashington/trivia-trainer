@@ -36,6 +36,8 @@ export function PetStage({
   const [patted, setPatted] = useState(false);
   const [reactKey, setReactKey] = useState(0);
   const [bursts, setBursts] = useState<Burst[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
   const burstId = useRef(0);
 
   function celebrate() {
@@ -70,11 +72,24 @@ export function PetStage({
     try {
       await api("/api/pet", { method: "PATCH", body: { name: newName } });
       setRenaming(false);
+      setSuggestions([]);
       router.refresh();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Rename failed.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function suggest() {
+    setSuggesting(true);
+    try {
+      const { names } = await api<{ names: string[] }>("/api/pet/names");
+      setSuggestions(names);
+    } catch {
+      // suggestions are sugar — fail quietly
+    } finally {
+      setSuggesting(false);
     }
   }
 
@@ -143,15 +158,49 @@ export function PetStage({
 
       {/* actions */}
       {renaming ? (
-        <form onSubmit={rename} className="flex gap-2">
-          <Input value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={40} required />
-          <Button type="submit" disabled={busy} className="shrink-0">
-            {busy ? "…" : "Name it"}
-          </Button>
-          <Button type="button" variant="ghost" onClick={() => setRenaming(false)} className="shrink-0">
-            ✕
-          </Button>
-        </form>
+        <div className="space-y-2">
+          <form onSubmit={rename} className="flex gap-2">
+            <Input value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={40} required />
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={suggest}
+              disabled={suggesting}
+              className="shrink-0"
+              title="Suggest a name"
+            >
+              <PixelIcon name={suggesting ? "loader" : "sparkles"} size={16} />
+            </Button>
+            <Button type="submit" disabled={busy} className="shrink-0">
+              {busy ? "…" : "Name it"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setRenaming(false);
+                setSuggestions([]);
+              }}
+              className="shrink-0"
+            >
+              ✕
+            </Button>
+          </form>
+          {suggestions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setNewName(s)}
+                  className="border-2 border-ink bg-card px-2 py-1 font-mono text-xs uppercase shadow-brutal-sm transition-transform hover:-translate-y-0.5 active:translate-y-0"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       ) : (
         <div className="flex gap-2">
           <Button variant="yellow" onClick={pat} disabled={busy || !canNudge || patted} className="flex-1">
