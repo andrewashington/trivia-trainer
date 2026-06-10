@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { confettiBurst } from "@/lib/confetti";
@@ -16,9 +17,11 @@ export type ListingView = {
   delivery: string;
   imageUrl: string | null;
   status: "available" | "claimed" | "gone";
+  sellerId: string;
   sellerName: string;
   sellerAvatarUrl: string | null;
   sellerVenmo: string | null;
+  claimedById: string | null;
   claimedByName: string | null;
   claimedByAvatarUrl: string | null;
   isMine: boolean;
@@ -111,8 +114,13 @@ export function ListingCard({ listing }: { listing: ListingView }) {
           {listing.status === "claimed" && (
             <Badge className="inline-flex items-center gap-1.5 bg-accent-yellow">
               <PixelIcon name="hand" size={13} /> Claimed by{" "}
-              <Avatar name={listing.claimedByName ?? ""} src={listing.claimedByAvatarUrl} size="sm" />{" "}
-              {listing.myClaim ? "you" : listing.claimedByName}
+              <Link
+                href={`/people/${listing.claimedById}`}
+                className="inline-flex items-center gap-1.5 text-ink no-underline hover:text-accent-blue"
+              >
+                <Avatar name={listing.claimedByName ?? ""} src={listing.claimedByAvatarUrl} size="sm" />{" "}
+                {listing.myClaim ? "you" : listing.claimedByName}
+              </Link>
             </Badge>
           )}
           {gone && <Badge className="bg-ink text-white">GONE</Badge>}
@@ -123,8 +131,13 @@ export function ListingCard({ listing }: { listing: ListingView }) {
         )}
 
         <p className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase text-ink/40">
-          <Avatar name={listing.sellerName} src={listing.sellerAvatarUrl} size="sm" />
-          {listing.sellerName}
+          <Link
+            href={`/people/${listing.sellerId}`}
+            className="inline-flex items-center gap-1.5 text-ink/40 no-underline hover:text-accent-blue"
+          >
+            <Avatar name={listing.sellerName} src={listing.sellerAvatarUrl} size="sm" />
+            {listing.sellerName}
+          </Link>
           {listing.sellerVenmo && (
             <>
               {" · "}

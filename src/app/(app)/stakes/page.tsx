@@ -49,8 +49,10 @@ export default async function StakesPage({
       text: c.hidden && c.outcome === null && c.creatorId !== user.id ? null : c.text,
       resolvesAt: c.resolvesAt.toISOString(),
       hidden: c.hidden,
+      creatorId: c.creator.id,
       creatorName: c.creator.displayName,
       creatorAvatarUrl: c.creator.avatarUrl,
+      counterpartyId: c.counterparty?.id ?? null,
       counterpartyName: c.counterparty?.displayName ?? null,
       counterpartyAvatarUrl: c.counterparty?.avatarUrl ?? null,
       stake: c.stake,
@@ -82,7 +84,7 @@ export default async function StakesPage({
     .map((m) => {
       const mine = resolved.filter((c) => c.creatorId === m.id && c.outcome !== "void");
       const right = mine.filter((c) => c.outcome === "right").length;
-      return { name: m.displayName, avatarUrl: m.avatarUrl, right, total: mine.length };
+      return { id: m.id, name: m.displayName, avatarUrl: m.avatarUrl, right, total: mine.length };
     })
     .filter((s) => s.total > 0)
     .sort((a, b) => b.right - a.right || b.right / b.total - a.right / a.total);
@@ -217,8 +219,13 @@ export default async function StakesPage({
                     <span className="font-display font-bold">
                       {i === 0 ? <PixelIcon name="crown" size={16} className="-mt-0.5 inline" /> : `${i + 1}.`}
                     </span>
-                    <Avatar name={s.name} src={s.avatarUrl} size="sm" />
-                    <span className="font-bold">{s.name}</span>
+                    <Link
+                      href={`/people/${s.id}`}
+                      className="inline-flex items-center gap-2 text-ink no-underline hover:text-accent-blue"
+                    >
+                      <Avatar name={s.name} src={s.avatarUrl} size="sm" />
+                      <span className="font-bold">{s.name}</span>
+                    </Link>
                     <Badge className="ml-auto bg-paper">
                       {s.right}/{s.total} · {Math.round((s.right / s.total) * 100)}%
                     </Badge>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
@@ -310,10 +311,17 @@ export function TanksGame({ initial, meId }: { initial: TanksGamePayload; meId: 
                 active ? (i === 0 ? "bg-accent-blue/15" : "bg-accent-red/15") : ""
               }`}
             >
-              <Avatar name={p.displayName} src={p.avatarUrl} size="sm" />
+              <Link href={`/people/${p.id}`} className="shrink-0 no-underline">
+                <Avatar name={p.displayName} src={p.avatarUrl} size="sm" />
+              </Link>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-display text-sm font-bold leading-tight">
-                  {p.displayName}
+                  <Link
+                    href={`/people/${p.id}`}
+                    className="text-ink no-underline hover:text-accent-blue"
+                  >
+                    {p.displayName}
+                  </Link>
                   {p.id === meId && <span className="text-ink/40"> (you)</span>}
                 </p>
                 <div className="mt-1 h-2 w-full border-2 border-ink bg-paper">

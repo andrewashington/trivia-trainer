@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
@@ -12,6 +13,7 @@ export type VaultEntryView = {
   siteUrl: string | null;
   username: string;
   notes: string | null;
+  creatorId: string;
   creatorName: string;
   creatorAvatarUrl: string | null;
   canDelete: boolean;
@@ -214,8 +216,13 @@ export function VaultEntryRow({ entry }: { entry: VaultEntryView }) {
 
       {entry.notes && <p className="mt-2 text-sm italic text-ink/60">{entry.notes}</p>}
       <p className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase text-ink/40">
-        added by <Avatar name={entry.creatorName} src={entry.creatorAvatarUrl} size="sm" />{" "}
-        {entry.creatorName}
+        added by{" "}
+        <Link
+          href={`/people/${entry.creatorId}`}
+          className="inline-flex items-center gap-1.5 text-ink/40 no-underline hover:text-accent-blue"
+        >
+          <Avatar name={entry.creatorName} src={entry.creatorAvatarUrl} size="sm" /> {entry.creatorName}
+        </Link>
       </p>
     </li>
   );

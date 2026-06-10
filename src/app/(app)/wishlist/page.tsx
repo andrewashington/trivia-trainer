@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
-import { Avatar, Badge, Card, EmptyState } from "@/components/ui";
+import { Badge, Card, EmptyState, UserLink } from "@/components/ui";
 import { HeroBanner, HeroCta } from "@/components/Hero";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { AddWishForm } from "@/modules/wishlist/AddWishForm";
@@ -87,10 +87,12 @@ export default async function WishlistPage() {
             <div key={userId} id={`wish-${userId}`} className="scroll-mt-24">
             <Card className={userId === user.id ? "tilt-l" : ""}>
               <div className="flex items-center gap-2 border-b-2 border-ink pb-2">
-                <Avatar name={group.name} src={group.avatarUrl} size="sm" />
-                <span className="font-display font-bold">
-                  {userId === user.id ? "You" : group.name}
-                </span>
+                <UserLink
+                  userId={userId}
+                  name={group.name}
+                  avatarUrl={group.avatarUrl}
+                  label={userId === user.id ? "You" : group.name}
+                />
                 <Badge className="bg-paper ml-auto">{group.items.length}</Badge>
               </div>
               <ul className="mt-3 space-y-3">

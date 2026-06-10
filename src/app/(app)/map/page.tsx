@@ -28,6 +28,7 @@ export default async function MapPage() {
           lng: p.lng,
           address: p.address,
           note: p.note,
+          creatorId: p.creator.id,
           creatorName: p.creator.displayName,
           creatorAvatarUrl: p.creator.avatarUrl,
           canDelete: user.id === p.creatorId || user.role === "admin",

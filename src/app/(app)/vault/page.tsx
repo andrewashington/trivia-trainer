@@ -49,6 +49,7 @@ export default async function VaultPage() {
                 siteUrl: e.siteUrl,
                 username: e.username,
                 notes: e.notes,
+                creatorId: e.creatorId,
                 creatorName: e.creator.displayName,
                 creatorAvatarUrl: e.creator.avatarUrl,
                 canDelete: user.id === e.creatorId || user.role === "admin",

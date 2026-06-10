@@ -48,6 +48,7 @@ export default async function CountdownsPage() {
         emoji: c.emoji,
         targetAt: c.targetAt.toISOString(),
         link: c.link,
+        creatorId: c.creator.id,
         creatorName: c.creator.displayName,
         canDelete: c.creatorId === user.id || user.role === "admin",
       })
@@ -62,6 +63,7 @@ export default async function CountdownsPage() {
         emoji: null,
         targetAt: e.startAt.toISOString(),
         link: null,
+        creatorId: null,
         creatorName: null,
         canDelete: false,
       })
@@ -77,6 +79,7 @@ export default async function CountdownsPage() {
           emoji: "🎂",
           targetAt: next.toISOString(),
           link: null,
+          creatorId: null,
           creatorName: null,
           canDelete: false,
         })

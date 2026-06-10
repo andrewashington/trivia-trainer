@@ -151,6 +151,37 @@ export function Avatar({
   );
 }
 
+/**
+ * Avatar + name that click through to the person's profile. Use this
+ * anywhere a member is shown so every face/name in the app is a door
+ * to /people/[id].
+ */
+export function UserLink({
+  userId,
+  name,
+  avatarUrl,
+  size = "sm",
+  label,
+  className = "",
+}: {
+  userId: string;
+  name: string;
+  avatarUrl?: string | null;
+  size?: "sm" | "md" | "lg";
+  label?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <Link
+      href={`/people/${userId}`}
+      className={`inline-flex items-center gap-2 text-ink no-underline hover:text-accent-blue ${className}`}
+    >
+      <Avatar name={name} src={avatarUrl} size={size} />
+      <span className="font-display font-bold">{label ?? name}</span>
+    </Link>
+  );
+}
+
 export function Badge({
   children,
   className = "bg-paper",

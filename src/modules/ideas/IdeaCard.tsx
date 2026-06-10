@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
@@ -12,6 +13,7 @@ export type IdeaView = {
   title: string;
   detail: string | null;
   status: "open" | "planned" | "done";
+  authorId: string;
   authorName: string;
   authorAvatarUrl: string | null;
   voteCount: number;
@@ -103,7 +105,13 @@ export function IdeaCard({ idea }: { idea: IdeaView }) {
         )}
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase text-ink/40">
-            by <Avatar name={idea.authorName} src={idea.authorAvatarUrl} size="sm" /> {idea.authorName}
+            by{" "}
+            <Link
+              href={`/people/${idea.authorId}`}
+              className="inline-flex items-center gap-1 text-ink/40 no-underline hover:text-accent-blue"
+            >
+              <Avatar name={idea.authorName} src={idea.authorAvatarUrl} size="sm" /> {idea.authorName}
+            </Link>
           </span>
           {idea.isAdmin && (
             <span className="ml-auto flex gap-1">

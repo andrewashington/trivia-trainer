@@ -13,6 +13,7 @@ export type PollResults = {
   type: "single" | "multi" | "scale";
   anonymous: boolean;
   closed: boolean;
+  creatorId: string;
   creatorName: string;
   creatorAvatarUrl: string | null;
   isMine: boolean;
@@ -26,7 +27,7 @@ export type PollResults = {
     label: string;
     count: number;
     /** Voters — only populated for non-anonymous polls. */
-    voters: { name: string; avatarUrl: string | null }[];
+    voters: { id: string; name: string; avatarUrl: string | null }[];
   }[];
   /** Scale polls: counts indexed by rating 1..5, plus the average. */
   scale: { distribution: number[]; average: number | null } | null;
@@ -61,7 +62,7 @@ export function pollToResults(poll: PollWithRelations, viewer: User): PollResult
       voters:
         poll.anonymous || resultsHidden
           ? []
-          : optVotes.map((v) => ({ name: v.user.displayName, avatarUrl: v.user.avatarUrl })),
+          : optVotes.map((v) => ({ id: v.user.id, name: v.user.displayName, avatarUrl: v.user.avatarUrl })),
     };
   });
 
@@ -88,6 +89,7 @@ export function pollToResults(poll: PollWithRelations, viewer: User): PollResult
     type: poll.type,
     anonymous: poll.anonymous,
     closed: poll.closedAt !== null,
+    creatorId: poll.creator.id,
     creatorName: poll.creator.displayName,
     creatorAvatarUrl: poll.creator.avatarUrl,
     isMine: poll.creatorId === viewer.id,

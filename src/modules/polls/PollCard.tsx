@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
@@ -117,7 +118,14 @@ export function PollCard({ poll }: { poll: PollResults }) {
         )}
         {poll.closed && <Badge className="bg-accent-red text-white">CLOSED</Badge>}
         <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase text-ink/40">
-          by <Avatar name={poll.creatorName} src={poll.creatorAvatarUrl} size="sm" /> {poll.creatorName} · {poll.voterCount} voted
+          by{" "}
+          <Link
+            href={`/people/${poll.creatorId}`}
+            className="inline-flex items-center gap-1 text-ink/40 no-underline hover:text-accent-blue"
+          >
+            <Avatar name={poll.creatorName} src={poll.creatorAvatarUrl} size="sm" /> {poll.creatorName}
+          </Link>{" "}
+          · {poll.voterCount} voted
         </span>
       </div>
 
@@ -226,10 +234,14 @@ export function PollCard({ poll }: { poll: PollResults }) {
                   {!poll.anonymous && opt.voters.length > 0 && (
                     <p className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 font-mono text-[10px] text-ink/50">
                       {opt.voters.map((voter) => (
-                        <span key={voter.name} className="inline-flex items-center gap-1">
+                        <Link
+                          key={voter.id}
+                          href={`/people/${voter.id}`}
+                          className="inline-flex items-center gap-1 text-ink/50 no-underline hover:text-accent-blue"
+                        >
                           <Avatar name={voter.name} src={voter.avatarUrl} size="sm" />
                           {voter.name}
-                        </span>
+                        </Link>
                       ))}
                     </p>
                   )}

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
@@ -109,7 +110,13 @@ export function PromptCard({ prompt, members }: { prompt: PromptView; members: M
           </Badge>
         )}
         <span className="ml-auto inline-flex items-center gap-1 font-mono text-[10px] uppercase text-ink/40">
-          by <Avatar name={prompt.creatorName} src={prompt.creatorAvatarUrl} size="sm" /> {prompt.creatorName}
+          by{" "}
+          <Link
+            href={`/people/${prompt.creatorId}`}
+            className="inline-flex items-center gap-1 text-ink/40 no-underline hover:text-accent-blue"
+          >
+            <Avatar name={prompt.creatorName} src={prompt.creatorAvatarUrl} size="sm" /> {prompt.creatorName}
+          </Link>
         </span>
       </div>
 

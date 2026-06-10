@@ -18,6 +18,7 @@ export type TileView = {
   emoji: string | null;
   targetAt: string;
   link: string | null;
+  creatorId: string | null;
   creatorName: string | null;
   canDelete: boolean;
 };
@@ -70,6 +71,8 @@ function Tile({ tile, landed }: { tile: TileView; landed: boolean }) {
     day: "numeric",
   });
 
+  const href = tile.kind === "event" ? `/events/${tile.id}` : tile.kind === "birthday" ? "/contacts" : tile.link;
+
   const body = (
     <div
       className={`brutal-card relative h-full p-4 ${landed ? "opacity-70" : ""} ${
@@ -106,13 +109,28 @@ function Tile({ tile, landed }: { tile: TileView; landed: boolean }) {
       </p>
       <p className="mt-2 font-mono text-[10px] uppercase text-ink/40">
         {when}
-        {tile.creatorName ? ` · by ${tile.creatorName}` : ""}
+        {tile.creatorName ? (
+          <>
+            {" · by "}
+            {tile.creatorId && !href ? (
+              <Link
+                href={`/people/${tile.creatorId}`}
+                className="text-ink/40 no-underline hover:text-accent-blue"
+              >
+                {tile.creatorName}
+              </Link>
+            ) : (
+              tile.creatorName
+            )}
+          </>
+        ) : (
+          ""
+        )}
         {tile.link && !derived ? " · link ↗" : ""}
       </p>
     </div>
   );
 
-  const href = tile.kind === "event" ? `/events/${tile.id}` : tile.kind === "birthday" ? "/contacts" : tile.link;
   return href ? (
     <Link
       href={href}

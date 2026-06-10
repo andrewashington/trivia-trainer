@@ -1,6 +1,7 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap, LayerGroup, Marker, LeafletMouseEvent } from "leaflet";
 import { api } from "@/lib/client";
@@ -17,6 +18,7 @@ export type PinView = {
   lng: number;
   address: string | null;
   note: string | null;
+  creatorId: string | null;
   creatorName: string;
   creatorAvatarUrl: string | null;
   canDelete: boolean;
@@ -216,7 +218,7 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
         }
       );
       setPins([
-        { ...pin, creatorName: "You", creatorAvatarUrl: null, canDelete: true },
+        { ...pin, creatorId: null, creatorName: "You", creatorAvatarUrl: null, canDelete: true },
         ...pins,
       ]);
       setDraft(null);
@@ -331,10 +333,14 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
           {pins.map((pin) => (
             <li key={pin.id} className="brutal-card flex items-center gap-3 p-3">
               <PixelIcon name={pinIcon(pin.category)} size={20} className="shrink-0" />
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => focusPin(pin)}
-                className="min-w-0 flex-1 text-left"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") focusPin(pin);
+                }}
+                className="min-w-0 flex-1 cursor-pointer text-left"
               >
                 <p className="truncate font-bold leading-snug">{pin.name}</p>
                 <p className="inline-flex w-full items-center gap-1.5 truncate font-mono text-xs text-ink/50">
@@ -342,10 +348,23 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
                     {pin.note ?? pin.address ?? `${pin.lat.toFixed(3)}, ${pin.lng.toFixed(3)}`}
                     {" · "}
                   </span>
-                  <Avatar name={pin.creatorName} src={pin.creatorAvatarUrl} size="sm" />
-                  <span className="truncate">{pin.creatorName}</span>
+                  {pin.creatorId ? (
+                    <Link
+                      href={`/people/${pin.creatorId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex min-w-0 items-center gap-1.5 text-ink/50 no-underline hover:text-accent-blue"
+                    >
+                      <Avatar name={pin.creatorName} src={pin.creatorAvatarUrl} size="sm" />
+                      <span className="truncate">{pin.creatorName}</span>
+                    </Link>
+                  ) : (
+                    <>
+                      <Avatar name={pin.creatorName} src={pin.creatorAvatarUrl} size="sm" />
+                      <span className="truncate">{pin.creatorName}</span>
+                    </>
+                  )}
                 </p>
-              </button>
+              </div>
               {pin.canDelete && (
                 <button
                   onClick={() => deletePin(pin.id)}

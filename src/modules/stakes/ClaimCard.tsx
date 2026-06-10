@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { confettiBurst, confettiCelebrate } from "@/lib/confetti";
@@ -29,8 +30,10 @@ export type ClaimView = {
   text: string | null; // null = hidden from this viewer
   resolvesAt: string;
   hidden: boolean;
+  creatorId: string;
   creatorName: string;
   creatorAvatarUrl: string | null;
+  counterpartyId: string | null;
   counterpartyName: string | null;
   counterpartyAvatarUrl: string | null;
   stake: string | null;
@@ -181,13 +184,23 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
         )}
       </p>
       <p className="mt-1 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase text-ink/40">
-        <Avatar name={claim.creatorName} src={claim.creatorAvatarUrl} size="sm" />
-        {claim.creatorName}
+        <Link
+          href={`/people/${claim.creatorId}`}
+          className="inline-flex items-center gap-1.5 text-ink/40 no-underline hover:text-accent-blue"
+        >
+          <Avatar name={claim.creatorName} src={claim.creatorAvatarUrl} size="sm" />
+          {claim.creatorName}
+        </Link>
         {claim.counterpartyName && (
           <>
             {" vs "}
-            <Avatar name={claim.counterpartyName} src={claim.counterpartyAvatarUrl} size="sm" />
-            {claim.counterpartyName}
+            <Link
+              href={`/people/${claim.counterpartyId}`}
+              className="inline-flex items-center gap-1.5 text-ink/40 no-underline hover:text-accent-blue"
+            >
+              <Avatar name={claim.counterpartyName} src={claim.counterpartyAvatarUrl} size="sm" />
+              {claim.counterpartyName}
+            </Link>
           </>
         )}
       </p>

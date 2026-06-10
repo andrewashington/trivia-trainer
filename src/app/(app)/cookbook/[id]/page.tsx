@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -35,9 +36,15 @@ export default async function RecipePage({ params }: { params: { id: string } })
       <div>
         <h1 className="text-3xl sm:text-4xl">{recipe.title}</h1>
         <div className="mt-2 flex items-center gap-2 text-sm text-ink/60">
-          <Avatar name={recipe.author.displayName} src={recipe.author.avatarUrl} size="sm" />
+          <Link
+            href={`/people/${recipe.author.id}`}
+            className="inline-flex items-center gap-2 text-ink/60 no-underline hover:text-accent-blue"
+          >
+            <Avatar name={recipe.author.displayName} src={recipe.author.avatarUrl} size="sm" />
+            {recipe.author.displayName}
+          </Link>
           <span>
-            {recipe.author.displayName} ·{" "}
+            {" "}·{" "}
             {recipe.createdAt.toLocaleDateString(undefined, {
               month: "short",
               day: "numeric",

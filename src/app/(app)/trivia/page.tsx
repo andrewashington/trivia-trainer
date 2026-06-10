@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/session";
+import Link from "next/link";
 import { Avatar, Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { TriviaGame } from "@/modules/trivia/TriviaGame";
@@ -67,11 +68,16 @@ export default async function TriviaPage() {
                   >
                     {i === 0 ? <PixelIcon name="crown" size={16} /> : i + 1}
                   </span>
-                  <Avatar name={row.displayName} src={row.avatarUrl} size="sm" />
-                  <span className="min-w-0 flex-1 truncate font-display font-bold">
-                    {row.displayName}
-                    {mine && <span className="text-ink/40"> (you)</span>}
-                  </span>
+                  <Link
+                    href={`/people/${row.userId}`}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-ink no-underline hover:text-accent-blue"
+                  >
+                    <Avatar name={row.displayName} src={row.avatarUrl} size="sm" />
+                    <span className="min-w-0 flex-1 truncate font-display font-bold">
+                      {row.displayName}
+                      {mine && <span className="text-ink/40"> (you)</span>}
+                    </span>
+                  </Link>
                   <span className="shrink-0 font-mono text-sm font-bold tabular-nums">
                     {row.best}/10
                   </span>

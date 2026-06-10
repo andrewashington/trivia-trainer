@@ -27,6 +27,7 @@ export default async function IdeasPage() {
     title: i.title,
     detail: i.detail,
     status: i.status,
+    authorId: i.author.id,
     authorName: i.author.displayName,
     authorAvatarUrl: i.author.avatarUrl,
     voteCount: i.votes.length,

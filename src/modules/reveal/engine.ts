@@ -21,6 +21,7 @@ export type PromptView = {
   type: "rank" | "sealed";
   status: "open" | "revealed";
   title: string;
+  creatorId: string;
   creatorName: string;
   creatorAvatarUrl: string | null;
   isMine: boolean;
@@ -181,6 +182,7 @@ export function toPromptView(
     type: prompt.type,
     status: prompt.status,
     title: prompt.title,
+    creatorId: prompt.creator.id,
     creatorName: prompt.creator.displayName,
     creatorAvatarUrl: prompt.creator.avatarUrl,
     isMine: prompt.creatorId === viewer.id,

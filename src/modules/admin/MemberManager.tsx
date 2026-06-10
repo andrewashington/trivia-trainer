@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
@@ -120,10 +121,17 @@ export function MemberManager({
       <ul className="space-y-3">
         {members.map((m) => (
           <li key={m.id} className="brutal-card flex flex-wrap items-center gap-3 p-3">
-            <Avatar name={m.displayName} size="sm" />
+            <Link href={`/people/${m.id}`} className="shrink-0 no-underline">
+              <Avatar name={m.displayName} size="sm" />
+            </Link>
             <div className="min-w-0 flex-1">
               <p className="truncate font-bold leading-snug">
-                {m.displayName}
+                <Link
+                  href={`/people/${m.id}`}
+                  className="text-ink no-underline hover:text-accent-blue"
+                >
+                  {m.displayName}
+                </Link>
                 {m.id === selfId && <span className="text-ink/40"> (you)</span>}
               </p>
               <p className="truncate font-mono text-xs text-ink/50">{m.email}</p>
