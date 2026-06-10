@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
@@ -57,7 +58,10 @@ export default async function EventPage({ params }: { params: { id: string } }) 
           </p>
         )}
         <p className="mt-1 text-sm text-ink/50">
-          planned by {event.creator.displayName}
+          planned by{" "}
+          <Link href={`/people/${event.creator.id}`} className="font-bold text-ink/70">
+            {event.creator.displayName}
+          </Link>
         </p>
       </div>
 
@@ -86,10 +90,15 @@ export default async function EventPage({ params }: { params: { id: string } }) 
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {bucket.map((r) => (
-                  <span key={r.userId} className="inline-flex items-center gap-1.5">
+                  <Link
+                    key={r.userId}
+                    href={`/people/${r.userId}`}
+                    className="inline-flex items-center gap-1.5 no-underline"
+                    title={`${r.user.displayName}'s profile`}
+                  >
                     <Avatar name={r.user.displayName} src={r.user.avatarUrl} size="sm" />
                     <span className="text-sm">{r.user.displayName}</span>
-                  </span>
+                  </Link>
                 ))}
               </div>
             </Card>

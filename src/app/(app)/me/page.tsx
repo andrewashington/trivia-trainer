@@ -37,10 +37,17 @@ export default async function MePage() {
             <p className="text-sm text-ink/60">{user.email}</p>
           </div>
         </div>
-        <div className="mt-4">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
           <Badge className={user.role === "admin" ? "bg-accent-grape text-white" : "bg-paper"}>
             {user.role}
           </Badge>
+          <Link
+            href={`/people/${user.id}`}
+            className="inline-flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-wide text-ink/60 no-underline hover:text-ink"
+          >
+            View your profile page
+            <PixelIcon name="chevron-right" size={13} />
+          </Link>
         </div>
       </Card>
 

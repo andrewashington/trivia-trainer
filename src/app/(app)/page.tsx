@@ -257,12 +257,21 @@ export default async function HomePage() {
                       const mod = MOD[item.module];
                       const bg = mod?.accentBg ?? "bg-accent-blue";
                       return (
-                        <li key={`${item.module}-${item.id}`}>
+                        <li
+                          key={`${item.module}-${item.id}`}
+                          className="flex items-center gap-2.5 border-2 border-ink bg-card px-2.5 py-1.5 shadow-brutal-sm transition-transform hover:-translate-y-0.5"
+                        >
                           <Link
-                            href={item.href}
-                            className="flex items-center gap-2.5 border-2 border-ink bg-card px-2.5 py-1.5 no-underline shadow-brutal-sm transition-transform hover:-translate-y-0.5"
+                            href={`/people/${item.actorId}`}
+                            className="shrink-0"
+                            title={`${item.actor}'s profile`}
                           >
                             <Avatar name={item.actor} src={item.actorAvatarUrl} size="sm" />
+                          </Link>
+                          <Link
+                            href={item.href}
+                            className="flex min-w-0 flex-1 items-center gap-2.5 no-underline"
+                          >
                             <span
                               className={`flex h-7 w-7 shrink-0 items-center justify-center border-2 border-ink ${bg} ${onAccent(bg)}`}
                             >

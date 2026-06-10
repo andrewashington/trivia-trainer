@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function CookbookPage() {
   const recipes = await db.recipe.findMany({
     orderBy: { createdAt: "desc" },
-    include: { author: { select: { displayName: true, avatarUrl: true } } },
+    include: { author: { select: { id: true, displayName: true, avatarUrl: true } } },
   });
 
   const thumbs = new Map<string, string>();
@@ -44,8 +44,15 @@ export default async function CookbookPage() {
                 {recipes[0].title}
               </h2>
               <p className="mt-2 inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-white/80">
-                by <Avatar name={recipes[0].author.displayName} src={recipes[0].author.avatarUrl} size="sm" />{" "}
-                {recipes[0].author.displayName} · who's making it first?
+                by{" "}
+                <Link
+                  href={`/people/${recipes[0].author.id}`}
+                  className="inline-flex items-center gap-1.5 text-white no-underline"
+                >
+                  <Avatar name={recipes[0].author.displayName} src={recipes[0].author.avatarUrl} size="sm" />{" "}
+                  {recipes[0].author.displayName}
+                </Link>{" "}
+                · who's making it first?
               </p>
             </div>
             <HeroCta href={`/cookbook/${recipes[0].id}`} className="bg-accent-yellow text-ink">
