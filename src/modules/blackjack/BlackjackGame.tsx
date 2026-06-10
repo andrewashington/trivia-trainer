@@ -79,11 +79,15 @@ const CHIP_COLOR: Record<number, string> = {
 
 function ResultBanner({ hand }: { hand: NonNullable<TableView["hand"]> }) {
   const net = hand.payout - hand.bet;
+  const bust = valueOf(hand.player) > 21;
   const config: Record<string, { label: string; cls: string }> = {
     blackjack: { label: `BLACKJACK! +${net}`, cls: "bg-accent-yellow text-ink" },
     won: { label: `YOU WIN +${net}`, cls: "bg-accent-green text-ink" },
     push: { label: "PUSH — bet returned", cls: "bg-paper text-ink" },
-    lost: { label: `HOUSE WINS −${hand.bet}`, cls: "bg-accent-red text-white" },
+    lost: {
+      label: bust ? `BUST — you lose ${hand.bet}` : `HOUSE WINS −${hand.bet}`,
+      cls: "bg-accent-red text-white",
+    },
   };
   const c = config[hand.status];
   if (!c) return null;
@@ -203,8 +207,13 @@ export function BlackjackGame() {
         }
         await sleep(500);
       } else {
+        // Bust: let the killer card sink in, then flip the hole card
+        // so the full hand is on the table before the banner stamps.
+        await sleep(900);
+        if (!live()) return;
         dealerShown = hand.dealer;
-        await sleep(350);
+        paint(false);
+        await sleep(600);
       }
       if (!live()) return;
       paint(false, true);
