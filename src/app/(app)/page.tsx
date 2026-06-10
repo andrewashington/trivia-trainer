@@ -71,12 +71,12 @@ export default async function HomePage() {
   const firstName = user?.displayName.split(" ")[0] ?? "friend";
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl sm:text-4xl">
+    <div className="space-y-8 pt-2">
+      <div className="brutal-card mb-2 inline-block -rotate-1 px-5 py-3">
+        <h1 className="text-2xl sm:text-3xl">
           {greeting()}, {firstName}.
         </h1>
-        <p className="mt-1 font-mono text-sm uppercase tracking-widest text-ink/50">
+        <p className="mt-0.5 font-mono text-xs uppercase tracking-widest text-ink/50">
           The group home base
         </p>
       </div>
