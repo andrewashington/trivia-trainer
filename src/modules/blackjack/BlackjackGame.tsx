@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Card } from "@/components/ui";
 import type { TableView } from "@/modules/blackjack/schema";
@@ -8,11 +8,43 @@ import type { TableView } from "@/modules/blackjack/schema";
 const SUIT_GLYPH: Record<string, string> = { S: "♠", H: "♥", D: "♦", C: "♣" };
 const RANK_LABEL: Record<string, string> = { T: "10" };
 
-function PlayingCard({ code, hidden }: { code?: string; hidden?: boolean }) {
+/** Client-side hand value, only for the running totals shown mid-reveal. */
+function valueOf(cards: string[]): number {
+  let total = 0;
+  let aces = 0;
+  for (const c of cards) {
+    const r = c[0];
+    if (r === "A") {
+      aces++;
+      total += 11;
+    } else if ("TJQK".includes(r)) total += 10;
+    else total += Number(r);
+  }
+  while (total > 21 && aces > 0) {
+    total -= 10;
+    aces--;
+  }
+  return total;
+}
+
+function PlayingCard({
+  code,
+  hidden,
+  deal,
+  flip,
+}: {
+  code?: string;
+  hidden?: boolean;
+  deal?: boolean;
+  flip?: boolean;
+}) {
+  const anim = flip ? "animate-flip-in" : deal ? "animate-deal-in" : "";
   if (hidden || !code) {
     return (
-      <div className="flex h-20 w-14 items-center justify-center border-3 border-ink bg-ink shadow-brutal-sm">
-        <span className="font-display text-xl font-bold text-paper">?</span>
+      <div
+        className={`flex h-24 w-16 items-center justify-center border-3 border-ink bg-ink shadow-brutal-sm ${anim}`}
+      >
+        <span className="font-display text-2xl font-bold text-paper/70">◆</span>
       </div>
     );
   }
@@ -21,15 +53,29 @@ function PlayingCard({ code, hidden }: { code?: string; hidden?: boolean }) {
   const red = suit === "H" || suit === "D";
   return (
     <div
-      className={`flex h-20 w-14 flex-col items-center justify-center border-3 border-ink bg-card shadow-brutal-sm ${
+      className={`relative flex h-24 w-16 flex-col items-center justify-center border-3 border-ink bg-card shadow-brutal-sm ${anim} ${
         red ? "text-accent-red" : "text-ink"
       }`}
     >
-      <span className="font-display text-xl font-bold leading-none">{rank}</span>
-      <span className="text-2xl leading-none">{SUIT_GLYPH[suit]}</span>
+      <span className="absolute left-1 top-0.5 font-display text-sm font-bold">
+        {rank}
+      </span>
+      <span className="text-3xl leading-none">{SUIT_GLYPH[suit]}</span>
+      <span className="absolute bottom-0.5 right-1 rotate-180 font-display text-sm font-bold">
+        {rank}
+      </span>
     </div>
   );
 }
+
+const CHIPS = [5, 10, 25, 50, 100];
+const CHIP_COLOR: Record<number, string> = {
+  5: "bg-accent-red text-white",
+  10: "bg-accent-blue text-white",
+  25: "bg-accent-green text-ink",
+  50: "bg-accent-yellow text-ink",
+  100: "bg-ink text-paper",
+};
 
 function ResultBanner({ hand }: { hand: NonNullable<TableView["hand"]> }) {
   const net = hand.payout - hand.bet;
@@ -43,36 +89,146 @@ function ResultBanner({ hand }: { hand: NonNullable<TableView["hand"]> }) {
   if (!c) return null;
   return (
     <div
-      className={`animate-pop-in border-3 border-ink px-4 py-2 text-center font-display text-lg font-bold shadow-brutal ${c.cls}`}
+      className={`animate-stamp-in border-3 border-ink px-4 py-2 text-center font-display text-xl font-bold shadow-brutal ${c.cls}`}
     >
       {c.label}
     </div>
   );
 }
 
+/** What's actually rendered on the felt — lags the server state during reveals. */
+type Shown = {
+  player: string[];
+  dealer: string[];
+  holeHidden: boolean;
+  settled: boolean; // banner + controls only after the reveal finishes
+};
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export function BlackjackGame() {
   const [table, setTable] = useState<TableView | null>(null);
+  const [shown, setShown] = useState<Shown | null>(null);
   const [bet, setBet] = useState(10);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumped on every new animation so a stale async timeline aborts itself.
+  const animToken = useRef(0);
+
+  const showInstantly = (t: TableView) => {
+    setShown(
+      t.hand
+        ? {
+            player: t.hand.player,
+            dealer: t.hand.dealer,
+            holeHidden: t.hand.holeHidden,
+            settled: t.hand.status !== "active",
+          }
+        : null
+    );
+  };
 
   useEffect(() => {
     api<TableView>("/api/blackjack")
-      .then(setTable)
+      .then((t) => {
+        setTable(t);
+        showInstantly(t); // resuming a session — no replay theatrics
+      })
       .catch((e) => setError(e.message));
   }, []);
 
-  const run = useCallback(async (fn: () => Promise<TableView>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      setTable(await fn());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  /**
+   * Animate from what's on the felt to the new server state:
+   * fresh deals go out card-by-card; on settle the hole card flips,
+   * then each dealer draw lands one at a time before the banner.
+   */
+  const animateTo = useCallback(
+    async (next: TableView, prev: Shown | null) => {
+      const token = ++animToken.current;
+      const live = () => animToken.current === token;
+      const hand = next.hand;
+      if (!hand) {
+        setShown(null);
+        return;
+      }
+
+      const freshDeal = !prev || prev.settled || prev.player.length === 0;
+      let player = freshDeal ? [] : [...prev.player];
+      const upcard = hand.dealer[0];
+      let dealerShown = freshDeal ? [] : [upcard];
+      const paint = (holeHidden: boolean, settled = false) =>
+        setShown({ player: [...player], dealer: [...dealerShown], holeHidden, settled });
+
+      if (freshDeal) {
+        // player, dealer up, player, hole — like a real pitch
+        const order: Array<() => void> = [
+          () => (player = [hand.player[0]]),
+          () => (dealerShown = [upcard]),
+          () => (player = hand.player.slice(0, 2)),
+        ];
+        for (const step of order) {
+          if (!live()) return;
+          step();
+          paint(true);
+          await sleep(320);
+        }
+      }
+
+      // any new player cards (hit / double)
+      while (player.length < hand.player.length) {
+        if (!live()) return;
+        player = hand.player.slice(0, player.length + 1);
+        paint(true);
+        await sleep(320);
+      }
+
+      if (hand.status === "active") {
+        if (live()) paint(true);
+        return;
+      }
+
+      // Settled. Player bust loses before the dealer acts — skip the reveal.
+      const playerBust = valueOf(hand.player) > 21;
+      if (!playerBust && hand.dealer.length > 1) {
+        await sleep(450);
+        if (!live()) return;
+        dealerShown = hand.dealer.slice(0, 2); // hole card flips
+        paint(false);
+        // remaining dealer draws, one at a time
+        while (dealerShown.length < hand.dealer.length) {
+          await sleep(650);
+          if (!live()) return;
+          dealerShown = hand.dealer.slice(0, dealerShown.length + 1);
+          paint(false);
+        }
+        await sleep(500);
+      } else {
+        dealerShown = hand.dealer;
+        await sleep(350);
+      }
+      if (!live()) return;
+      paint(false, true);
+    },
+    []
+  );
+
+  const run = useCallback(
+    async (fn: () => Promise<TableView>) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const prev = shown;
+        const next = await fn();
+        setTable(next);
+        await animateTo(next, prev);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Something went wrong.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [shown, animateTo]
+  );
 
   const deal = (amount: number) =>
     run(() => api<TableView>("/api/blackjack", { method: "POST", body: { bet: amount } }));
@@ -95,25 +251,43 @@ export function BlackjackGame() {
   }
 
   const hand = table.hand;
-  const active = hand?.status === "active";
+  // "in play" = server says active OR we're still revealing the outcome
+  const inPlay = !!hand && !!shown && (!shown.settled || hand.status === "active");
+  const showBanner = !!hand && hand.status !== "active" && !!shown?.settled;
+  const canAct = !!hand && hand.status === "active" && !busy;
   const maxBet = table.coins;
   const clampedBet = Math.max(1, Math.min(bet, Math.max(maxBet, 1)));
+  const playerCards = shown?.player ?? [];
+  const dealerCards = shown?.dealer ?? [];
+  const dealerValue = dealerCards.length ? valueOf(dealerCards) : null;
+  const playerValue = playerCards.length ? valueOf(playerCards) : null;
 
   return (
     <div className="space-y-4">
-      <Card className="space-y-5">
+      <Card className="space-y-5 bg-accent-felt/15">
         {/* Dealer */}
         <div>
-          <p className="brutal-label mb-2">
-            Dealer{hand && !hand.holeHidden ? ` · ${hand.dealerValue}` : ""}
-          </p>
-          <div className="flex min-h-[5rem] flex-wrap gap-2">
-            {hand ? (
+          <div className="mb-2 flex items-baseline gap-2">
+            <p className="brutal-label">Dealer</p>
+            {dealerValue !== null && (
+              <span className="border-2 border-ink bg-paper px-1.5 font-mono text-xs font-bold">
+                {dealerValue}
+                {shown?.holeHidden ? " + ?" : ""}
+              </span>
+            )}
+          </div>
+          <div className="flex min-h-[6rem] flex-wrap gap-2">
+            {shown ? (
               <>
-                {hand.dealer.map((c, i) => (
-                  <PlayingCard key={`${c}${i}`} code={c} />
+                {dealerCards.map((c, i) => (
+                  <PlayingCard
+                    key={`${c}${i}`}
+                    code={c}
+                    deal={i === dealerCards.length - 1}
+                    flip={i === 1 && !shown.holeHidden}
+                  />
                 ))}
-                {hand.holeHidden && <PlayingCard hidden />}
+                {shown.holeHidden && dealerCards.length > 0 && <PlayingCard hidden deal />}
               </>
             ) : (
               <p className="self-center font-mono text-sm text-ink/40">
@@ -125,16 +299,32 @@ export function BlackjackGame() {
 
         {/* Player */}
         <div>
-          <p className="brutal-label mb-2">
-            You{hand ? ` · ${hand.playerValue}` : ""}
-            {hand?.doubled ? " · doubled" : ""}
-          </p>
-          <div className="flex min-h-[5rem] flex-wrap gap-2">
-            {hand?.player.map((c, i) => <PlayingCard key={`${c}${i}`} code={c} />)}
+          <div className="mb-2 flex items-baseline gap-2">
+            <p className="brutal-label">You</p>
+            {playerValue !== null && (
+              <span
+                className={`border-2 border-ink px-1.5 font-mono text-xs font-bold ${
+                  playerValue > 21 ? "bg-accent-red text-white" : "bg-paper"
+                }`}
+              >
+                {playerValue}
+                {playerValue > 21 ? " — BUST" : ""}
+              </span>
+            )}
+            {hand?.doubled && (
+              <span className="border-2 border-ink bg-accent-yellow px-1.5 font-mono text-xs font-bold">
+                DOUBLED
+              </span>
+            )}
+          </div>
+          <div className="flex min-h-[6rem] flex-wrap gap-2">
+            {playerCards.map((c, i) => (
+              <PlayingCard key={`${c}${i}`} code={c} deal={i === playerCards.length - 1} />
+            ))}
           </div>
         </div>
 
-        {hand && !active && <ResultBanner hand={hand} />}
+        {showBanner && <ResultBanner hand={hand!} />}
 
         {error && (
           <p className="border-3 border-ink bg-accent-red/15 px-3 py-2 font-mono text-xs">
@@ -143,16 +333,16 @@ export function BlackjackGame() {
         )}
 
         {/* Controls */}
-        {active ? (
+        {inPlay ? (
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => act("hit")} disabled={busy}>
+            <Button onClick={() => act("hit")} disabled={!canAct}>
               Hit
             </Button>
-            <Button onClick={() => act("stand")} disabled={busy}>
+            <Button onClick={() => act("stand")} disabled={!canAct}>
               Stand
             </Button>
             {hand!.player.length === 2 && table.coins >= hand!.bet && (
-              <Button onClick={() => act("double")} disabled={busy}>
+              <Button onClick={() => act("double")} disabled={!canAct}>
                 Double ({hand!.bet})
               </Button>
             )}
@@ -161,36 +351,55 @@ export function BlackjackGame() {
             </span>
           </div>
         ) : (
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="block">
-              <span className="brutal-label mb-1 block">Bet (1–{Math.max(maxBet, 1)})</span>
-              <input
-                type="number"
-                min={1}
-                max={Math.max(maxBet, 1)}
-                value={bet}
-                onChange={(e) => setBet(Number(e.target.value) || 1)}
-                className="w-28 border-3 border-ink bg-card px-3 py-2 font-mono text-sm shadow-brutal-sm focus:outline-none"
-              />
-            </label>
-            <Button onClick={() => deal(clampedBet)} disabled={busy || maxBet < 1}>
-              {hand ? "Deal again" : "Deal"}
-            </Button>
-            {hand && (
-              <Button
-                onClick={() => deal(Math.min(hand.bet > 0 ? hand.bet : 1, Math.max(maxBet, 1)))}
-                disabled={busy || maxBet < 1}
+          <div className="space-y-3">
+            {/* Chip rail */}
+            <div className="flex flex-wrap items-center gap-2">
+              {CHIPS.map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setBet(Math.min(clampedBet + v, Math.max(maxBet, 1)))}
+                  disabled={busy || clampedBet >= maxBet}
+                  className={`flex h-12 w-12 items-center justify-center rounded-full border-3 border-ink font-display text-sm font-bold shadow-brutal-sm transition-transform enabled:hover:-translate-y-0.5 enabled:active:translate-y-0 disabled:opacity-40 ${CHIP_COLOR[v]}`}
+                  style={{
+                    backgroundImage:
+                      "repeating-conic-gradient(transparent 0 30deg, rgba(255,255,255,0.25) 30deg 60deg)",
+                  }}
+                >
+                  {v}
+                </button>
+              ))}
+              <button
+                onClick={() => setBet(1)}
+                disabled={busy}
+                className="border-2 border-ink bg-paper px-2 py-1 font-mono text-xs uppercase shadow-brutal-sm disabled:opacity-40"
               >
-                Rebet {Math.min(hand.bet, Math.max(maxBet, 1))}
+                Clear
+              </button>
+              <button
+                onClick={() => setBet(Math.max(maxBet, 1))}
+                disabled={busy || maxBet < 1}
+                className="border-2 border-ink bg-paper px-2 py-1 font-mono text-xs uppercase shadow-brutal-sm disabled:opacity-40"
+              >
+                All in
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={() => deal(clampedBet)} disabled={busy || maxBet < 1}>
+                Deal — {clampedBet} coins
               </Button>
-            )}
-            <span className="ml-auto self-center font-mono text-xs text-ink/50">
-              balance {table.coins}
-            </span>
+              {hand && hand.bet <= maxBet && hand.bet !== clampedBet && (
+                <Button onClick={() => deal(hand.bet)} disabled={busy || maxBet < 1}>
+                  Rebet {hand.bet}
+                </Button>
+              )}
+              <span className="ml-auto font-mono text-xs text-ink/50">
+                balance {table.coins}
+              </span>
+            </div>
           </div>
         )}
 
-        {maxBet < 1 && !active && (
+        {maxBet < 1 && !inPlay && (
           <p className="font-mono text-xs text-ink/50">
             You&apos;re broke. Go earn some coins and come back.
           </p>

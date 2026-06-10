@@ -38,6 +38,7 @@ const config: Config = {
           felt: "#177245", // blackjack
           rust: "#C1440E", // challenges
           crimson: "#D7263D", // tiers
+          eggplant: "#7B2FBE", // the key (hidden)
 
         },
       },
@@ -73,6 +74,15 @@ const config: Config = {
         "pop-in": {
           "0%": { transform: "scale(0.96) translateY(4px)", opacity: "0" },
           "100%": { transform: "scale(1) translateY(0)", opacity: "1" },
+        },
+        "deal-in": {
+          "0%": { transform: "translate(40px, -48px) rotate(8deg)", opacity: "0" },
+          "60%": { opacity: "1" },
+          "100%": { transform: "translate(0, 0) rotate(0deg)", opacity: "1" },
+        },
+        "flip-in": {
+          "0%": { transform: "rotateY(90deg)" },
+          "100%": { transform: "rotateY(0deg)" },
         },
         wiggle: {
           "0%, 100%": { transform: "rotate(-1.5deg)" },
@@ -187,6 +197,8 @@ const config: Config = {
         "fade-in": "fade-in 120ms ease-out both",
         "sheet-up": "sheet-up 220ms cubic-bezier(0.2, 1, 0.35, 1) both",
         "pop-in": "pop-in 150ms ease-out both",
+        "deal-in": "deal-in 280ms cubic-bezier(0.2, 1, 0.35, 1) both",
+        "flip-in": "flip-in 220ms ease-out both",
         wiggle: "wiggle 300ms ease-in-out",
         hop: "hop 900ms ease-in-out infinite",
         blockblink: "blockblink 1.1s ease-in-out infinite",
