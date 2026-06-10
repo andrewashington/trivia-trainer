@@ -116,7 +116,15 @@ export default async function NowPlayingPage({
               <ul className="mt-3 space-y-2.5">
                 {group.items.map((item) => (
                   <li key={item.id} className="relative flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    {item.posterPath && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={`https://image.tmdb.org/t/p/w185${item.posterPath}`}
+                        alt=""
+                        className="h-[72px] w-12 shrink-0 border-2 border-ink object-cover shadow-brutal-sm"
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
                       <p className="font-bold leading-snug">
                         <PixelIcon name={MEDIA_ICONS[item.mediaType]} size={14} className="-mt-0.5 mr-1 inline" />
                         {item.title}
@@ -144,6 +152,32 @@ export default async function NowPlayingPage({
           ))}
         </div>
       )}
+
+      {/* Required attribution for the search/poster data. */}
+      <p className="flex items-center gap-2 pt-2 font-mono text-[10px] uppercase text-ink/40">
+        {/* TMDB short logo, inlined (brand blue-green gradient). */}
+        <svg viewBox="0 0 190 81" className="h-3 w-auto" aria-hidden="true">
+          <defs>
+            <linearGradient id="tmdbGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#90cea1" />
+              <stop offset="56%" stopColor="#3cbec9" />
+              <stop offset="100%" stopColor="#00b3e5" />
+            </linearGradient>
+          </defs>
+          <rect width="190" height="81" rx="11" fill="url(#tmdbGrad)" />
+          <text x="95" y="55" textAnchor="middle" fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="38" fill="#0d253f">TMDB</text>
+        </svg>
+        Search &amp; posters powered by{" "}
+        <a
+          href="https://www.themoviedb.org/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-bold text-ink/60"
+        >
+          TMDB
+        </a>
+        . This product uses the TMDB API but is not endorsed or certified by TMDB.
+      </p>
     </div>
   );
 }

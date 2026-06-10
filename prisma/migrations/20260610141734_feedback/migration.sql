@@ -9,6 +9,10 @@ CREATE TABLE "Feedback" (
     "kind" "FeedbackKind" NOT NULL DEFAULT 'bug',
     "message" TEXT NOT NULL,
     "userAgent" TEXT,
+    -- severity/context belong to 20260610123203 (misdated folder name:
+    -- applied later in prod, replayed earlier from scratch — see its guard).
+    "severity" "FeedbackSeverity" NOT NULL DEFAULT 'medium',
+    "context" JSONB,
     "resolvedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

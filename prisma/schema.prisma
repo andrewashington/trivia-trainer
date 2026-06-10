@@ -150,6 +150,11 @@ model NowPlayingItem {
   note      String?
   status    PlayStatus @default(active)
   rating    Int? // 1-5, asked for when the item is marked finished
+  // TMDB metadata, attached when the title was picked from search.
+  // All optional — free-typed entries (books, anything) have none.
+  tmdbId      Int?
+  posterPath  String? // e.g. "/abc123.jpg" — prepend image.tmdb.org/t/p/<size>
+  releaseYear Int?
   updatedAt DateTime   @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

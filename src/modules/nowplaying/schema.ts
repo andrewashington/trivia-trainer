@@ -5,6 +5,10 @@ export const nowPlayingInput = z.object({
   mediaType: z.enum(["show", "movie", "book"]),
   title: z.string().trim().min(1, "Title is required").max(300),
   note: z.string().trim().max(500).nullish(),
+  // Attached when the title was picked from TMDB search.
+  tmdbId: z.number().int().positive().nullish(),
+  posterPath: z.string().trim().max(200).nullish(),
+  releaseYear: z.number().int().min(1870).max(2100).nullish(),
 });
 
 export const nowPlayingPatch = z.object({

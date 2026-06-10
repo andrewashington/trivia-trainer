@@ -159,6 +159,11 @@ owner's password manager) — they are **not** in the repo. View with
 `railway variables --kv`. **Never rotate `VAULT_KEY`** once vault entries
 exist — it makes them undecryptable.
 
+`TMDB_API_KEY` (optional) powers Now Playing's movie/TV search and poster
+art — a TMDB v4 read access token (the long JWT) or v3 key, server-side
+only. If unset, the search affordance hides itself and manual entry still
+works exactly as before.
+
 ---
 
 ## Shipping a change

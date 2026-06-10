@@ -27,6 +27,9 @@ export const POST = apiHandler(async (req: Request) => {
           mediaType: data.mediaType,
           title: data.title,
           note: data.note ?? null,
+          tmdbId: data.tmdbId ?? null,
+          posterPath: data.posterPath ?? null,
+          releaseYear: data.releaseYear ?? null,
         },
       }),
     (i) => ({
