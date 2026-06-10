@@ -405,6 +405,10 @@ export function KeyQuizForm({ initial }: { initial: KeyFormInitial }) {
           just the code — never the answers
         </span>
       </label>
+      <p className="-mt-3 font-mono text-[10px] uppercase tracking-wide text-ink/40">
+        Filing is silent: nothing posts to Discord or the feed, and your key is
+        only interpretable by people who&apos;ve filed a card of their own.
+      </p>
 
       {error && (
         <p className="border-2 border-ink bg-accent-red px-3 py-2 text-sm font-bold text-white">
