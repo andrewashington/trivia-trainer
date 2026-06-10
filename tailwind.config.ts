@@ -35,6 +35,7 @@ const config: Config = {
           ocean: "#0077B6", // trivia
           fuchsia: "#D633FF", // howgay
           coral: "#FF7F50", // photobook
+          felt: "#177245", // blackjack
 
         },
       },

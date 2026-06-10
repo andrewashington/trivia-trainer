@@ -89,6 +89,31 @@ model User {
   gayReadings       GayReading[]
   photobookPhotos   PhotobookPhoto[]
   photobookTags     PhotobookTag[]
+  blackjackHands    BlackjackHand[]
+}
+
+// ============ Blackjack: casino hands wagering coins ============
+
+// Server-authoritative: the shuffled shoe + both hands live in `state`
+// (JSON: { deck, player, dealer } of card codes like "AS"), so the client
+// never sees the hole card or the next draw. One active hand per user.
+// status: active | won | lost | push | blackjack. payout = coins credited
+// back on resolution (0 on a loss). Splits intentionally unsupported.
+model BlackjackHand {
+  id         String    @id @default(cuid())
+  userId     String
+  bet        Int
+  doubled    Boolean   @default(false)
+  state      Json
+  status     String    @default("active")
+  payout     Int       @default(0)
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
 }
 
 // --- How Gay?: one deterministic reading per user per day ---

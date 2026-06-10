@@ -379,6 +379,22 @@ export const modules: ModuleDef[] = [
       "Filter by a person to build their highlight reel",
     ],
   },
+  {
+    key: "blackjack",
+    label: "Blackjack",
+    icon: "chess",
+    category: "arcade",
+    navOrder: 19,
+    href: "/blackjack",
+    accentBg: "bg-accent-felt",
+    intro:
+      "House blackjack, real stakes: your coins. Dealer stands on 17, blackjack pays 3:2, splits don't exist here.",
+    tips: [
+      "Min bet 1 coin, max bet everything you've got",
+      "Double down on your first two cards if you're feeling it",
+      "The shoe is shuffled server-side — no peeking, no counting",
+    ],
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {
