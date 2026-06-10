@@ -1,12 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/client";
 import { Badge, Button, Input } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
-import { Creature } from "./Creature";
+import { playSfx } from "@/lib/sfx";
+import { LottiePet } from "./LottiePet";
 import { MOOD_LABEL, STAGE_TITLE, type PetMood } from "./engine";
+import type { PetFace } from "./animations";
 
 type Burst = { id: number; left: number; delay: number; size: number };
 
@@ -34,14 +36,24 @@ export function PetStage({
   const [newName, setNewName] = useState(name);
   const [busy, setBusy] = useState(false);
   const [patted, setPatted] = useState(false);
-  const [reactKey, setReactKey] = useState(0);
+  const [ecstatic, setEcstatic] = useState(false);
   const [bursts, setBursts] = useState<Burst[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggesting, setSuggesting] = useState(false);
   const burstId = useRef(0);
+  const ecstaticTimer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (ecstaticTimer.current !== null) window.clearTimeout(ecstaticTimer.current);
+    },
+    []
+  );
 
   function celebrate() {
-    setReactKey((k) => k + 1);
+    setEcstatic(true);
+    if (ecstaticTimer.current !== null) window.clearTimeout(ecstaticTimer.current);
+    ecstaticTimer.current = window.setTimeout(() => setEcstatic(false), 1500);
     const next: Burst[] = Array.from({ length: 6 }, () => ({
       id: burstId.current++,
       left: 18 + Math.random() * 64,
@@ -57,6 +69,7 @@ export function PetStage({
     try {
       await api("/api/pet/nudge", { method: "POST" });
       setPatted(true);
+      playSfx("chirp");
       celebrate();
       router.refresh();
     } catch (err) {
@@ -93,8 +106,8 @@ export function PetStage({
     }
   }
 
-  const reacting = bursts.length > 0;
   const isNight = partOfDay === "night";
+  const face: PetFace = ecstatic ? "ecstatic" : mood;
 
   return (
     <div className="space-y-3">
@@ -133,14 +146,7 @@ export function PetStage({
           ))}
         </div>
 
-        <Creature
-          key={reactKey}
-          mood={mood}
-          size={128}
-          stage={stage}
-          beloved={beloved}
-          reacting={reacting}
-        />
+        <LottiePet face={face} size={200} />
         {/* the ground the pet stands on */}
         <div className="h-[3px] w-32 bg-ink/80" />
 
