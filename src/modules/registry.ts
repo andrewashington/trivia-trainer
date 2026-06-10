@@ -433,6 +433,22 @@ export const modules: ModuleDef[] = [
     ],
   },
   {
+    key: "treasure",
+    label: "Treasure",
+    icon: "money",
+    category: "arcade",
+    navOrder: 21,
+    href: "/treasure",
+    accentBg: "bg-accent-gold",
+    intro:
+      "Somewhere on the map a chest holds the pot. One dig a day — and if nobody finds it, the pot rolls over.",
+    tips: [
+      "One shovel per person per UTC day — spend it well",
+      "Watch where friends dug and missed; the board narrows",
+      "Unfound pots roll into tomorrow: 500 becomes 1000 becomes…",
+    ],
+  },
+  {
     key: "thekey",
     label: "The Key",
     icon: "door-closed",
@@ -442,7 +458,7 @@ export const modules: ModuleDef[] = [
     accentBg: "bg-accent-eggplant",
     hidden: true,
     intro:
-      "You found the hidden room. The field guide quiz — chart your specs, get your archetype. Nobody sees your answers, and nothing ever posts to Discord or the feed.",
+      "You found the hidden room. The field guide quiz — chart your specs, get your archetype. What happens in here stays in here.",
     tips: [
       "Answer by picture — every option has a diagram, no essay questions",
       "Slide the rulers, pick your cards, file it",

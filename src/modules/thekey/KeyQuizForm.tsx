@@ -406,8 +406,8 @@ export function KeyQuizForm({ initial }: { initial: KeyFormInitial }) {
         </span>
       </label>
       <p className="-mt-3 font-mono text-[10px] uppercase tracking-wide text-ink/40">
-        Filing is silent: nothing posts to Discord or the feed, and your key is
-        only interpretable by people who&apos;ve filed a card of their own.
+        Filing is hush-hush (no Discord, no feed) — and the code only means
+        something to people who&apos;ve filed one of their own.
       </p>
 
       {error && (

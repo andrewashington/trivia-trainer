@@ -156,8 +156,8 @@ export default async function PersonPage({ params }: { params: { id: string } })
           </p>
           <KeyBadge keyCode={keyCode} isMe={isMe} />
           <p className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink/40">
-            an encoded field-guide entry · only those who&apos;ve filed their own
-            card can read it · never posted to Discord
+            an encoded field-guide entry · gibberish unless you&apos;ve filed your
+            own · Discord doesn&apos;t get a copy
           </p>
         </Card>
       )}
