@@ -333,6 +333,21 @@ export const modules: ModuleDef[] = [
       "Grab the golden snack before it vanishes for a fat bonus",
     ],
   },
+  {
+    key: "trivia",
+    label: "Trivia",
+    icon: "zap",
+    category: "arcade",
+    navOrder: 17,
+    href: "/trivia",
+    accentBg: "bg-accent-ocean",
+    intro: "Quick-fire pub trivia. Ten questions, four choices, no second guesses — climb the board.",
+    tips: [
+      "Hit start for a 10-question round — answers lock instantly",
+      "A perfect 10/10 earns the full confetti treatment",
+      "Your best round goes on the leaderboard. No pressure",
+    ],
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {

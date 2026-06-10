@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { recentActivity, type Activity } from "@/lib/activity";
+import { onThisDayFact } from "@/lib/numbersFact";
 import { modules } from "@/modules/registry";
 import { Avatar } from "@/components/ui";
 import { Countdown } from "@/components/Countdown";
@@ -81,6 +82,7 @@ export default async function HomePage() {
     activeCount,
     pet,
     tanksWaiting,
+    fact,
   ] = await Promise.all([
     recentActivity(30),
     db.event.findFirst({
@@ -139,6 +141,7 @@ export default async function HomePage() {
           },
         })
       : [],
+    onThisDayFact(),
   ]);
 
   const firstName = user?.displayName.split(" ")[0] ?? "friend";
@@ -223,6 +226,11 @@ export default async function HomePage() {
           <p className="mt-0.5 font-mono text-xs uppercase tracking-widest text-ink/50">
             The group home base
           </p>
+          {fact && (
+            <p className="mt-1 max-w-md font-mono text-[10px] uppercase tracking-wide text-ink/40">
+              On this day · {fact.text}
+            </p>
+          )}
         </div>
         <OpenLauncherButton />
       </div>
