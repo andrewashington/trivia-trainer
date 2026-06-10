@@ -446,7 +446,7 @@ export const modules: ModuleDef[] = [
     tips: [
       "Answer by picture — every option has a diagram, no essay questions",
       "Slide the rulers, pick your cards, file it",
-      "Your card is for your eyes only. Always. The wall does not exist",
+      "Raw answers stay private — only your encoded key can show on your profile",
     ],
   },
 ];
