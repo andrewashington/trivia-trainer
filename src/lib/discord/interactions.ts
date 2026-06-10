@@ -100,6 +100,26 @@ export async function handleInteraction(interaction: Interaction): Promise<objec
           interaction.token
         );
       }
+      case "polls":
+        return handlePolls();
+      case "marketplace":
+        return handleMarketplace();
+      case "ideas":
+        return handleIdeas();
+      case "recipes":
+        return handleRecipes();
+      case "nowplaying":
+        return handleNowPlaying();
+      case "map":
+        return handleMap();
+      case "stakes":
+        return handleStakes();
+      case "birthdays":
+        return handleBirthdays();
+      case "arcade":
+        return handleArcade();
+      case "tanks":
+        return handleTanks(user);
       default:
         return ephemeralReply("Unknown command.");
     }
@@ -434,6 +454,242 @@ async function handleIdeaCreate(
     (i) => ({ type: "idea.created", payload: { ideaId: i.id, title: i.title, authorId: user.id } })
   );
   return ephemeralReply(`Idea pitched: **${trimmed}** — the card (with its upvote button) is on the way.`);
+}
+
+// Numbered-list reply with one action button per entry (♻️ the same
+// custom_ids the feed cards use, so all clicks land in handleComponent).
+// Discord caps action rows at 5 per message × 5 buttons, so lists stay ≤5.
+const NUM = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"];
+function numberedButtons(
+  entries: { label: string; customId: string }[],
+  style = 1
+): object[] {
+  if (entries.length === 0) return [];
+  return [
+    {
+      type: 1,
+      components: entries.slice(0, 5).map((e, i) => ({
+        type: 2,
+        style,
+        label: `${NUM[i]} ${e.label}`.slice(0, 80),
+        custom_id: e.customId,
+      })),
+    },
+  ];
+}
+
+function listReply(header: string, lines: string[], components: object[] = []): object {
+  return {
+    type: 4,
+    data: {
+      content: `**${header}**\n\n${lines.join("\n\n")}`.slice(0, 2000),
+      flags: EPHEMERAL,
+      components,
+    },
+  };
+}
+
+async function handlePolls(): Promise<object> {
+  const polls = await db.poll.findMany({
+    where: { closedAt: null },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    include: { creator: { select: { displayName: true } }, votes: { select: { userId: true } } },
+  });
+  if (polls.length === 0) return ephemeralReply("No open polls. `/polls` on the app to start one.");
+
+  const lines = polls.map((p, i) => {
+    const voters = new Set(p.votes.map((v) => v.userId)).size;
+    return `${NUM[i]} **${p.question.slice(0, 150)}**${p.anonymous ? " · anonymous" : ""}\n· by ${p.creator.displayName} — ${voters} voted so far`;
+  });
+  return listReply(
+    "Open polls:",
+    lines,
+    numberedButtons(polls.map((p) => ({ label: "Vote", customId: `poll:vote:${p.id}` })))
+  );
+}
+
+async function handleMarketplace(): Promise<object> {
+  const listings = await db.listing.findMany({
+    where: { status: "available" },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    include: { seller: { select: { displayName: true } } },
+  });
+  if (listings.length === 0) return ephemeralReply("Nothing for sale right now.");
+
+  const price = (cents: number | null) =>
+    cents == null ? "free" : `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+  const lines = listings.map(
+    (l, i) =>
+      `${NUM[i]} **${l.title.slice(0, 100)}** — ${price(l.priceCents)} · ${l.delivery}\n· listed by ${l.seller.displayName} ${ts(l.createdAt, "R")}`
+  );
+  return listReply(
+    "Up for grabs:",
+    lines,
+    numberedButtons(listings.map((l) => ({ label: "Claim", customId: `claim:${l.id}` })), 3)
+  );
+}
+
+async function handleIdeas(): Promise<object> {
+  const ideas = await db.idea.findMany({
+    where: { status: "open" },
+    include: {
+      author: { select: { displayName: true } },
+      votes: { select: { userId: true } },
+    },
+  });
+  if (ideas.length === 0) return ephemeralReply("The suggestion box is empty — `/idea` to fix that.");
+
+  const top = ideas.sort((a, b) => b.votes.length - a.votes.length).slice(0, 5);
+  const lines = top.map(
+    (idea, i) =>
+      `${NUM[i]} **${idea.title.slice(0, 150)}** — ${idea.votes.length} vote${idea.votes.length === 1 ? "" : "s"}\n· by ${idea.author.displayName}`
+  );
+  return listReply(
+    "Top open ideas:",
+    lines,
+    numberedButtons(top.map((idea) => ({ label: "▲", customId: `idea:up:${idea.id}` })))
+  );
+}
+
+async function handleRecipes(): Promise<object> {
+  const recipes = await db.recipe.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    include: { author: { select: { displayName: true } } },
+  });
+  if (recipes.length === 0) return ephemeralReply("The cookbook is empty.");
+
+  const base = (process.env.AUTH_URL ?? "").replace(/\/$/, "");
+  const lines = recipes.map((r) => {
+    const title = base ? `[${r.title.slice(0, 100)}](${base}/cookbook/${r.id})` : `**${r.title.slice(0, 100)}**`;
+    return `· ${title} — by ${r.author.displayName} ${ts(r.createdAt, "R")}`;
+  });
+  return listReply("Latest from the cookbook:", [lines.join("\n")]);
+}
+
+async function handleNowPlaying(): Promise<object> {
+  const items = await db.nowPlayingItem.findMany({
+    where: { status: "active" },
+    orderBy: { updatedAt: "desc" },
+    take: 8,
+    include: { user: { select: { displayName: true } } },
+  });
+  if (items.length === 0) return ephemeralReply("Nobody's watching/reading/playing anything. Suspicious.");
+
+  const icon = { show: "📺", movie: "🎬", book: "📚" } as const;
+  const lines = items.map(
+    (n) =>
+      `${icon[n.mediaType]} **${n.title.slice(0, 100)}**${n.releaseYear ? ` (${n.releaseYear})` : ""} — ${n.user.displayName}`
+  );
+  return listReply("Currently consuming:", [lines.join("\n")]);
+}
+
+async function handleMap(): Promise<object> {
+  const pins = await db.mapPin.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    include: { creator: { select: { displayName: true } } },
+  });
+  if (pins.length === 0) return ephemeralReply("The atlas is blank — drop a pin in the app.");
+
+  const lines = pins.map(
+    (p) =>
+      `📍 **${p.name.slice(0, 100)}** (${p.category}) — pinned by ${p.creator.displayName}${p.note ? `\n· ${p.note.slice(0, 120)}` : ""}`
+  );
+  return listReply("Fresh pins on the map:", lines);
+}
+
+async function handleStakes(): Promise<object> {
+  const claims = await db.claim.findMany({
+    where: { resolvedAt: null },
+    orderBy: { resolvesAt: "asc" },
+    take: 5,
+    include: {
+      creator: { select: { displayName: true } },
+      counterparty: { select: { displayName: true } },
+    },
+  });
+  if (claims.length === 0) return ephemeralReply("No open bets. Cowards.");
+
+  const lines = claims.map((c) => {
+    const text = c.hidden ? "*(sealed until it resolves)*" : `**${c.text.slice(0, 150)}**`;
+    const vs = c.counterparty ? ` — vs ${c.counterparty.displayName}` : "";
+    const stake = c.stake ? `\n· stake: ${c.stake.slice(0, 100)}` : "";
+    return `🎯 ${text}\n· ${c.creator.displayName}${vs} · resolves ${ts(c.resolvesAt, "R")}${stake}`;
+  });
+  return listReply("Open stakes:", lines);
+}
+
+async function handleBirthdays(): Promise<object> {
+  const cards = await db.contactCard.findMany({
+    where: { birthday: { not: null } },
+    include: { user: { select: { displayName: true } } },
+  });
+  const now = new Date();
+  const upcoming = cards
+    .map((c) => {
+      const b = c.birthday!;
+      const next = new Date(now.getFullYear(), b.getUTCMonth(), b.getUTCDate());
+      if (next < now) next.setFullYear(next.getFullYear() + 1);
+      return { name: c.user.displayName, next };
+    })
+    .sort((a, b) => a.next.getTime() - b.next.getTime())
+    .slice(0, 8);
+  if (upcoming.length === 0) return ephemeralReply("No birthdays on file — add yours on /me.");
+
+  const lines = upcoming.map(
+    (b) =>
+      `🎂 **${b.name}** — ${b.next.toLocaleDateString("en-US", { month: "long", day: "numeric" })} (${ts(b.next, "R")})`
+  );
+  return listReply("Upcoming birthdays:", lines);
+}
+
+async function handleArcade(): Promise<object> {
+  const scores = await db.arcadeScore.findMany({
+    orderBy: { score: "desc" },
+    include: { user: { select: { id: true, displayName: true } } },
+  });
+  if (scores.length === 0) return ephemeralReply("No arcade scores yet. The machines sit silent.");
+
+  // Personal best per player per game, top 3 shown.
+  const games = [...new Set(scores.map((s) => s.game))];
+  const medals = ["🥇", "🥈", "🥉"];
+  const sections = games.map((game) => {
+    const best = new Map<string, { name: string; score: number }>();
+    for (const s of scores.filter((s) => s.game === game)) {
+      if (!best.has(s.user.id)) best.set(s.user.id, { name: s.user.displayName, score: s.score });
+    }
+    const top = [...best.values()].slice(0, 3);
+    return `**${game}**\n${top.map((t, i) => `${medals[i]} ${t.name} — ${t.score.toLocaleString("en-US")}`).join("\n")}`;
+  });
+  return listReply("Arcade leaderboards:", sections);
+}
+
+async function handleTanks(user: User): Promise<object> {
+  const games = await db.tanksGame.findMany({
+    where: { status: "active", OR: [{ challengerId: user.id }, { opponentId: user.id }] },
+    orderBy: { updatedAt: "desc" },
+    include: {
+      challenger: { select: { id: true, displayName: true } },
+      opponent: { select: { id: true, displayName: true } },
+    },
+  });
+  if (games.length === 0) {
+    return ephemeralReply("No active duels. Challenge someone from the app's Tanks lobby.");
+  }
+
+  const base = (process.env.AUTH_URL ?? "").replace(/\/$/, "");
+  const lines = games.map((g) => {
+    const foe = g.challengerId === user.id ? g.opponent : g.challenger;
+    const yourHp = g.challengerId === user.id ? g.challengerHp : g.opponentHp;
+    const foeHp = g.challengerId === user.id ? g.opponentHp : g.challengerHp;
+    const turn = g.currentPlayerId === user.id ? "**YOUR TURN**" : `waiting on ${foe.displayName}`;
+    const link = base ? ` · [fire](${base}/tanks/${g.id})` : "";
+    return `💥 vs **${foe.displayName}** — you ${yourHp}hp / them ${foeHp}hp · turn ${g.turnCount + 1} · ${turn}${link}`;
+  });
+  return listReply("Your duels:", lines);
 }
 
 async function handleWishlistAdd(
