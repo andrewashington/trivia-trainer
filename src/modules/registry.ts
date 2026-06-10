@@ -303,6 +303,22 @@ export const modules: ModuleDef[] = [
     ],
   },
   {
+    key: "tanks",
+    label: "Tanks",
+    icon: "zap",
+    category: "arcade",
+    navOrder: 17,
+    href: "/tanks",
+    accentBg: "bg-accent-orange",
+    intro:
+      "Async artillery duels. Pick an angle, mind the wind, blow up your friends — one shot per turn, on your own time.",
+    tips: [
+      "Challenge someone — you each fire one shot per turn",
+      "Wind changes every turn; the arrow tells you which way",
+      "The terrain remembers every crater. Use that",
+    ],
+  },
+  {
     key: "snake",
     label: "Snake",
     icon: "fish",

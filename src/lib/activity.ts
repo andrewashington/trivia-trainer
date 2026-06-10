@@ -32,7 +32,7 @@ export async function recentActivity(limit = 16, userId?: string): Promise<Activ
     take: userId ? Math.min(limit, 12) : PER_KIND,
     orderBy: { createdAt: "desc" },
   } as const;
-  const [recipes, events, listings, ideas, polls, wishlist, pins, files, reveals, claims, countdowns, playing] =
+  const [recipes, events, listings, ideas, polls, wishlist, pins, files, reveals, claims, countdowns, playing, tanksGames] =
     await Promise.all([
       db.recipe.findMany({ ...recent, where: userId ? { authorId: userId } : undefined, include: { author: who } }),
       db.event.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
@@ -51,6 +51,11 @@ export async function recentActivity(limit = 16, userId?: string): Promise<Activ
         where: userId ? { userId } : undefined,
         include: { user: who },
       }),
+      db.tanksGame.findMany({
+        ...recent,
+        where: userId ? { challengerId: userId } : undefined,
+        include: { challenger: who, opponent: who },
+      }),
     ]);
 
   const items: Activity[] = [
@@ -65,6 +70,17 @@ export async function recentActivity(limit = 16, userId?: string): Promise<Activ
     ...reveals.map((r) => mk(r.id, "reveal", r.creator, "started a reveal", r.title, "/reveal", r.createdAt)),
     ...claims.map((c) => mk(c.id, "stakes", c.creator, "called a shot", c.text, "/stakes", c.createdAt)),
     ...countdowns.map((c) => mk(c.id, "countdowns", c.creator, "started a countdown to", c.title, "/countdowns", c.createdAt)),
+    ...tanksGames.map((g) =>
+      mk(
+        g.id,
+        "tanks",
+        g.challenger,
+        "challenged",
+        `${g.opponent.displayName} to a tank duel`,
+        `/tanks/${g.id}`,
+        g.createdAt
+      )
+    ),
     ...playing.map((n) =>
       mk(
         n.id,

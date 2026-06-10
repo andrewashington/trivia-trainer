@@ -80,6 +80,7 @@ export default async function HomePage() {
     latestPlaying,
     activeCount,
     pet,
+    tanksWaiting,
   ] = await Promise.all([
     recentActivity(30),
     db.event.findFirst({
@@ -127,6 +128,17 @@ export default async function HomePage() {
     }),
     db.nowPlayingItem.count({ where: { status: "active" } }),
     user ? getPetView(user.id) : null,
+    user
+      ? db.tanksGame.findMany({
+          where: { status: "active", currentPlayerId: user.id },
+          orderBy: { updatedAt: "asc" },
+          take: 2,
+          include: {
+            challenger: { select: { id: true, displayName: true } },
+            opponent: { select: { id: true, displayName: true } },
+          },
+        })
+      : [],
   ]);
 
   const firstName = user?.displayName.split(" ")[0] ?? "friend";
@@ -159,6 +171,18 @@ export default async function HomePage() {
           },
         ]
       : []),
+    ...tanksWaiting.map((g) => {
+      const opp = g.challengerId === user?.id ? g.opponent : g.challenger;
+      return {
+        key: `tanks-${g.id}`,
+        verb: "Fire",
+        text: `tank duel vs ${opp.displayName.split(" ")[0]}`,
+        detail: "your shot",
+        href: `/tanks/${g.id}`,
+        action: "fire",
+        actionBg: "bg-accent-orange text-ink",
+      };
+    }),
     ...claimsDue.map((c) => ({
       key: `claim-${c.id}`,
       verb: "Judge",
