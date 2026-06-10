@@ -4,7 +4,8 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap, LayerGroup, Marker, LeafletMouseEvent } from "leaflet";
 import { api } from "@/lib/client";
-import { Button, Field, Input } from "@/components/ui";
+import { Avatar, Button, Field, Input } from "@/components/ui";
+import { dicebearUrl } from "@/lib/avatar";
 import { PIN_CATEGORIES, pinIcon } from "@/modules/map/schema";
 import { PixelIcon, pixelIconSvg, type IconName } from "@/components/icons";
 
@@ -17,6 +18,7 @@ export type PinView = {
   address: string | null;
   note: string | null;
   creatorName: string;
+  creatorAvatarUrl: string | null;
   canDelete: boolean;
 };
 
@@ -104,7 +106,10 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
       marker.bindPopup(
         `<strong style="font-size:14px">${escapeHtml(pin.name)}</strong><br/>` +
           (pin.note ? `<em>${escapeHtml(pin.note)}</em><br/>` : "") +
-          `<span style="opacity:.6">pinned by ${escapeHtml(pin.creatorName)}</span>`
+          `<span style="opacity:.6;display:inline-flex;align-items:center;gap:5px">pinned by ` +
+          `<img src="${escapeHtml(pin.creatorAvatarUrl || dicebearUrl(pin.creatorName))}" alt="" ` +
+          `style="width:16px;height:16px;border:1px solid currentColor;vertical-align:middle"/> ` +
+          `${escapeHtml(pin.creatorName)}</span>`
       );
       marker.addTo(layer);
     }
@@ -211,7 +216,7 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
         }
       );
       setPins([
-        { ...pin, creatorName: "You", canDelete: true },
+        { ...pin, creatorName: "You", creatorAvatarUrl: null, canDelete: true },
         ...pins,
       ]);
       setDraft(null);
@@ -332,10 +337,13 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
                 className="min-w-0 flex-1 text-left"
               >
                 <p className="truncate font-bold leading-snug">{pin.name}</p>
-                <p className="truncate font-mono text-xs text-ink/50">
-                  {pin.note ?? pin.address ?? `${pin.lat.toFixed(3)}, ${pin.lng.toFixed(3)}`}
-                  {" · "}
-                  {pin.creatorName}
+                <p className="inline-flex w-full items-center gap-1.5 truncate font-mono text-xs text-ink/50">
+                  <span className="truncate">
+                    {pin.note ?? pin.address ?? `${pin.lat.toFixed(3)}, ${pin.lng.toFixed(3)}`}
+                    {" · "}
+                  </span>
+                  <Avatar name={pin.creatorName} src={pin.creatorAvatarUrl} size="sm" />
+                  <span className="truncate">{pin.creatorName}</span>
                 </p>
               </button>
               {pin.canDelete && (

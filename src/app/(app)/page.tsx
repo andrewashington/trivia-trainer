@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { recentActivity } from "@/lib/activity";
 import { modules } from "@/modules/registry";
-import { Card } from "@/components/ui";
+import { Avatar, Card } from "@/components/ui";
 import { PixelIcon, type IconName } from "@/components/icons";
 import { getPetView, MOOD_META } from "@/modules/pet/engine";
 import { Creature } from "@/modules/pet/Creature";
@@ -151,6 +151,7 @@ export default async function HomePage() {
                       href={item.href}
                       className="group flex items-center gap-3 border-2 border-ink bg-card px-3 py-2 no-underline shadow-brutal-sm transition-transform hover:-translate-y-0.5"
                     >
+                      <Avatar name={item.actor} src={item.actorAvatarUrl} size="sm" />
                       <span
                         className={`flex h-8 w-8 shrink-0 items-center justify-center border-2 border-ink ${bg} ${onAccent(bg)}`}
                       >

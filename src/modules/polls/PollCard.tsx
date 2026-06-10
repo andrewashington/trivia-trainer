@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
-import { Badge, Button } from "@/components/ui";
+import { Avatar, Badge, Button } from "@/components/ui";
 import { StampOverlay, useActionStamp } from "@/components/ActionFx";
 import type { PollResults } from "@/modules/polls/results";
 import { POLL_TYPE_META } from "@/modules/polls/schema";
@@ -112,8 +112,8 @@ export function PollCard({ poll }: { poll: PollResults }) {
           </Badge>
         )}
         {poll.closed && <Badge className="bg-accent-red text-white">CLOSED</Badge>}
-        <span className="font-mono text-[10px] uppercase text-ink/40">
-          by {poll.creatorName} · {poll.voterCount} voted
+        <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase text-ink/40">
+          by <Avatar name={poll.creatorName} src={poll.creatorAvatarUrl} size="sm" /> {poll.creatorName} · {poll.voterCount} voted
         </span>
       </div>
 
@@ -220,8 +220,13 @@ export function PollCard({ poll }: { poll: PollResults }) {
                     />
                   </div>
                   {!poll.anonymous && opt.voters.length > 0 && (
-                    <p className="mt-0.5 font-mono text-[10px] text-ink/50">
-                      {opt.voters.join(", ")}
+                    <p className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 font-mono text-[10px] text-ink/50">
+                      {opt.voters.map((voter) => (
+                        <span key={voter.name} className="inline-flex items-center gap-1">
+                          <Avatar name={voter.name} src={voter.avatarUrl} size="sm" />
+                          {voter.name}
+                        </span>
+                      ))}
                     </p>
                   )}
                 </div>

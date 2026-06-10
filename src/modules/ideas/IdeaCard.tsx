@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
-import { Badge } from "@/components/ui";
+import { Avatar, Badge } from "@/components/ui";
 import { StampOverlay, useActionStamp } from "@/components/ActionFx";
 import { STATUS_META } from "@/modules/ideas/schema";
 
@@ -13,6 +13,7 @@ export type IdeaView = {
   detail: string | null;
   status: "open" | "planned" | "done";
   authorName: string;
+  authorAvatarUrl: string | null;
   voteCount: number;
   myVote: boolean;
   canDelete: boolean;
@@ -101,8 +102,8 @@ export function IdeaCard({ idea }: { idea: IdeaView }) {
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink/70">{idea.detail}</p>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[10px] uppercase text-ink/40">
-            by {idea.authorName}
+          <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase text-ink/40">
+            by <Avatar name={idea.authorName} src={idea.authorAvatarUrl} size="sm" /> {idea.authorName}
           </span>
           {idea.isAdmin && (
             <span className="ml-auto flex gap-1">

@@ -21,14 +21,18 @@ export default async function RevealPage() {
     db.revealPrompt.findMany({
       orderBy: { createdAt: "desc" },
       include: {
-        creator: { select: { id: true, displayName: true } },
-        submissions: { include: { user: { select: { id: true, displayName: true } } } },
+        creator: { select: { id: true, displayName: true, avatarUrl: true } },
+        submissions: { include: { user: { select: { id: true, displayName: true, avatarUrl: true } } } },
         unlockVotes: { select: { userId: true } },
       },
     }),
-    db.user.findMany({ select: { displayName: true }, orderBy: { displayName: "asc" } }),
+    db.user.findMany({
+      select: { displayName: true, avatarUrl: true },
+      orderBy: { displayName: "asc" },
+    }),
   ]);
   const memberNames = members.map((m) => m.displayName);
+  const memberViews = members.map((m) => ({ name: m.displayName, avatarUrl: m.avatarUrl }));
   const views = prompts.map((p) => toPromptView(p, user, memberNames.length));
   const open = views.filter((v) => v.status === "open");
   const revealed = views.filter((v) => v.status === "revealed");
@@ -111,7 +115,7 @@ export default async function RevealPage() {
                 {open
                   .filter((p) => p.type !== "sealed")
                   .map((p) => (
-                    <PromptCard key={p.id} prompt={p} memberNames={memberNames} />
+                    <PromptCard key={p.id} prompt={p} members={memberViews} />
                   ))}
               </ul>
             </section>
@@ -125,7 +129,7 @@ export default async function RevealPage() {
                 {open
                   .filter((p) => p.type === "sealed")
                   .map((p) => (
-                    <PromptCard key={p.id} prompt={p} memberNames={memberNames} />
+                    <PromptCard key={p.id} prompt={p} members={memberViews} />
                   ))}
               </ul>
             </section>
@@ -137,7 +141,7 @@ export default async function RevealPage() {
               </h2>
               <ul className="space-y-4">
                 {revealed.map((p) => (
-                  <PromptCard key={p.id} prompt={p} memberNames={memberNames} />
+                  <PromptCard key={p.id} prompt={p} members={memberViews} />
                 ))}
               </ul>
             </section>

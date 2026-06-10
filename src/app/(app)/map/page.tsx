@@ -13,7 +13,7 @@ export default async function MapPage() {
 
   const pins = await db.mapPin.findMany({
     orderBy: { createdAt: "desc" },
-    include: { creator: { select: { id: true, displayName: true } } },
+    include: { creator: { select: { id: true, displayName: true, avatarUrl: true } } },
   });
 
   return (
@@ -29,6 +29,7 @@ export default async function MapPage() {
           address: p.address,
           note: p.note,
           creatorName: p.creator.displayName,
+          creatorAvatarUrl: p.creator.avatarUrl,
           canDelete: user.id === p.creatorId || user.role === "admin",
         }))}
       />

@@ -23,8 +23,8 @@ export default async function MarketplacePage({
   const listings = await db.listing.findMany({
     orderBy: { createdAt: "desc" },
     include: {
-      seller: { select: { id: true, displayName: true, venmoHandle: true } },
-      claimedBy: { select: { id: true, displayName: true } },
+      seller: { select: { id: true, displayName: true, venmoHandle: true, avatarUrl: true } },
+      claimedBy: { select: { id: true, displayName: true, avatarUrl: true } },
     },
   });
 
@@ -50,8 +50,10 @@ export default async function MarketplacePage({
     imageUrl: imageUrls.get(l.id) ?? null,
     status: l.status,
     sellerName: l.seller.displayName,
+    sellerAvatarUrl: l.seller.avatarUrl,
     sellerVenmo: l.seller.venmoHandle,
     claimedByName: l.claimedBy?.displayName ?? null,
+    claimedByAvatarUrl: l.claimedBy?.avatarUrl ?? null,
     isMine: l.sellerId === user.id,
     myClaim: l.claimedById === user.id,
     isAdmin: user.role === "admin",

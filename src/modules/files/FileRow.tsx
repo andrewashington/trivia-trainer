@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { PixelIcon } from "@/components/icons";
+import { Avatar } from "@/components/ui";
 
 function formatBytes(n: number): string {
   if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -22,6 +23,7 @@ export function FileRow({
     sizeBytes: number;
     createdAt: string;
     uploaderName: string;
+    uploaderAvatarUrl: string | null;
     previewUrl?: string | null;
   };
   canDelete: boolean;
@@ -83,7 +85,8 @@ export function FileRow({
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate font-bold leading-snug">{file.filename}</p>
-        <p className="font-mono text-xs text-ink/50">
+        <p className="inline-flex items-center gap-1.5 font-mono text-xs text-ink/50">
+          <Avatar name={file.uploaderName} src={file.uploaderAvatarUrl} size="sm" />
           {file.uploaderName} · {new Date(file.createdAt).toLocaleDateString()} ·{" "}
           {formatBytes(file.sizeBytes)}
         </p>

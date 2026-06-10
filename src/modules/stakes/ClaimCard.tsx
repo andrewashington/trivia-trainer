@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/client";
-import { Badge } from "@/components/ui";
+import { Avatar, Badge } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { StampOverlay, useActionStamp, type StampTone } from "@/components/ActionFx";
 
@@ -12,7 +12,9 @@ export type ClaimView = {
   resolvesAt: string;
   hidden: boolean;
   creatorName: string;
+  creatorAvatarUrl: string | null;
   counterpartyName: string | null;
+  counterpartyAvatarUrl: string | null;
   stake: string | null;
   outcome: "right" | "wrong" | "void" | null;
   settledAt: string | null;
@@ -147,9 +149,16 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
           </span>
         )}
       </p>
-      <p className="mt-1 font-mono text-[10px] uppercase text-ink/40">
+      <p className="mt-1 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase text-ink/40">
+        <Avatar name={claim.creatorName} src={claim.creatorAvatarUrl} size="sm" />
         {claim.creatorName}
-        {claim.counterpartyName && ` vs ${claim.counterpartyName}`}
+        {claim.counterpartyName && (
+          <>
+            {" vs "}
+            <Avatar name={claim.counterpartyName} src={claim.counterpartyAvatarUrl} size="sm" />
+            {claim.counterpartyName}
+          </>
+        )}
       </p>
 
       {claim.stake && (

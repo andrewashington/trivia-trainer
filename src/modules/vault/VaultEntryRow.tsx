@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
-import { Button, Field, Input } from "@/components/ui";
+import { Avatar, Button, Field, Input } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 
 export type VaultEntryView = {
@@ -13,6 +13,7 @@ export type VaultEntryView = {
   username: string;
   notes: string | null;
   creatorName: string;
+  creatorAvatarUrl: string | null;
   canDelete: boolean;
 };
 
@@ -212,8 +213,9 @@ export function VaultEntryRow({ entry }: { entry: VaultEntryView }) {
       </div>
 
       {entry.notes && <p className="mt-2 text-sm italic text-ink/60">{entry.notes}</p>}
-      <p className="mt-2 font-mono text-[10px] uppercase text-ink/40">
-        added by {entry.creatorName}
+      <p className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase text-ink/40">
+        added by <Avatar name={entry.creatorName} src={entry.creatorAvatarUrl} size="sm" />{" "}
+        {entry.creatorName}
       </p>
     </li>
   );

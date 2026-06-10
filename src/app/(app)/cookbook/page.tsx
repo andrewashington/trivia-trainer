@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { presignView } from "@/lib/storage";
-import { Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
+import { Avatar, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { HeroBanner, HeroCta } from "@/components/Hero";
 import { PixelIcon } from "@/components/icons";
 
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function CookbookPage() {
   const recipes = await db.recipe.findMany({
     orderBy: { createdAt: "desc" },
-    include: { author: { select: { displayName: true } } },
+    include: { author: { select: { displayName: true, avatarUrl: true } } },
   });
 
   const thumbs = new Map<string, string>();
@@ -43,8 +43,9 @@ export default async function CookbookPage() {
               <h2 className="font-display text-2xl font-bold leading-tight sm:text-3xl">
                 {recipes[0].title}
               </h2>
-              <p className="mt-2 font-mono text-xs uppercase tracking-wide text-white/80">
-                by {recipes[0].author.displayName} · who's making it first?
+              <p className="mt-2 inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-white/80">
+                by <Avatar name={recipes[0].author.displayName} src={recipes[0].author.avatarUrl} size="sm" />{" "}
+                {recipes[0].author.displayName} · who's making it first?
               </p>
             </div>
             <HeroCta href={`/cookbook/${recipes[0].id}`} className="bg-accent-yellow text-ink">
@@ -85,8 +86,9 @@ export default async function CookbookPage() {
                   <p className="font-display text-lg font-bold leading-tight">
                     {recipe.title}
                   </p>
-                  <p className="mt-1 font-mono text-xs uppercase text-ink/50">
-                    by {recipe.author.displayName}
+                  <p className="mt-1 inline-flex items-center gap-1.5 font-mono text-xs uppercase text-ink/50">
+                    by <Avatar name={recipe.author.displayName} src={recipe.author.avatarUrl} size="sm" />{" "}
+                    {recipe.author.displayName}
                   </p>
                 </div>
               </Card>

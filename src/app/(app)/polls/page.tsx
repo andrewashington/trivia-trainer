@@ -24,9 +24,9 @@ export default async function PollsPage({
   const polls = await db.poll.findMany({
     orderBy: { createdAt: "desc" },
     include: {
-      creator: { select: { id: true, displayName: true } },
+      creator: { select: { id: true, displayName: true, avatarUrl: true } },
       options: { orderBy: { order: "asc" } },
-      votes: { include: { user: { select: { id: true, displayName: true } } } },
+      votes: { include: { user: { select: { id: true, displayName: true, avatarUrl: true } } } },
       revealVotes: { select: { userId: true } },
     },
   });

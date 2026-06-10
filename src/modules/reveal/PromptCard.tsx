@@ -13,7 +13,9 @@ function daysUntil(iso: string): number {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000));
 }
 
-export function PromptCard({ prompt, memberNames }: { prompt: PromptView; memberNames: string[] }) {
+export type MemberView = { name: string; avatarUrl: string | null };
+
+export function PromptCard({ prompt, members }: { prompt: PromptView; members: MemberView[] }) {
   const router = useRouter();
   const meta = REVEAL_TYPE_META[prompt.type];
   const [busy, setBusy] = useState(false);
@@ -39,7 +41,7 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
   }
 
   const pool = items.map((_, i) => i).filter((i) => !ranked.includes(i));
-  const memberSet = new Set(memberNames);
+  const membersByName = new Map(members.map((m) => [m.name, m]));
 
   async function lockIn() {
     if (!armedLock) {
@@ -102,8 +104,8 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
             <PixelIcon name="clock" size={13} /> {daysUntil(prompt.deadline)}d left
           </Badge>
         )}
-        <span className="ml-auto font-mono text-[10px] uppercase text-ink/40">
-          by {prompt.creatorName}
+        <span className="ml-auto inline-flex items-center gap-1 font-mono text-[10px] uppercase text-ink/40">
+          by <Avatar name={prompt.creatorName} src={prompt.creatorAvatarUrl} size="sm" /> {prompt.creatorName}
         </span>
       </div>
 
@@ -201,7 +203,7 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
 
       {/* ---------- REVEALED: aggregates only ---------- */}
       {prompt.results?.kind === "rank" && (
-        <RankReveal results={prompt.results} memberSet={memberSet} />
+        <RankReveal results={prompt.results} membersByName={membersByName} />
       )}
       {prompt.results?.kind === "sealed" && <SealedReveal results={prompt.results} />}
 
@@ -222,7 +224,13 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
   );
 }
 
-function RankReveal({ results, memberSet }: { results: RankResults; memberSet: Set<string> }) {
+function RankReveal({
+  results,
+  membersByName,
+}: {
+  results: RankResults;
+  membersByName: Map<string, MemberView>;
+}) {
   return (
     <div className="mt-3 space-y-1.5 animate-pop-in">
       {results.consensus.map((entry, pos) => (
@@ -233,7 +241,13 @@ function RankReveal({ results, memberSet }: { results: RankResults; memberSet: S
           }`}
         >
           <span className="font-display text-lg font-bold">{pos + 1}.</span>
-          {memberSet.has(entry.label) && <Avatar name={entry.label} size="sm" />}
+          {membersByName.has(entry.label) && (
+            <Avatar
+              name={entry.label}
+              src={membersByName.get(entry.label)!.avatarUrl}
+              size="sm"
+            />
+          )}
           <span className="font-bold">{entry.label}</span>
         </div>
       ))}

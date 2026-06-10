@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/client";
-import { Badge } from "@/components/ui";
+import { Avatar, Badge } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { StampOverlay, useActionStamp, type StampTone } from "@/components/ActionFx";
 import { DELIVERY_META, formatPrice } from "@/modules/marketplace/schema";
@@ -16,8 +16,10 @@ export type ListingView = {
   imageUrl: string | null;
   status: "available" | "claimed" | "gone";
   sellerName: string;
+  sellerAvatarUrl: string | null;
   sellerVenmo: string | null;
   claimedByName: string | null;
+  claimedByAvatarUrl: string | null;
   isMine: boolean;
   myClaim: boolean;
   isAdmin: boolean;
@@ -107,7 +109,9 @@ export function ListingCard({ listing }: { listing: ListingView }) {
           </Badge>
           {listing.status === "claimed" && (
             <Badge className="inline-flex items-center gap-1.5 bg-accent-yellow">
-              <PixelIcon name="hand" size={13} /> Claimed by {listing.myClaim ? "you" : listing.claimedByName}
+              <PixelIcon name="hand" size={13} /> Claimed by{" "}
+              <Avatar name={listing.claimedByName ?? ""} src={listing.claimedByAvatarUrl} size="sm" />{" "}
+              {listing.myClaim ? "you" : listing.claimedByName}
             </Badge>
           )}
           {gone && <Badge className="bg-ink text-white">GONE</Badge>}
@@ -117,7 +121,8 @@ export function ListingCard({ listing }: { listing: ListingView }) {
           <p className="whitespace-pre-wrap text-sm text-ink/70">{listing.description}</p>
         )}
 
-        <p className="font-mono text-[10px] uppercase text-ink/40">
+        <p className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase text-ink/40">
+          <Avatar name={listing.sellerName} src={listing.sellerAvatarUrl} size="sm" />
           {listing.sellerName}
           {listing.sellerVenmo && (
             <>

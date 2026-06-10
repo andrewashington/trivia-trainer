@@ -10,6 +10,7 @@ export type Activity = {
   id: string;
   module: string;
   actor: string;
+  actorAvatarUrl: string | null;
   verb: string;
   title: string;
   href: string;
@@ -20,7 +21,7 @@ export type Activity = {
 const PER_KIND = 6;
 
 export async function recentActivity(limit = 16): Promise<Activity[]> {
-  const who = { select: { displayName: true } };
+  const who = { select: { displayName: true, avatarUrl: true } };
   const recent = { take: PER_KIND, orderBy: { createdAt: "desc" } } as const;
 
   const [recipes, events, listings, ideas, polls, wishlist, pins, files, reveals, claims, playing] =
@@ -43,21 +44,21 @@ export async function recentActivity(limit = 16): Promise<Activity[]> {
     ]);
 
   const items: Activity[] = [
-    ...recipes.map((r) => mk(r.id, "cookbook", r.author.displayName, "added a recipe", r.title, "/cookbook", r.createdAt)),
-    ...events.map((e) => mk(e.id, "events", e.creator.displayName, "planned", e.title, "/events", e.createdAt)),
-    ...listings.map((l) => mk(l.id, "marketplace", l.seller.displayName, "listed", l.title, "/marketplace", l.createdAt)),
-    ...ideas.map((i) => mk(i.id, "ideas", i.author.displayName, "pitched an idea", i.title, "/ideas", i.createdAt)),
-    ...polls.map((p) => mk(p.id, "polls", p.creator.displayName, "opened a poll", p.question, "/polls", p.createdAt)),
-    ...wishlist.map((w) => mk(w.id, "wishlist", w.user.displayName, "is wishing for", w.title, "/wishlist", w.createdAt)),
-    ...pins.map((p) => mk(p.id, "map", p.creator.displayName, "dropped a pin", p.name, "/map", p.createdAt)),
-    ...files.map((f) => mk(f.id, "files", f.uploader.displayName, "uploaded", f.filename, "/files", f.createdAt)),
-    ...reveals.map((r) => mk(r.id, "reveal", r.creator.displayName, "started a reveal", r.title, "/reveal", r.createdAt)),
-    ...claims.map((c) => mk(c.id, "stakes", c.creator.displayName, "called a shot", c.text, "/stakes", c.createdAt)),
+    ...recipes.map((r) => mk(r.id, "cookbook", r.author, "added a recipe", r.title, "/cookbook", r.createdAt)),
+    ...events.map((e) => mk(e.id, "events", e.creator, "planned", e.title, "/events", e.createdAt)),
+    ...listings.map((l) => mk(l.id, "marketplace", l.seller, "listed", l.title, "/marketplace", l.createdAt)),
+    ...ideas.map((i) => mk(i.id, "ideas", i.author, "pitched an idea", i.title, "/ideas", i.createdAt)),
+    ...polls.map((p) => mk(p.id, "polls", p.creator, "opened a poll", p.question, "/polls", p.createdAt)),
+    ...wishlist.map((w) => mk(w.id, "wishlist", w.user, "is wishing for", w.title, "/wishlist", w.createdAt)),
+    ...pins.map((p) => mk(p.id, "map", p.creator, "dropped a pin", p.name, "/map", p.createdAt)),
+    ...files.map((f) => mk(f.id, "files", f.uploader, "uploaded", f.filename, "/files", f.createdAt)),
+    ...reveals.map((r) => mk(r.id, "reveal", r.creator, "started a reveal", r.title, "/reveal", r.createdAt)),
+    ...claims.map((c) => mk(c.id, "stakes", c.creator, "called a shot", c.text, "/stakes", c.createdAt)),
     ...playing.map((n) =>
       mk(
         n.id,
         "nowplaying",
-        n.user.displayName,
+        n.user,
         n.status === "finished" ? "finished" : n.mediaType === "book" ? "is reading" : "is watching",
         n.title,
         "/nowplaying",
@@ -72,11 +73,11 @@ export async function recentActivity(limit = 16): Promise<Activity[]> {
 function mk(
   id: string,
   module: string,
-  actor: string,
+  who: { displayName: string; avatarUrl: string | null },
   verb: string,
   title: string,
   href: string,
   at: Date
 ): Activity {
-  return { id, module, actor, verb, title, href, at };
+  return { id, module, actor: who.displayName, actorAvatarUrl: who.avatarUrl, verb, title, href, at };
 }

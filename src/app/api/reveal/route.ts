@@ -13,8 +13,8 @@ export const GET = apiHandler(async () => {
     db.revealPrompt.findMany({
       orderBy: { createdAt: "desc" },
       include: {
-        creator: { select: { id: true, displayName: true } },
-        submissions: { include: { user: { select: { id: true, displayName: true } } } },
+        creator: { select: { id: true, displayName: true, avatarUrl: true } },
+        submissions: { include: { user: { select: { id: true, displayName: true, avatarUrl: true } } } },
         unlockVotes: { select: { userId: true } },
       },
     }),

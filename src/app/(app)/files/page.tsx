@@ -16,7 +16,7 @@ export default async function FilesPage() {
 
   const files = await db.fileObject.findMany({
     orderBy: { createdAt: "desc" },
-    include: { uploader: { select: { id: true, displayName: true } } },
+    include: { uploader: { select: { id: true, displayName: true, avatarUrl: true } } },
   });
   const maxMb = Number(process.env.MAX_FILE_SIZE_MB ?? 25);
 
@@ -61,6 +61,7 @@ export default async function FilesPage() {
                 sizeBytes: f.sizeBytes,
                 createdAt: f.createdAt.toISOString(),
                 uploaderName: f.uploader.displayName,
+                uploaderAvatarUrl: f.uploader.avatarUrl,
                 previewUrl: previews.get(f.id) || null,
               }}
               canDelete={user.id === f.uploaderId || user.role === "admin"}

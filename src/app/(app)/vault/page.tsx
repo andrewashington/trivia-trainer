@@ -22,7 +22,7 @@ export default async function VaultPage() {
       username: true,
       notes: true,
       creatorId: true,
-      creator: { select: { displayName: true } },
+      creator: { select: { displayName: true, avatarUrl: true } },
     },
   });
 
@@ -50,6 +50,7 @@ export default async function VaultPage() {
                 username: e.username,
                 notes: e.notes,
                 creatorName: e.creator.displayName,
+                creatorAvatarUrl: e.creator.avatarUrl,
                 canDelete: user.id === e.creatorId || user.role === "admin",
               }}
             />

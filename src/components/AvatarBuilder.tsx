@@ -1,27 +1,22 @@
 "use client";
 
 import {
-  AVATAR_ACCESSORIES,
   AVATAR_BACKGROUNDS,
-  AVATAR_CLOTHING_COLORS,
-  AVATAR_FACES,
-  AVATAR_FACIAL_HAIR,
-  AVATAR_HAIR_COLORS,
-  AVATAR_HEADS,
-  AVATAR_SKIN_COLORS,
   AVATAR_STYLES,
   DICEBEAR_STYLE,
   avatarUrlFromConfig,
+  styleOptions,
   type AvatarConfig,
 } from "@/lib/avatar";
 import { PixelIcon } from "@/components/icons";
 
 /**
- * Make-your-own-peep builder: live preview, a base-style switcher, and
- * (for Open Peeps) a control for every part. Each part cycles through
- * "random" → (optionally "none") → every pinned value. Other styles
- * draw all their parts from the seed — reroll to shuffle. Hands a
- * structured {@link AvatarConfig} up to the parent (wizard or profile).
+ * Make-your-own-avatar builder: live preview, a base-style switcher,
+ * and a control for every part the chosen style supports (driven by
+ * the generated per-style schemas in src/lib/avatar-options.ts).
+ * Each part cycles "random" → (optionally "none") → every value; color
+ * palettes render as swatches. Hands a structured {@link AvatarConfig}
+ * up to the parent (wizard or profile).
  */
 export function AvatarBuilder({
   name,
@@ -32,31 +27,32 @@ export function AvatarBuilder({
   value: AvatarConfig;
   onChange: (config: AvatarConfig) => void;
 }) {
-  const set = (patch: Partial<AvatarConfig>) => onChange({ ...value, ...patch });
   const style = value.style ?? DICEBEAR_STYLE;
-  const isPeeps = style === DICEBEAR_STYLE;
+  const defs = styleOptions(style);
+
+  const setOption = (key: string, v: string | undefined) => {
+    const options = { ...(value.options ?? {}) };
+    if (v === undefined) delete options[key];
+    else options[key] = v;
+    onChange({ ...value, options: Object.keys(options).length ? options : undefined });
+  };
 
   // Reroll the unpinned features by nudging the seed.
   const reroll = () => {
     const base = (value.seed || name || "friend").replace(/~\d+$/, "");
     const n = Number(value.seed.match(/~(\d+)$/)?.[1] ?? 0);
-    set({ seed: `${base}~${n + 1}` });
+    onChange({ ...value, seed: `${base}~${n + 1}` });
   };
 
   const cycleStyle = (dir: 1 | -1) => {
-    const styles = AVATAR_STYLES as readonly string[];
-    const next = (styles.indexOf(style) + dir + styles.length) % styles.length;
-    // Part pins are open-peeps-specific; clear them when leaving it.
-    const nextStyle = styles[next];
-    if (nextStyle === DICEBEAR_STYLE) {
-      set({ style: undefined });
-    } else {
-      onChange({
-        seed: value.seed,
-        style: nextStyle,
-        backgroundColor: value.backgroundColor,
-      });
-    }
+    const next = (AVATAR_STYLES.indexOf(style) + dir + AVATAR_STYLES.length) % AVATAR_STYLES.length;
+    const nextStyle = AVATAR_STYLES[next];
+    // Pins are style-specific; start the new style fresh.
+    onChange({
+      seed: value.seed,
+      style: nextStyle === DICEBEAR_STYLE ? undefined : nextStyle,
+      backgroundColor: value.backgroundColor,
+    });
   };
 
   return (
@@ -75,6 +71,9 @@ export function AvatarBuilder({
           <PixelIcon name="reload" size={13} />
           Reroll
         </button>
+        <p className="max-w-28 text-center font-mono text-[9px] uppercase leading-snug text-ink/40">
+          Reroll shuffles anything left on random
+        </p>
       </div>
 
       {/* Controls */}
@@ -91,80 +90,47 @@ export function AvatarBuilder({
           </div>
         </div>
 
-        {isPeeps ? (
-          <>
-            <CycleRow
-              label="Hair"
-              options={AVATAR_HEADS}
-              value={value.head}
-              onChange={(head) => set({ head })}
-            />
-            <CycleRow
-              label="Expression"
-              options={AVATAR_FACES}
-              value={value.face}
-              onChange={(face) => set({ face })}
-            />
-            <CycleRow
-              label="Facial hair"
-              options={AVATAR_FACIAL_HAIR}
-              value={value.facialHair}
-              onChange={(facialHair) => set({ facialHair })}
-              allowNone
-            />
-            <CycleRow
-              label="Accessory"
-              options={AVATAR_ACCESSORIES}
-              value={value.accessory}
-              onChange={(accessory) => set({ accessory })}
-              allowNone
-            />
-
-            <SwatchRow
-              label="Hair color"
-              colors={AVATAR_HAIR_COLORS}
-              value={value.hairColor}
-              onChange={(hairColor) => set({ hairColor })}
-            />
-            <SwatchRow
-              label="Skin tone"
-              colors={AVATAR_SKIN_COLORS}
-              value={value.skinColor}
-              onChange={(skinColor) => set({ skinColor })}
-            />
-            <SwatchRow
-              label="Outfit"
-              colors={AVATAR_CLOTHING_COLORS}
-              value={value.clothingColor}
-              onChange={(clothingColor) => set({ clothingColor })}
-            />
-          </>
-        ) : (
-          <p className="border-2 border-dashed border-ink/30 bg-paper px-3 py-2 font-mono text-[11px] text-ink/60">
-            This style rolls all its features from the dice — hit reroll until
-            you like the look. Switch back to open-peeps for part-by-part
-            control.
-          </p>
-        )}
-
-        {/* Backdrop applies to every style */}
-        <div>
-          <span className="brutal-label">Backdrop</span>
-          <div className="flex flex-wrap gap-1.5">
-            {AVATAR_BACKGROUNDS.map((hex) => (
-              <Swatch
-                key={hex || "none"}
-                hex={hex}
-                transparent={hex === ""}
-                selected={(value.backgroundColor ?? "") === hex}
-                onClick={() => set({ backgroundColor: hex || undefined })}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {Object.entries(defs).map(([key, def]) =>
+            def.kind === "enum" ? (
+              <CycleRow
+                key={`${style}:${key}`}
+                label={optionLabel(key)}
+                options={def.values}
+                allowNone={def.hasProbability}
+                value={value.options?.[key]}
+                onChange={(v) => setOption(key, v)}
               />
-            ))}
-          </div>
+            ) : (
+              <SwatchRow
+                key={`${style}:${key}`}
+                label={optionLabel(key)}
+                colors={def.values}
+                value={value.options?.[key]}
+                onChange={(v) => setOption(key, v)}
+              />
+            )
+          )}
+
+          {/* Backdrop applies to every style */}
+          <SwatchRow
+            label="Backdrop"
+            colors={AVATAR_BACKGROUNDS}
+            transparentFirst
+            value={value.backgroundColor ?? ""}
+            onChange={(v) => onChange({ ...value, backgroundColor: v || undefined })}
+          />
         </div>
       </div>
     </div>
   );
+}
+
+/** "headContrastColor" → "Hair color", "facialHair" → "Facial hair". */
+function optionLabel(key: string): string {
+  if (key === "headContrastColor") return "Hair color";
+  const words = key.replace(/([A-Z])/g, " $1").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /**
@@ -213,11 +179,14 @@ function SwatchRow({
   colors,
   value,
   onChange,
+  transparentFirst,
 }: {
   label: string;
   colors: readonly string[];
   value: string | undefined;
   onChange: (v: string | undefined) => void;
+  /** Backdrop palette starts with "" = transparent. */
+  transparentFirst?: boolean;
 }) {
   return (
     <div>
@@ -225,10 +194,13 @@ function SwatchRow({
       <div className="flex flex-wrap gap-1.5">
         {colors.map((hex) => (
           <Swatch
-            key={hex}
+            key={hex || "none"}
             hex={hex}
+            transparent={transparentFirst && hex === ""}
             selected={value === hex}
-            onClick={() => onChange(value === hex ? undefined : hex)}
+            onClick={() =>
+              onChange(transparentFirst ? hex : value === hex ? undefined : hex)
+            }
           />
         ))}
       </div>

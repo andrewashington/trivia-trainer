@@ -17,7 +17,7 @@ export default async function IdeasPage() {
 
   const ideas = await db.idea.findMany({
     include: {
-      author: { select: { id: true, displayName: true } },
+      author: { select: { id: true, displayName: true, avatarUrl: true } },
       votes: { select: { userId: true } },
     },
   });
@@ -28,6 +28,7 @@ export default async function IdeasPage() {
     detail: i.detail,
     status: i.status,
     authorName: i.author.displayName,
+    authorAvatarUrl: i.author.avatarUrl,
     voteCount: i.votes.length,
     myVote: i.votes.some((v) => v.userId === user.id),
     canDelete: user.id === i.authorId || user.role === "admin",

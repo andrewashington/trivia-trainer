@@ -3,9 +3,9 @@ import { db } from "@/lib/db";
 import { withOutbox } from "@/lib/outbox";
 
 type PromptWithSubs = RevealPrompt & {
-  creator: { id: string; displayName: string };
+  creator: { id: string; displayName: string; avatarUrl: string | null };
   submissions: (RevealSubmission & {
-    user: { id: string; displayName: string };
+    user: { id: string; displayName: string; avatarUrl: string | null };
   })[];
   unlockVotes: { userId: string }[];
 };
@@ -22,6 +22,7 @@ export type PromptView = {
   status: "open" | "revealed";
   title: string;
   creatorName: string;
+  creatorAvatarUrl: string | null;
   isMine: boolean;
   isAdmin: boolean;
   createdAt: string;
@@ -130,8 +131,8 @@ export async function sweepReveals(): Promise<void> {
     db.revealPrompt.findMany({
       where: { status: "open" },
       include: {
-        creator: { select: { id: true, displayName: true } },
-        submissions: { include: { user: { select: { id: true, displayName: true } } } },
+        creator: { select: { id: true, displayName: true, avatarUrl: true } },
+        submissions: { include: { user: { select: { id: true, displayName: true, avatarUrl: true } } } },
         unlockVotes: { select: { userId: true } },
       },
     }),
@@ -181,6 +182,7 @@ export function toPromptView(
     status: prompt.status,
     title: prompt.title,
     creatorName: prompt.creator.displayName,
+    creatorAvatarUrl: prompt.creator.avatarUrl,
     isMine: prompt.creatorId === viewer.id,
     isAdmin: viewer.role === "admin",
     createdAt: prompt.createdAt.toISOString(),

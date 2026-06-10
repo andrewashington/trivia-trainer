@@ -1,9 +1,9 @@
 import type { Poll, PollOption, PollVote, User } from "@prisma/client";
 
 type PollWithRelations = Poll & {
-  creator: { id: string; displayName: string };
+  creator: { id: string; displayName: string; avatarUrl: string | null };
   options: PollOption[];
-  votes: (PollVote & { user: { id: string; displayName: string } })[];
+  votes: (PollVote & { user: { id: string; displayName: string; avatarUrl: string | null } })[];
   revealVotes: { userId: string }[];
 };
 
@@ -14,6 +14,7 @@ export type PollResults = {
   anonymous: boolean;
   closed: boolean;
   creatorName: string;
+  creatorAvatarUrl: string | null;
   isMine: boolean;
   isAdmin: boolean;
   voterCount: number;
@@ -24,8 +25,8 @@ export type PollResults = {
     id: string;
     label: string;
     count: number;
-    /** Voter names — only populated for non-anonymous polls. */
-    voters: string[];
+    /** Voters — only populated for non-anonymous polls. */
+    voters: { name: string; avatarUrl: string | null }[];
   }[];
   /** Scale polls: counts indexed by rating 1..5, plus the average. */
   scale: { distribution: number[]; average: number | null } | null;
@@ -57,7 +58,10 @@ export function pollToResults(poll: PollWithRelations, viewer: User): PollResult
       id: opt.id,
       label: opt.label,
       count: resultsHidden ? 0 : optVotes.length,
-      voters: poll.anonymous || resultsHidden ? [] : optVotes.map((v) => v.user.displayName),
+      voters:
+        poll.anonymous || resultsHidden
+          ? []
+          : optVotes.map((v) => ({ name: v.user.displayName, avatarUrl: v.user.avatarUrl })),
     };
   });
 
@@ -85,6 +89,7 @@ export function pollToResults(poll: PollWithRelations, viewer: User): PollResult
     anonymous: poll.anonymous,
     closed: poll.closedAt !== null,
     creatorName: poll.creator.displayName,
+    creatorAvatarUrl: poll.creator.avatarUrl,
     isMine: poll.creatorId === viewer.id,
     isAdmin: viewer.role === "admin",
     voterCount,
