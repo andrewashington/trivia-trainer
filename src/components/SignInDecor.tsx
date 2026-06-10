@@ -1,4 +1,5 @@
 import { PixelIcon } from "@/components/icons";
+import { ConfettiShape, type ConfettiShapeKind } from "@/components/Confetti";
 
 /**
  * The sign-in splash's playful backdrop: a dotted-paper texture, a drift
@@ -7,10 +8,8 @@ import { PixelIcon } from "@/components/icons";
  * Pure decoration — pointer-events-none, sits behind the form, and is
  * hidden from screen readers.
  */
-type Shape = "square" | "ring" | "plus" | "diamond";
-
 const CONFETTI: {
-  shape: Shape;
+  shape: ConfettiShapeKind;
   color: string;
   top: string;
   left: string;
@@ -80,32 +79,5 @@ export function SignInDecor() {
         </div>
       </div>
     </div>
-  );
-}
-
-function ConfettiShape({ shape, color, size }: { shape: Shape; color: string; size: number }) {
-  if (shape === "plus") {
-    return (
-      <PlusGlyph className={color} size={size} />
-    );
-  }
-  const base = `border-3 border-ink shadow-brutal ${color}`;
-  if (shape === "ring") {
-    return <span className={`block rounded-full ${base}`} style={{ width: size, height: size }} />;
-  }
-  if (shape === "diamond") {
-    return <span className={`block rotate-45 ${base}`} style={{ width: size, height: size }} />;
-  }
-  return <span className={`block ${base}`} style={{ width: size, height: size }} />;
-}
-
-function PlusGlyph({ className, size }: { className: string; size: number }) {
-  return (
-    <span
-      className={`font-display font-bold leading-none drop-shadow-[3px_3px_0_#101010] [-webkit-text-stroke:2px_#101010] ${className}`}
-      style={{ fontSize: size }}
-    >
-      +
-    </span>
   );
 }
