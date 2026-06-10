@@ -36,6 +36,15 @@ export type ClaimView = {
   stake: string | null;
   outcome: "right" | "wrong" | "void" | null;
   settledAt: string | null;
+  fixture: {
+    league: string;
+    homeTeam: string;
+    awayTeam: string;
+    homeScore: number | null;
+    awayScore: number | null;
+    finished: boolean;
+  } | null;
+  pickTeam: string | null;
   canResolve: boolean;
   canOverride: boolean;
   canDelete: boolean;
@@ -132,6 +141,11 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
             <PixelIcon name="sparkles" size={13} /> Called it
           </Badge>
         )}
+        {claim.fixture && (
+          <Badge className="inline-flex items-center gap-1.5 bg-accent-orange">
+            <PixelIcon name="trophy" size={13} /> {claim.fixture.league}
+          </Badge>
+        )}
         {claim.hidden && !resolved && (
           <Badge className="inline-flex items-center gap-1.5 bg-ink text-white">
             <PixelIcon name="sunglasses" size={13} /> Hidden
@@ -177,6 +191,20 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
           </>
         )}
       </p>
+
+      {claim.fixture &&
+        (claim.fixture.finished ? (
+          <p className="mt-2 inline-flex items-center gap-1.5 border-2 border-ink bg-ink px-2 py-1 font-mono text-xs font-bold tabular-nums text-white">
+            <PixelIcon name="trophy" size={13} />
+            {claim.fixture.homeTeam} {claim.fixture.homeScore ?? "–"} : {claim.fixture.awayScore ?? "–"} {claim.fixture.awayTeam}
+            <span className="text-white/50">· oracle ruled</span>
+          </p>
+        ) : (
+          <p className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink/40">
+            <PixelIcon name="zap" size={12} className="-mt-0.5 mr-1 inline" />
+            Auto-settles from the final score
+          </p>
+        ))}
 
       {claim.stake && (
         <p className="mt-2 border-2 border-dashed border-ink/30 bg-paper px-2 py-1 font-mono text-xs">

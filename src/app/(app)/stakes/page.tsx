@@ -9,6 +9,7 @@ import { ClaimForm } from "@/modules/stakes/ClaimForm";
 import { HeroBanner } from "@/components/Hero";
 import { Countdown } from "@/components/Countdown";
 import { ClaimCard, type ClaimView } from "@/modules/stakes/ClaimCard";
+import { settleDueSportsClaims } from "@/modules/stakes/settle";
 
 export const metadata = { title: "Stakes" };
 export const dynamic = "force-dynamic";
@@ -22,12 +23,17 @@ export default async function StakesPage({
   if (!user) redirect("/signin");
   const showHistory = searchParams.history === "1";
 
+  // The oracle: settle any sports claims whose games have ended.
+  // Throttled internally; failures just mean the next load retries.
+  await settleDueSportsClaims().catch(() => {});
+
   const [claims, members] = await Promise.all([
     db.claim.findMany({
       orderBy: { createdAt: "desc" },
       include: {
         creator: { select: { id: true, displayName: true, avatarUrl: true } },
         counterparty: { select: { id: true, displayName: true, avatarUrl: true } },
+        fixture: true,
       },
     }),
     db.user.findMany({ select: { id: true, displayName: true, avatarUrl: true }, orderBy: { displayName: "asc" } }),
@@ -49,6 +55,17 @@ export default async function StakesPage({
       stake: c.stake,
       outcome: c.outcome,
       settledAt: c.settledAt?.toISOString() ?? null,
+      fixture: c.fixture
+        ? {
+            league: c.fixture.league,
+            homeTeam: c.fixture.homeTeam,
+            awayTeam: c.fixture.awayTeam,
+            homeScore: c.fixture.homeScore,
+            awayScore: c.fixture.awayScore,
+            finished: c.fixture.finished,
+          }
+        : null,
+      pickTeam: c.pickTeam,
       canResolve: isParty || isAdmin,
       canOverride: isAdmin && c.outcome !== null,
       canDelete: c.creatorId === user.id || isAdmin,

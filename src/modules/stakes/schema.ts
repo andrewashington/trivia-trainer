@@ -7,8 +7,26 @@ export const claimInput = z
     counterpartyId: z.string().nullish(),
     stake: z.string().trim().max(300).nullish(),
     hidden: z.boolean(),
+    // Sports mode: both or neither.
+    fixtureId: z.string().nullish(),
+    pickTeam: z.string().trim().max(120).nullish(),
   })
   .superRefine((c, ctx) => {
+    if (!!c.fixtureId !== !!c.pickTeam) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["pickTeam"],
+        message: "A sports claim needs both the game and your pick.",
+      });
+    }
+    // The game card itself would leak a "hidden" sports claim.
+    if (c.hidden && c.fixtureId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["hidden"],
+        message: "Sports claims can't be hidden — the matchup is public.",
+      });
+    }
     if (c.resolvesAt <= new Date()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

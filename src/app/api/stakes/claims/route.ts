@@ -39,6 +39,21 @@ export const POST = apiHandler(async (req: Request) => {
     if (!other) throw new HttpError(404, "Counterparty not found.");
   }
 
+  // Sports mode: the claim rides on a cached fixture; the deadline is the
+  // game's end (start + grace), not whatever the client sent.
+  let resolvesAt = data.resolvesAt;
+  if (data.fixtureId) {
+    const fixture = await db.fixture.findUnique({ where: { id: data.fixtureId } });
+    if (!fixture) throw new HttpError(404, "Game not found — pick it again.");
+    if (fixture.finished || fixture.startsAt < new Date()) {
+      throw new HttpError(400, "That game already started — no late bets.");
+    }
+    if (data.pickTeam !== fixture.homeTeam && data.pickTeam !== fixture.awayTeam) {
+      throw new HttpError(400, "Your pick has to be one of the two teams.");
+    }
+    resolvesAt = new Date(fixture.startsAt.getTime() + 4 * 60 * 60_000);
+  }
+
   // Created = locked. There is no edit route, on purpose.
   const claim = await withOutbox(
     (tx) =>
@@ -46,10 +61,12 @@ export const POST = apiHandler(async (req: Request) => {
         data: {
           creatorId: user.id,
           text: data.text,
-          resolvesAt: data.resolvesAt,
+          resolvesAt,
           hidden: data.hidden,
           counterpartyId: data.counterpartyId ?? null,
           stake: data.stake ?? null,
+          fixtureId: data.fixtureId ?? null,
+          pickTeam: data.fixtureId ? data.pickTeam : null,
         },
       }),
     (c) => ({

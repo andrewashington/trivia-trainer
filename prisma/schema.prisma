@@ -516,14 +516,35 @@ model Claim {
   stake          String? // "loser buys coffee"
   outcome        ClaimOutcome?
   resolvedAt     DateTime?
-  resolvedById   String?
+  resolvedById   String? // null on a resolved sports claim = the oracle ruled
   settledAt      DateTime? // favor delivered
   createdAt      DateTime      @default(now())
+  // Sports mode: tied to a real fixture, auto-settled from the final score.
+  fixtureId      String?
+  pickTeam       String? // exact home/away team name the creator backs
 
-  creator      User  @relation("claimsCreated", fields: [creatorId], references: [id], onDelete: Cascade)
-  counterparty User? @relation("claimsAgainst", fields: [counterpartyId], references: [id], onDelete: SetNull)
+  creator      User     @relation("claimsCreated", fields: [creatorId], references: [id], onDelete: Cascade)
+  counterparty User?    @relation("claimsAgainst", fields: [counterpartyId], references: [id], onDelete: SetNull)
+  fixture      Fixture? @relation(fields: [fixtureId], references: [id], onDelete: SetNull)
 
   @@index([resolvedAt, resolvesAt])
+}
+
+// A real-world game cached from TheSportsDB. Scores are written once at
+// settlement so a bet's outcome is anchored to what we recorded, not a
+// re-fetch that might later change.
+model Fixture {
+  id        String   @id // TheSportsDB idEvent
+  league    String
+  homeTeam  String
+  awayTeam  String
+  startsAt  DateTime
+  homeScore Int?
+  awayScore Int?
+  finished  Boolean  @default(false)
+  fetchedAt DateTime @default(now())
+
+  claims Claim[]
 }
 
 // ============ The Pet: derived state, zero required input ============
