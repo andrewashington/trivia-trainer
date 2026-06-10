@@ -24,17 +24,24 @@ export function MemberManager({
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [armedId, setArmedId] = useState<string | null>(null);
 
   async function addMember(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      await api("/api/admin/members", {
+      const res = await api<{ welcomeEmailSent: boolean }>("/api/admin/members", {
         method: "POST",
         body: { email, displayName: name },
       });
+      setNotice(
+        res.welcomeEmailSent
+          ? `Welcome email with a sign-in link sent to ${email}.`
+          : `Member added, but the welcome email failed — they can still sign in at /signin.`
+      );
       setEmail("");
       setName("");
       router.refresh();
@@ -97,9 +104,17 @@ export function MemberManager({
             {error}
           </p>
         )}
+        {notice && (
+          <p className="border-2 border-ink bg-accent-green px-3 py-2 text-sm font-bold">
+            {notice}
+          </p>
+        )}
         <Button type="submit" disabled={busy} className="w-full">
           {busy ? "…" : "Add member"}
         </Button>
+        <p className="font-mono text-[10px] uppercase tracking-wide text-ink/40">
+          They&apos;ll get a welcome email with a one-tap sign-in link (good for 7 days).
+        </p>
       </form>
 
       <ul className="space-y-3">

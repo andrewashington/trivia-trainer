@@ -3,6 +3,7 @@ import { apiHandler, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { withOutbox } from "@/lib/outbox";
 import { HttpError, requireAdmin } from "@/lib/session";
+import { welcomeNewMember } from "@/lib/welcome";
 import { memberAdd } from "@/modules/admin/schema";
 
 export const GET = apiHandler(async () => {
@@ -39,5 +40,15 @@ export const POST = apiHandler(async (req: Request) => {
     })
   );
 
-  return NextResponse.json({ member }, { status: 201 });
+  // Welcome email with a ready-to-click sign-in link. Delivery problems
+  // must not roll back membership — they can always use /signin.
+  let welcomeEmailSent = true;
+  try {
+    await welcomeNewMember(member.email, member.displayName);
+  } catch (err) {
+    welcomeEmailSent = false;
+    console.error(`Welcome email to ${member.email} failed:`, err);
+  }
+
+  return NextResponse.json({ member, welcomeEmailSent }, { status: 201 });
 });
