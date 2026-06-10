@@ -458,7 +458,7 @@ export const modules: ModuleDef[] = [
     accentBg: "bg-accent-eggplant",
     hidden: true,
     intro:
-      "You found the hidden room. The field guide quiz — chart your specs, get your archetype. What happens in here stays in here.",
+      "You found the hidden room. The field guide quiz — chart your specs, get your archetype.",
     tips: [
       "Answer by picture — every option has a diagram, no essay questions",
       "Slide the rulers, pick your cards, file it",

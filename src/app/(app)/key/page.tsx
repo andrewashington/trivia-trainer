@@ -60,9 +60,8 @@ export default async function TheKeyPage() {
       <section className="brutal-card bg-card p-4 sm:p-6">
         <h2 className="mb-1 font-display text-lg font-bold">Your card</h2>
         <p className="mb-4 font-mono text-[10px] uppercase tracking-wide text-ink/40">
-          Answers stay private · only your encoded key string shows on your
-          profile (toggle below) · the chart assigns your archetype · Discord
-          will be none the wiser
+          Answer by picture · the chart assigns your archetype · doesn&apos;t post
+          to Discord, fyi
         </p>
         <KeyQuizForm
           initial={

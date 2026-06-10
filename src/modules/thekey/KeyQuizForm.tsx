@@ -405,10 +405,6 @@ export function KeyQuizForm({ initial }: { initial: KeyFormInitial }) {
           just the code — never the answers
         </span>
       </label>
-      <p className="-mt-3 font-mono text-[10px] uppercase tracking-wide text-ink/40">
-        Filing is hush-hush (no Discord, no feed) — and the code only means
-        something to people who&apos;ve filed one of their own.
-      </p>
 
       {error && (
         <p className="border-2 border-ink bg-accent-red px-3 py-2 text-sm font-bold text-white">

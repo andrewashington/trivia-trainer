@@ -23,8 +23,8 @@ const RULES: Rule[] = [
   {
     archetype: {
       id: "corkscrew",
-      label: "The Corkscrew 🌀",
-      blurb: "Bends on two axes at once. Defies CAD software. Opens wine in a pinch.",
+      label: "The Limited Edition 🌀",
+      blurb: "Curves on two axes — a custom build they simply don't mass-produce.",
     },
     matches: (a) => bends(a.curveVertical) && bends(a.curveLateral),
   },
@@ -50,8 +50,8 @@ const RULES: Rule[] = [
   {
     archetype: {
       id: "dowsing_rod",
-      label: "The Dowsing Rod 🪄",
-      blurb: "Points down with conviction. Allegedly finds water.",
+      label: "The Treasure Seeker 🪄",
+      blurb: "Points straight at the good stuff. Has never once missed.",
     },
     matches: (a) =>
       a.curveVertical === "down" &&
@@ -60,8 +60,8 @@ const RULES: Rule[] = [
   {
     archetype: {
       id: "turn_signal",
-      label: "The Turn Signal 🫲",
-      blurb: "Always indicates before changing lanes. Road-legal in all fifty states.",
+      label: "The Trailblazer 🧭",
+      blurb: "Charts its own route — and the route is always correct.",
     },
     matches: (a) =>
       bends(a.curveLateral) && a.curveIntensity !== "slight" && a.curveIntensity != null,
@@ -133,8 +133,8 @@ const RULES: Rule[] = [
   {
     archetype: {
       id: "standard_issue",
-      label: "The Standard Issue 📏",
-      blurb: "Straight, even, smooth — factory spec. Zero recalls on record.",
+      label: "The Gold Standard 📏",
+      blurb: "Straight, even, smooth — the reference unit others are measured against.",
     },
     matches: (a) =>
       a.curveVertical === "straight" &&
