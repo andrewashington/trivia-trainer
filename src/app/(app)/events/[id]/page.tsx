@@ -6,6 +6,7 @@ import { Avatar, Badge, Card, LinkButton } from "@/components/ui";
 import { DeleteButton } from "@/components/DeleteButton";
 import { PixelIcon } from "@/components/icons";
 import { RsvpButtons } from "@/modules/events/RsvpButtons";
+import { CommentThread } from "@/modules/comments/CommentThread";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,9 @@ export default async function EventPage({ params }: { params: { id: string } }) 
   if (!event) notFound();
 
   const canModify = user.id === event.creatorId || user.role === "admin";
+  const commentCount = await db.comment.count({
+    where: { targetType: "event", targetId: event.id },
+  });
   const mine = event.rsvps.find((r) => r.userId === user.id)?.status ?? null;
   const isPast = event.startAt < new Date();
 
@@ -105,6 +109,16 @@ export default async function EventPage({ params }: { params: { id: string } }) 
           );
         })}
       </div>
+
+      <Card>
+        <CommentThread
+          targetType="event"
+          targetId={event.id}
+          initialCount={commentCount}
+          viewerId={user.id}
+          viewerIsAdmin={user.role === "admin"}
+        />
+      </Card>
 
       {canModify && (
         <div className="flex gap-3 pt-2">

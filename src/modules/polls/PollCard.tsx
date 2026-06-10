@@ -10,8 +10,17 @@ import { StampOverlay, useActionStamp } from "@/components/ActionFx";
 import type { PollResults } from "@/modules/polls/results";
 import { POLL_TYPE_META } from "@/modules/polls/schema";
 import { PixelIcon } from "@/components/icons";
+import { CommentThread } from "@/modules/comments/CommentThread";
 
-export function PollCard({ poll }: { poll: PollResults }) {
+export function PollCard({
+  poll,
+  viewerId,
+  commentCount = 0,
+}: {
+  poll: PollResults;
+  viewerId: string;
+  commentCount?: number;
+}) {
   const router = useRouter();
   // Show the ballot if you haven't voted; results otherwise (or closed).
   const [revoting, setRevoting] = useState(false);
@@ -304,6 +313,13 @@ export function PollCard({ poll }: { poll: PollResults }) {
           </>
         )}
       </div>
+      <CommentThread
+        targetType="poll"
+        targetId={poll.id}
+        initialCount={commentCount}
+        viewerId={viewerId}
+        viewerIsAdmin={poll.isAdmin}
+      />
     </li>
   );
 }

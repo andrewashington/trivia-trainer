@@ -7,6 +7,7 @@ import { api } from "@/lib/client";
 import { Avatar, Badge } from "@/components/ui";
 import { StampOverlay, useActionStamp } from "@/components/ActionFx";
 import { STATUS_META } from "@/modules/ideas/schema";
+import { CommentThread } from "@/modules/comments/CommentThread";
 
 export type IdeaView = {
   id: string;
@@ -20,6 +21,8 @@ export type IdeaView = {
   myVote: boolean;
   canDelete: boolean;
   isAdmin: boolean;
+  viewerId: string;
+  commentCount: number;
 };
 
 export function IdeaCard({ idea }: { idea: IdeaView }) {
@@ -140,6 +143,13 @@ export function IdeaCard({ idea }: { idea: IdeaView }) {
             </button>
           )}
         </div>
+        <CommentThread
+          targetType="idea"
+          targetId={idea.id}
+          initialCount={idea.commentCount}
+          viewerId={idea.viewerId}
+          viewerIsAdmin={idea.isAdmin}
+        />
       </div>
     </li>
   );

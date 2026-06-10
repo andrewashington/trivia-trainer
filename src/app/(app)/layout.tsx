@@ -11,6 +11,7 @@ import { OnboardingWizard } from "@/components/OnboardingWizard";
 import { SeenTracker } from "@/components/SeenTracker";
 import { UserMenu } from "@/components/UserMenu";
 import { CoinBadge } from "@/components/CoinBadge";
+import { PresenceBadge } from "@/components/PresenceBadge";
 import { CommandButton } from "@/components/command/CommandButton";
 import { FeedbackButton } from "@/components/FeedbackButton";
 import { DickKey } from "@/components/DickKey";
@@ -46,6 +47,7 @@ export default async function AppLayout({
             <Logo size="md" />
           </Link>
           <div className="flex items-center gap-2 md:gap-3">
+            <PresenceBadge />
             <CoinBadge initialCoins={user.coins} />
             <CommandButton />
             <UserMenu

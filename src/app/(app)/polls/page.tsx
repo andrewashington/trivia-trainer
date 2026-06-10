@@ -31,6 +31,13 @@ export default async function PollsPage({
     },
   });
 
+  const commentCounts = await db.comment.groupBy({
+    by: ["targetId"],
+    where: { targetType: "poll" },
+    _count: true,
+  });
+  const countFor = new Map(commentCounts.map((c) => [c.targetId, c._count]));
+
   const openPolls = polls.filter((p) => p.closedAt === null);
   const closedPolls = polls.filter((p) => p.closedAt !== null);
   const shown = showHistory ? closedPolls : openPolls;
@@ -120,7 +127,12 @@ export default async function PollsPage({
       ) : (
         <ul className="space-y-4">
           {shown.map((p) => (
-            <PollCard key={p.id} poll={pollToResults(p, user)} />
+            <PollCard
+              key={p.id}
+              poll={pollToResults(p, user)}
+              viewerId={user.id}
+              commentCount={countFor.get(p.id) ?? 0}
+            />
           ))}
         </ul>
       )}

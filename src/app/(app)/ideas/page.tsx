@@ -22,6 +22,13 @@ export default async function IdeasPage() {
     },
   });
 
+  const commentCounts = await db.comment.groupBy({
+    by: ["targetId"],
+    where: { targetType: "idea" },
+    _count: true,
+  });
+  const countFor = new Map(commentCounts.map((c) => [c.targetId, c._count]));
+
   const toView = (i: (typeof ideas)[number]): IdeaView => ({
     id: i.id,
     title: i.title,
@@ -34,6 +41,8 @@ export default async function IdeasPage() {
     myVote: i.votes.some((v) => v.userId === user.id),
     canDelete: user.id === i.authorId || user.role === "admin",
     isAdmin: user.role === "admin",
+    viewerId: user.id,
+    commentCount: countFor.get(i.id) ?? 0,
   });
 
   // Open ideas ranked by votes (ties: newest first); planned and

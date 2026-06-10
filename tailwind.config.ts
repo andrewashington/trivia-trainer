@@ -39,6 +39,7 @@ const config: Config = {
           rust: "#C1440E", // challenges
           crimson: "#D7263D", // tiers
           eggplant: "#7B2FBE", // the key (hidden)
+          gold: "#E3A82B", // buried treasure
 
         },
       },
