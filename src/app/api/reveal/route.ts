@@ -37,7 +37,6 @@ export const POST = apiHandler(async (req: Request) => {
           type: data.type,
           title: data.title,
           items: data.type === "rank" ? data.items : undefined,
-          scaleMax: data.type === "oracle" ? (data.scaleMax ?? 10) : null,
           deadline: data.type === "sealed" ? null : (data.deadline ?? null),
           unlockAt: data.type === "sealed" ? data.unlockAt : null,
           unlockVotesNeeded: data.type === "sealed" ? (data.unlockVotesNeeded ?? null) : null,

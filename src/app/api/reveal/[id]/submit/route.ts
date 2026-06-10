@@ -22,25 +22,16 @@ export const POST = apiHandler(async (req: Request, { params }: Ctx) => {
 
   const data = await parseBody(req, submissionInput);
 
-  let payload: { order: number[] } | { value: number };
-  if (prompt.type === "rank") {
-    const items = (prompt.items as string[]) ?? [];
-    const order = data.order ?? [];
-    const isPermutation =
-      order.length === items.length &&
-      new Set(order).size === items.length &&
-      order.every((i) => i >= 0 && i < items.length);
-    if (!isPermutation) {
-      throw new HttpError(400, "Rank every item exactly once.");
-    }
-    payload = { order };
-  } else {
-    const max = prompt.scaleMax ?? 10;
-    if (data.value === undefined || data.value < 1 || data.value > max) {
-      throw new HttpError(400, `Answer must be 1–${max}.`);
-    }
-    payload = { value: data.value };
+  const items = (prompt.items as string[]) ?? [];
+  const order = data.order ?? [];
+  const isPermutation =
+    order.length === items.length &&
+    new Set(order).size === items.length &&
+    order.every((i) => i >= 0 && i < items.length);
+  if (!isPermutation) {
+    throw new HttpError(400, "Rank every item exactly once.");
   }
+  const payload = { order };
 
   await withOutbox(
     async (tx) => {

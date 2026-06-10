@@ -414,7 +414,6 @@ model PollRevealVote {
 enum RevealType {
   rank // everyone privately ranks a list; consensus revealed
   sealed // a note locked until a date — hidden from EVERYONE, author included
-  oracle // a 1–N scale question; only the blend is ever shown
 }
 
 enum RevealStatus {
@@ -428,10 +427,9 @@ model RevealPrompt {
   type          RevealType
   title         String
   items         Json? // rank: the labels being ranked, fixed at creation
-  scaleMax      Int? // oracle: answers run 1..scaleMax
-  deadline      DateTime? // rank/oracle: reveal at deadline if enough submitted
+  deadline      DateTime? // rank: reveal at deadline if enough submitted
   unlockAt      DateTime? // sealed: auto-open date
-  minSubmitters Int          @default(3) // rank/oracle: floor so answers can't be reverse-engineered
+  minSubmitters Int          @default(3) // rank: floor so answers can't be reverse-engineered
   // sealed: optional early-unseal — opens when this many members vote for it
   unlockVotesNeeded Int?
   status        RevealStatus @default(open)
@@ -451,7 +449,7 @@ model RevealSubmission {
   id        String   @id @default(cuid())
   promptId  String
   userId    String
-  payload   Json // rank: {order:number[]} · oracle: {value:number} · sealed: {body:string}
+  payload   Json // rank: {order:number[]} · sealed: {body:string}
   createdAt DateTime @default(now())
 
   prompt RevealPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input, Textarea } from "@/components/ui";
 import { PixelIcon, type IconName } from "@/components/icons";
+import { useCloseModuleForm } from "@/components/ModuleHeader";
 
 const DELIVERY_OPTIONS = [
   { value: "pickup", label: "Pickup", icon: "door-closed" },
@@ -14,7 +15,7 @@ const DELIVERY_OPTIONS = [
 
 export function AddListingForm({ hasVenmo }: { hasVenmo: boolean }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const closeForm = useCloseModuleForm();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState(""); // dollars; blank = free
@@ -58,11 +59,7 @@ export function AddListingForm({ hasVenmo }: { hasVenmo: boolean }) {
           imageKey,
         },
       });
-      setTitle("");
-      setDescription("");
-      setPrice("");
-      setImageFile(null);
-      setOpen(false);
+      closeForm();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't list that.");
@@ -71,28 +68,17 @@ export function AddListingForm({ hasVenmo }: { hasVenmo: boolean }) {
     }
   }
 
-  if (!open) {
-    return (
-      <div className="space-y-2">
-        <Button variant="yellow" onClick={() => setOpen(true)} className="w-full">
-          + Sell (or give away) something
-        </Button>
-        {!hasVenmo && (
-          <p className="font-mono text-[11px] text-ink/50">
-            Tip: add your Venmo handle on your{" "}
-            <a href="/me" className="font-bold text-accent-blue">
-              profile
-            </a>{" "}
-            so buyers can pay you.
-          </p>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <form onSubmit={onSubmit} className="brutal-card space-y-3 p-4">
-      <p className="brutal-label">New listing</p>
+    <form onSubmit={onSubmit} className="space-y-3">
+      {!hasVenmo && (
+        <p className="font-mono text-[11px] text-ink/50">
+          Tip: add your Venmo handle on your{" "}
+          <a href="/me" className="font-bold text-accent-blue">
+            profile
+          </a>{" "}
+          so buyers can pay you.
+        </p>
+      )}
       <Field label="What is it">
         <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Used toaster, works great, slightly haunted" required />
       </Field>
@@ -139,14 +125,9 @@ export function AddListingForm({ hasVenmo }: { hasVenmo: boolean }) {
           {error}
         </p>
       )}
-      <div className="flex gap-2">
-        <Button type="submit" disabled={busy} className="flex-1">
-          {busy ? "Listing…" : "List it"}
-        </Button>
-        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
-      </div>
+      <Button type="submit" disabled={busy} className="w-full">
+        {busy ? "Listing…" : "List it"}
+      </Button>
     </form>
   );
 }

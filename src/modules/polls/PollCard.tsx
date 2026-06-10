@@ -108,7 +108,7 @@ export function PollCard({ poll }: { poll: PollResults }) {
         </Badge>
         {poll.resultsHidden && (
           <Badge className="inline-flex items-center gap-1.5 bg-accent-yellow">
-            <PixelIcon name="lock" size={13} /> Sealed results
+            <PixelIcon name="lock" size={13} /> Blind voting
           </Badge>
         )}
         {poll.closed && <Badge className="bg-accent-red text-white">CLOSED</Badge>}
@@ -167,15 +167,15 @@ export function PollCard({ poll }: { poll: PollResults }) {
         </div>
       )}
 
-      {/* ---- Sealed results: revealed only by group vote ---- */}
+      {/* ---- Blind voting: results shown only by group vote ---- */}
       {showSealed && (
         <div className="mt-3 border-2 border-dashed border-ink bg-paper p-4 text-center">
           <PixelIcon name="lock" size={28} className="mx-auto text-ink/60" />
           <p className="mt-2 font-display font-bold">
-            Results are sealed.
+            Results are blind — vote without anchoring.
           </p>
           <p className="mt-1 font-mono text-xs text-ink/60">
-            {poll.revealVoteCount} / {poll.revealThreshold} votes to crack it open
+            {poll.revealVoteCount} / {poll.revealThreshold} votes to show them
           </p>
           <div className="mx-auto mt-2 h-4 max-w-[12rem] border-2 border-ink bg-card">
             <div

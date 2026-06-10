@@ -1,21 +1,30 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input } from "@/components/ui";
 import { POLL_TYPE_META } from "@/modules/polls/schema";
 import { PixelIcon } from "@/components/icons";
+import { useCloseModuleForm } from "@/components/ModuleHeader";
 
 type PollType = "single" | "multi" | "scale";
 
+const TYPE_BLURBS: Record<PollType, string> = {
+  single: "One vote each. Settles it.",
+  multi: "Check all that apply.",
+  scale: "Everyone rates it 1–5; you get the spread.",
+};
+
 export function AddPollForm() {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const closeForm = useCloseModuleForm();
+  // Wizard: pick the kind of poll first, then write it.
+  const [type, setType] = useState<PollType | null>(null);
   const [question, setQuestion] = useState("");
-  const [type, setType] = useState<PollType>("single");
   const [anonymous, setAnonymous] = useState(false);
-  const [sealed, setSealed] = useState(false);
+  const [blind, setBlind] = useState(false);
   const [revealThreshold, setRevealThreshold] = useState(3);
   const [options, setOptions] = useState<string[]>(["", ""]);
   const [busy, setBusy] = useState(false);
@@ -27,6 +36,7 @@ export function AddPollForm() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!type) return;
     setBusy(true);
     setError(null);
     try {
@@ -37,16 +47,10 @@ export function AddPollForm() {
           type,
           anonymous,
           options: type === "scale" ? [] : options.map((o) => o.trim()).filter(Boolean),
-          revealThreshold: sealed ? revealThreshold : null,
+          revealThreshold: blind ? revealThreshold : null,
         },
       });
-      setQuestion("");
-      setOptions(["", ""]);
-      setType("single");
-      setAnonymous(false);
-      setSealed(false);
-      setRevealThreshold(3);
-      setOpen(false);
+      closeForm();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't post the poll.");
@@ -55,17 +59,43 @@ export function AddPollForm() {
     }
   }
 
-  if (!open) {
+  // ---- Step 1: what kind of poll? ----
+  if (!type) {
     return (
-      <Button variant="yellow" onClick={() => setOpen(true)} className="w-full">
-        + Ask the group
-      </Button>
+      <div className="space-y-3">
+        {(Object.keys(POLL_TYPE_META) as PollType[]).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setType(t)}
+            className="brutal-press block w-full border-2 border-ink bg-card px-4 py-3 text-left shadow-brutal-sm"
+          >
+            <span className="flex items-center gap-2 font-display font-bold uppercase">
+              <PixelIcon name={POLL_TYPE_META[t].icon} size={16} />
+              {POLL_TYPE_META[t].label}
+            </span>
+            <span className="mt-1 block font-mono text-[11px] text-ink/60">{TYPE_BLURBS[t]}</span>
+          </button>
+        ))}
+        <p className="font-mono text-[10px] uppercase tracking-wide text-ink/40">
+          Want blind answers, unmasked together? <Link href="/reveal" className="font-bold underline">Reveal</Link> ·
+          Betting on an outcome? <Link href="/stakes" className="font-bold underline">Stakes</Link>
+        </p>
+      </div>
     );
   }
 
+  // ---- Step 2: write the poll ----
   return (
-    <form onSubmit={onSubmit} className="brutal-card space-y-3 p-4">
-      <p className="brutal-label">New poll</p>
+    <form onSubmit={onSubmit} className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setType(null)}
+        className="brutal-press border-2 border-ink bg-paper px-2 py-1 font-mono text-[10px] font-bold uppercase shadow-brutal-sm"
+      >
+        ← {POLL_TYPE_META[type].label}
+      </button>
+
       <Field label="The question">
         <Input
           value={question}
@@ -75,22 +105,6 @@ export function AddPollForm() {
           maxLength={300}
         />
       </Field>
-
-      <div className="flex gap-2">
-        {(Object.keys(POLL_TYPE_META) as PollType[]).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setType(t)}
-            className={`brutal-press flex-1 border-2 border-ink px-2 py-1.5 font-mono text-xs font-bold uppercase shadow-brutal-sm ${
-              type === t ? "bg-accent-indigo text-white" : "bg-card"
-            }`}
-          >
-            <PixelIcon name={POLL_TYPE_META[t].icon} size={13} className="-mt-0.5 mr-1 inline" />
-            {POLL_TYPE_META[t].label}
-          </button>
-        ))}
-      </div>
 
       {type !== "scale" && (
         <div className="space-y-2">
@@ -148,19 +162,19 @@ export function AddPollForm() {
 
       <button
         type="button"
-        onClick={() => setSealed(!sealed)}
-        aria-pressed={sealed}
+        onClick={() => setBlind(!blind)}
+        aria-pressed={blind}
         className={`brutal-press w-full border-2 border-ink px-3 py-2 text-left font-mono text-xs font-bold uppercase shadow-brutal-sm ${
-          sealed ? "bg-accent-yellow" : "bg-card"
+          blind ? "bg-accent-yellow" : "bg-card"
         }`}
       >
-        <PixelIcon name={sealed ? "lock" : "unlock"} size={13} className="-mt-0.5 mr-1 inline" />
-        {sealed
-          ? "Sealed — results hidden until the group votes to reveal"
-          : "Open results — tap to seal them behind a group vote"}
+        <PixelIcon name={blind ? "lock" : "unlock"} size={13} className="-mt-0.5 mr-1 inline" />
+        {blind
+          ? "Blind voting — results hidden until the group votes to show them"
+          : "Open results — tap for blind voting (no anchoring)"}
       </button>
-      {sealed && (
-        <Field label="Votes needed to reveal the results">
+      {blind && (
+        <Field label="Votes needed to show the results">
           <Input
             type="number"
             min={2}
@@ -177,14 +191,9 @@ export function AddPollForm() {
           {error}
         </p>
       )}
-      <div className="flex gap-2">
-        <Button type="submit" disabled={busy} className="flex-1">
-          {busy ? "Posting…" : "Open the polls"}
-        </Button>
-        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
-      </div>
+      <Button type="submit" disabled={busy} className="w-full">
+        {busy ? "Posting…" : "Open the polls"}
+      </Button>
     </form>
   );
 }

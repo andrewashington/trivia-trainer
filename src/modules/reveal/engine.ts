@@ -18,7 +18,7 @@ type PromptWithSubs = RevealPrompt & {
  */
 export type PromptView = {
   id: string;
-  type: "rank" | "sealed" | "oracle";
+  type: "rank" | "sealed";
   status: "open" | "revealed";
   title: string;
   creatorName: string;
@@ -28,7 +28,6 @@ export type PromptView = {
   deadline: string | null;
   unlockAt: string | null;
   items: string[] | null;
-  scaleMax: number | null;
   // open-state info
   submittedCount: number;
   memberCount: number;
@@ -39,7 +38,7 @@ export type PromptView = {
   unlockVoteCount: number;
   iVotedUnlock: boolean;
   // revealed-state aggregates (null until revealed)
-  results: RankResults | OracleResults | SealedResults | null;
+  results: RankResults | SealedResults | null;
 };
 
 export type RankResults = {
@@ -47,15 +46,6 @@ export type RankResults = {
   consensus: { label: string; meanRank: number }[];
   mostOff: { name: string; delta: number } | null;
   myDelta: number | null;
-};
-
-export type OracleResults = {
-  kind: "oracle";
-  average: number;
-  median: number;
-  count: number;
-  myValue: number | null;
-  myDistance: number | null;
 };
 
 export type SealedResults = {
@@ -103,28 +93,6 @@ function rankResults(prompt: PromptWithSubs, viewerId: string): RankResults {
     })),
     mostOff: mostOff ? { name: mostOff.name, delta: mostOff.delta } : null,
     myDelta: deltas.find((d) => d.userId === viewerId)?.delta ?? null,
-  };
-}
-
-function oracleResults(prompt: PromptWithSubs, viewerId: string): OracleResults {
-  const values = prompt.submissions.map((s) => (s.payload as { value: number }).value);
-  const sortedVals = [...values].sort((a, b) => a - b);
-  const average =
-    Math.round((values.reduce((a, b) => a + b, 0) / Math.max(1, values.length)) * 10) / 10;
-  const mid = Math.floor(sortedVals.length / 2);
-  const median =
-    sortedVals.length % 2 === 1
-      ? sortedVals[mid]
-      : (sortedVals[mid - 1] + sortedVals[mid]) / 2;
-  const mine = prompt.submissions.find((s) => s.userId === viewerId);
-  const myValue = mine ? (mine.payload as { value: number }).value : null;
-  return {
-    kind: "oracle",
-    average,
-    median,
-    count: values.length,
-    myValue,
-    myDistance: myValue === null ? null : Math.round(Math.abs(myValue - average) * 10) / 10,
   };
 }
 
@@ -198,7 +166,6 @@ export function toPromptView(
   let results: PromptView["results"] = null;
   if (revealed) {
     if (prompt.type === "rank") results = rankResults(prompt, viewer.id);
-    else if (prompt.type === "oracle") results = oracleResults(prompt, viewer.id);
     else {
       const sub = prompt.submissions[0];
       results = {
@@ -220,7 +187,6 @@ export function toPromptView(
     deadline: prompt.deadline?.toISOString() ?? null,
     unlockAt: prompt.unlockAt?.toISOString() ?? null,
     items: (prompt.items as string[] | null) ?? null,
-    scaleMax: prompt.scaleMax,
     submittedCount: prompt.type === "sealed" ? 0 : prompt.submissions.length,
     memberCount,
     minSubmitters: prompt.minSubmitters,

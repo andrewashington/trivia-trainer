@@ -57,7 +57,7 @@ export default async function StakesPage({
   const open = claims.filter((c) => c.outcome === null);
   const resolved = claims.filter((c) => c.outcome !== null);
 
-  // Oracle standings: accuracy on claims you authored (void excluded).
+  // Track record: accuracy on claims you authored (void excluded).
   const standings = members
     .map((m) => {
       const mine = resolved.filter((c) => c.creatorId === m.id && c.outcome !== "void");
@@ -99,6 +99,7 @@ export default async function StakesPage({
           icon="target"
           accentBg="bg-accent-forest text-white"
           addLabel="Claim"
+          tagline="Call it — reality settles it"
           extra={
             <Link
               href="/stakes?history=1"
@@ -158,7 +159,7 @@ export default async function StakesPage({
               </div>
               {champ && champ.total > 0 && (
                 <p className="mt-3 font-mono text-[10px] uppercase tracking-wide text-white/60">
-                  Reigning oracle: {champ.name} ({champ.right}/{champ.total} right)
+                  Best caller: {champ.name} ({champ.right}/{champ.total} right)
                 </p>
               )}
             </HeroBanner>
@@ -188,7 +189,7 @@ export default async function StakesPage({
           {standings.length > 0 && (
             <Card className="tilt-r">
               <p className="brutal-label flex items-center gap-1.5">
-                <PixelIcon name="sparkles" size={14} /> Oracle standings
+                <PixelIcon name="sparkles" size={14} /> Track record
               </p>
               <ul className="space-y-1.5">
                 {standings.map((s, i) => (
@@ -227,7 +228,7 @@ export default async function StakesPage({
             <EmptyState
               icon="chess"
               title="No claims on the record"
-              hint="Call a shot. Put a coffee on it. Become the oracle."
+              hint="Call a shot. Put a coffee on it. Build your track record."
             />
           ) : (
             <ul className="space-y-4">

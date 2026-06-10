@@ -35,7 +35,13 @@ export default async function RevealPage() {
 
   return (
     <div className="space-y-6">
-      <ModuleHeader title="The Reveal" icon="eye" accentBg="bg-ink text-white" addLabel="Prompt">
+      <ModuleHeader
+        title="The Reveal"
+        icon="eye"
+        accentBg="bg-ink text-white"
+        addLabel="Prompt"
+        tagline="Answer blind, unmask together"
+      >
         <AddPromptForm memberNames={memberNames} />
       </ModuleHeader>
 
@@ -92,16 +98,37 @@ export default async function RevealPage() {
         <EmptyState
           icon="eye-off"
           title="Nothing hidden… yet"
-          hint="Start a blind rank, seal a note to the future, or ask the oracle."
+          hint="Start a blind rank, or seal a time capsule to the future."
         />
       ) : (
         <>
-          {open.length > 0 && (
-            <ul className="space-y-4">
-              {open.map((p) => (
-                <PromptCard key={p.id} prompt={p} memberNames={memberNames} />
-              ))}
-            </ul>
+          {open.filter((p) => p.type !== "sealed").length > 0 && (
+            <section className="space-y-4">
+              <h2 className="font-mono text-sm font-bold uppercase tracking-widest text-ink/50">
+                Blind ranks
+              </h2>
+              <ul className="space-y-4">
+                {open
+                  .filter((p) => p.type !== "sealed")
+                  .map((p) => (
+                    <PromptCard key={p.id} prompt={p} memberNames={memberNames} />
+                  ))}
+              </ul>
+            </section>
+          )}
+          {open.filter((p) => p.type === "sealed").length > 0 && (
+            <section className="space-y-4">
+              <h2 className="font-mono text-sm font-bold uppercase tracking-widest text-ink/50">
+                Time capsules
+              </h2>
+              <ul className="space-y-4">
+                {open
+                  .filter((p) => p.type === "sealed")
+                  .map((p) => (
+                    <PromptCard key={p.id} prompt={p} memberNames={memberNames} />
+                  ))}
+              </ul>
+            </section>
           )}
           {revealed.length > 0 && (
             <section className="space-y-4">

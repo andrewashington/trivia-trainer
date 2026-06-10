@@ -4,7 +4,14 @@ Refactor-scoping reference for everything in the **Arcade** nav category
 (`src/modules/registry.ts`, category `"arcade"`, icon `gamepad`, tagline
 "Fun & games"). Six modules: Ideas, Polls, Reveal, Stakes, Pet, Snake.
 
-Current as of 2026-06-10 (post forfeit-wheel removal).
+Current as of 2026-06-10 (post forfeit-wheel removal and the arcade
+reconciliation pass: Reveal's `oracle` type was cut — anonymous scale
+polls cover it; `sealed` is presented as "Time Capsule"; poll
+sealed-results is presented as "Blind voting"; Stakes' "Oracle
+standings" renamed "Track record"; create forms open in a ModuleHeader
+modal as type-first wizards. Module identities: Polls = decide
+together · Reveal = answer blind, unmask together · Stakes = call it,
+reality settles it).
 
 ---
 
@@ -46,8 +53,7 @@ Blind submissions revealed all at once. Three prompt types
 | Type | Mechanic | Inputs |
 |---|---|---|
 | `rank` "Blind Rank" | Everyone ranks 2–12 items privately; consensus order drops at once | `items[]`, submission `order[]` (item indexes, best first) |
-| `sealed` "Sealed" | A note (≤10k chars) locked until `unlockAt` — even the author can't peek; optional early unseal once `unlockVotesNeeded` (2–50) members vote (tracked in `RevealUnlockVote`) | `sealedBody`, `unlockAt`, `/api/reveal/[id]/unlock` |
-| `oracle` "Oracle" | Everyone answers on a scale (`scaleMax` 2–10); only the blended average is ever shown | submission `value` |
+| `sealed` "Time Capsule" | A note (≤10k chars) locked until `unlockAt` — even the author can't peek; optional early unseal once `unlockVotesNeeded` (2–50) members vote (tracked in `RevealUnlockVote`) | `sealedBody`, `unlockAt`, `/api/reveal/[id]/unlock` |
 
 Other features: optional `deadline` (must be future), aggregation logic in
 `src/modules/reveal/engine.ts`, cards in `PromptCard.tsx`, creation in

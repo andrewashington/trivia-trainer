@@ -66,6 +66,7 @@ export default async function PollsPage({
           icon="chart-bar-big"
           accentBg="bg-accent-indigo text-white"
           addLabel="Poll"
+          tagline="Decide together"
           extra={
             <Link
               href="/polls?history=1"
@@ -94,7 +95,7 @@ export default async function PollsPage({
           </h2>
           <p className="mt-2 font-mono text-xs uppercase tracking-wide text-white/80">
             {heroVoters}/{memberCount} voted
-            {heroSealed ? ` · results sealed (${hero.revealVotes.length}/${hero.revealThreshold} to crack)` : ""}
+            {heroSealed ? ` · blind results (${hero.revealVotes.length}/${hero.revealThreshold} to show)` : ""}
             {needsMe ? " — the group awaits your wisdom ↓" : ""}
           </p>
           <div className="mt-3 h-4 max-w-xs border-2 border-ink bg-card">

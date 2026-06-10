@@ -1,14 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
+import { useCloseModuleForm } from "@/components/ModuleHeader";
 
 export function ClaimForm({ members }: { members: { id: string; name: string }[] }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const closeForm = useCloseModuleForm();
   const [text, setText] = useState("");
   const [resolvesAt, setResolvesAt] = useState("");
   const [counterpartyId, setCounterpartyId] = useState("");
@@ -32,12 +34,7 @@ export function ClaimForm({ members }: { members: { id: string; name: string }[]
           hidden: counterpartyId ? false : hidden,
         },
       });
-      setText("");
-      setResolvesAt("");
-      setCounterpartyId("");
-      setStake("");
-      setHidden(false);
-      setOpen(false);
+      closeForm();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't lock that in.");
@@ -46,17 +43,12 @@ export function ClaimForm({ members }: { members: { id: string; name: string }[]
     }
   }
 
-  if (!open) {
-    return (
-      <Button variant="yellow" onClick={() => setOpen(true)} className="w-full">
-        + Call a shot
-      </Button>
-    );
-  }
-
   return (
-    <form onSubmit={onSubmit} className="brutal-card space-y-3 p-4">
-      <p className="brutal-label">New claim — locks the moment you post it</p>
+    <form onSubmit={onSubmit} className="space-y-3">
+      <p className="font-mono text-[11px] text-ink/50">
+        A prediction about the real world — it locks the moment you post it, and
+        reality (plus a verdict) settles it.
+      </p>
       <Field label="The claim">
         <Input
           value={text}
@@ -118,20 +110,19 @@ export function ClaimForm({ members }: { members: { id: string; name: string }[]
           {error}
         </p>
       )}
-      <div className="flex gap-2">
-        <Button type="submit" disabled={busy} className="flex-1">
-          {busy ? (
-            "…"
-          ) : (
-            <span className="inline-flex items-center gap-1.5">
-              <PixelIcon name="lock" size={14} /> Lock it in
-            </span>
-          )}
-        </Button>
-        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
-      </div>
+      <Button type="submit" disabled={busy} className="w-full">
+        {busy ? (
+          "…"
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <PixelIcon name="lock" size={14} /> Lock it in
+          </span>
+        )}
+      </Button>
+      <p className="font-mono text-[10px] uppercase tracking-wide text-ink/40">
+        Just want a group vote? <Link href="/polls" className="font-bold underline">Polls</Link> ·
+        Blind answers? <Link href="/reveal" className="font-bold underline">Reveal</Link>
+      </p>
     </form>
   );
 }

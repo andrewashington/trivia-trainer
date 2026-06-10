@@ -228,10 +228,10 @@ export const modules: ModuleDef[] = [
     navOrder: 11,
     href: "/polls",
     accentBg: "bg-accent-indigo",
-    intro: "Put it to a vote. Single or multi-choice, anonymous when it needs to be.",
+    intro: "Decide together. Pick one, pick any, or rate it — anonymous or blind when it needs to be.",
     tips: [
-      "Ask the group anything — single or multi-choice",
-      "Go anonymous for the spicy questions",
+      "Ask the group anything — pick one, pick any, or rate 1–5",
+      "Go anonymous for the spicy questions, blind to avoid anchoring",
       "Close the poll when the people have spoken",
     ],
   },
@@ -243,11 +243,11 @@ export const modules: ModuleDef[] = [
     navOrder: 12,
     href: "/reveal",
     accentBg: "bg-ink",
-    intro: "Everyone answers blind, then all answers unmask at once. No peeking, no editing.",
+    intro: "Everyone ranks blind, then it all unmasks at once — or seal a time capsule for the future.",
     tips: [
-      "Answer the prompt — nobody sees anything until everyone's in",
+      "Rank the prompt — nobody sees anything until everyone's in",
       "When the last person submits, all answers unmask at once",
-      "No edits after reveal. Stand by your words",
+      "Time capsules stay sealed until their date. Even from you",
     ],
   },
   {

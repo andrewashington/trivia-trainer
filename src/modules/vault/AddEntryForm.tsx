@@ -4,10 +4,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input } from "@/components/ui";
+import { useCloseModuleForm } from "@/components/ModuleHeader";
 
 export function AddEntryForm() {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const closeForm = useCloseModuleForm();
   const [siteName, setSiteName] = useState("");
   const [siteUrl, setSiteUrl] = useState("");
   const [username, setUsername] = useState("");
@@ -31,12 +32,7 @@ export function AddEntryForm() {
           notes: notes || null,
         },
       });
-      setSiteName("");
-      setSiteUrl("");
-      setUsername("");
-      setPassword("");
-      setNotes("");
-      setOpen(false);
+      closeForm();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save that.");
@@ -45,17 +41,8 @@ export function AddEntryForm() {
     }
   }
 
-  if (!open) {
-    return (
-      <Button variant="yellow" onClick={() => setOpen(true)} className="w-full">
-        + Add a shared login
-      </Button>
-    );
-  }
-
   return (
-    <form onSubmit={onSubmit} className="brutal-card space-y-3 p-4">
-      <p className="brutal-label">New shared login</p>
+    <form onSubmit={onSubmit} className="space-y-3">
       <Field label="Site">
         <Input value={siteName} onChange={(e) => setSiteName(e.target.value)} placeholder="Netflix" required />
       </Field>
@@ -82,14 +69,9 @@ export function AddEntryForm() {
           {error}
         </p>
       )}
-      <div className="flex gap-2">
-        <Button type="submit" disabled={busy} className="flex-1">
-          {busy ? "Saving…" : "Lock it in"}
-        </Button>
-        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
-      </div>
+      <Button type="submit" disabled={busy} className="w-full">
+        {busy ? "Saving…" : "Lock it in"}
+      </Button>
     </form>
   );
 }

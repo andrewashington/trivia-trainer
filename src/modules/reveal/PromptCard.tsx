@@ -6,7 +6,7 @@ import { api } from "@/lib/client";
 import { Avatar, Badge, Button } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { StampOverlay, useActionStamp } from "@/components/ActionFx";
-import type { PromptView, RankResults, OracleResults, SealedResults } from "@/modules/reveal/engine";
+import type { PromptView, RankResults, SealedResults } from "@/modules/reveal/engine";
 import { REVEAL_TYPE_META } from "@/modules/reveal/schema";
 
 function daysUntil(iso: string): number {
@@ -23,8 +23,6 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
 
   // Rank ballot: tap to move items from pool → your order.
   const [ranked, setRanked] = useState<number[]>([]);
-  // Oracle ballot
-  const [value, setValue] = useState<number | null>(null);
 
   const items = prompt.items ?? [];
 
@@ -53,7 +51,7 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
     try {
       await api(`/api/reveal/${prompt.id}/submit`, {
         method: "POST",
-        body: prompt.type === "rank" ? { order: ranked } : { value },
+        body: { order: ranked },
       });
       fire("LOCKED IN ✓", "green");
     } catch (err) {
@@ -80,8 +78,7 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
     }
   }
 
-  const ready =
-    prompt.type === "rank" ? ranked.length === items.length && items.length > 0 : value !== null;
+  const ready = ranked.length === items.length && items.length > 0;
 
   return (
     <li id={`prompt-${prompt.id}`} className={`brutal-card relative scroll-mt-24 p-4 ${cardFxClass}`}>
@@ -115,9 +112,7 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
       {/* ---------- OPEN: blind submission ---------- */}
       {prompt.status === "open" && prompt.type !== "sealed" && !prompt.iSubmitted && (
         <div className="mt-3 space-y-2">
-          {prompt.type === "rank" ? (
-            <>
-              {ranked.length > 0 && (
+          {ranked.length > 0 && (
                 <ol className="space-y-1">
                   {ranked.map((idx, pos) => (
                     <li key={idx}>
@@ -146,26 +141,9 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
                   ))}
                 </div>
               )}
-              <p className="font-mono text-[10px] uppercase text-ink/40">
-                Tap in order, best first
-              </p>
-            </>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {Array.from({ length: prompt.scaleMax ?? 10 }, (_, i) => i + 1).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setValue(n)}
-                  className={`brutal-press min-w-9 border-2 border-ink py-1.5 font-display font-bold shadow-brutal-sm ${
-                    value === n ? "bg-ink text-white" : "bg-card"
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          )}
+          <p className="font-mono text-[10px] uppercase text-ink/40">
+            Tap in order, best first
+          </p>
           <Button onClick={lockIn} disabled={busy || !ready} className="w-full" variant={armedLock ? "danger" : "primary"}>
             {busy ? (
               "…"
@@ -225,7 +203,6 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
       {prompt.results?.kind === "rank" && (
         <RankReveal results={prompt.results} memberSet={memberSet} />
       )}
-      {prompt.results?.kind === "oracle" && <OracleReveal results={prompt.results} />}
       {prompt.results?.kind === "sealed" && <SealedReveal results={prompt.results} />}
 
       {(prompt.isMine || prompt.isAdmin) && (
@@ -268,25 +245,6 @@ function RankReveal({ results, memberSet }: { results: RankResults; memberSet: S
         )}
         {results.myDelta !== null && (
           <Badge className="bg-paper">You: Δ{results.myDelta}</Badge>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function OracleReveal({ results }: { results: OracleResults }) {
-  return (
-    <div className="mt-3 animate-pop-in">
-      <p className="font-display text-4xl font-bold">
-        {results.average}
-        <span className="text-base text-ink/50"> group blend · median {results.median}</span>
-      </p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        <Badge className="bg-paper">{results.count} answers</Badge>
-        {results.myValue !== null && (
-          <Badge className="bg-accent-yellow">
-            You said {results.myValue} — {results.myDistance} off the blend
-          </Badge>
         )}
       </div>
     </div>

@@ -337,7 +337,7 @@ async function main() {
   });
   console.log("✓ 3 polls (open / anonymous / closed)");
 
-  // ---- Reveal: open rank (below minSubmitters), revealed oracle, sealed note ----
+  // ---- Reveal: open rank (below minSubmitters), sealed note ----
   await db.revealPrompt.create({
     data: {
       creatorId: maya.id,
@@ -356,24 +356,6 @@ async function main() {
   });
   await db.revealPrompt.create({
     data: {
-      creatorId: jordan.id,
-      type: "oracle",
-      title: "How likely is the camping trip to actually happen? (1–10)",
-      scaleMax: 10,
-      minSubmitters: 3,
-      status: "revealed",
-      revealedAt: daysFromNow(-1, 18),
-      submissions: {
-        create: [
-          { userId: maya.id, payload: { value: 8 } },
-          { userId: jordan.id, payload: { value: 9 } },
-          { userId: riley.id, payload: { value: 4 } },
-        ],
-      },
-    },
-  });
-  await db.revealPrompt.create({
-    data: {
       creatorId: riley.id,
       type: "sealed",
       title: "Predictions for this year (open on New Year's)",
@@ -383,7 +365,7 @@ async function main() {
       },
     },
   });
-  console.log("✓ 3 reveal prompts (open / revealed / sealed)");
+  console.log("✓ 2 reveal prompts (open rank / sealed)");
 
   // ---- Stakes: open vs claim, hidden solo, resolved+unsettled, forfeit pool + spin ----
   await db.claim.createMany({
