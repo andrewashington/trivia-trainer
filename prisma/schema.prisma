@@ -90,6 +90,9 @@ model User {
   photobookPhotos   PhotobookPhoto[]
   photobookTags     PhotobookTag[]
   blackjackHands    BlackjackHand[]
+  challenges        Challenge[]
+  challengeEntries  ChallengeEntry[]
+  challengeVotes    ChallengeVote[]
 }
 
 // ============ Blackjack: casino hands wagering coins ============
@@ -323,6 +326,7 @@ model FileObject {
   uploader User @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
 
   photobookPhoto PhotobookPhoto?
+  challengeEntry ChallengeEntry?
 
   @@index([createdAt])
 }
@@ -811,4 +815,64 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ============ Challenges: throw down, submit proof, vote a winner ============
+
+// A dare for the group: photo contests, scavenger finds, sneaky pics.
+// Open until its deadline passes or the creator closes it. Settlement
+// (picking the winner + paying coins) is idempotent via settledAt:
+// manual close settles immediately; deadline-passed challenges settle
+// lazily on first view.
+model Challenge {
+  id            String    @id @default(cuid())
+  creatorId     String
+  title         String
+  description   String?   @db.Text
+  deadline      DateTime?
+  closedAt      DateTime? // creator/admin closed it manually
+  settledAt     DateTime? // winner computed + coins paid (idempotence guard)
+  winnerEntryId String?   @unique
+  createdAt     DateTime  @default(now())
+
+  creator     User             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  entries     ChallengeEntry[]
+  votes       ChallengeVote[]
+  winnerEntry ChallengeEntry?  @relation("challengeWinner", fields: [winnerEntryId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}
+
+// One entry per member per challenge: text proof and/or a photo.
+model ChallengeEntry {
+  id          String   @id @default(cuid())
+  challengeId String
+  userId      String
+  text        String?  @db.Text
+  fileId      String?  @unique
+  createdAt   DateTime @default(now())
+
+  challenge    Challenge       @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file         FileObject?     @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  votes        ChallengeVote[]
+  wonChallenge Challenge?      @relation("challengeWinner")
+
+  @@unique([challengeId, userId])
+}
+
+// One changeable vote per member per challenge; self-votes rejected
+// server-side.
+model ChallengeVote {
+  challengeId String
+  voterId     String
+  entryId     String
+  createdAt   DateTime @default(now())
+
+  challenge Challenge      @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  voter     User           @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  entry     ChallengeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@id([challengeId, voterId])
+  @@index([entryId])
 }

@@ -365,6 +365,22 @@ export const modules: ModuleDef[] = [
     ],
   },
   {
+    key: "challenges",
+    label: "Challenges",
+    icon: "bullseye-arrow",
+    category: "quests",
+    navOrder: 19,
+    href: "/challenges",
+    accentBg: "bg-accent-rust",
+    intro:
+      "Throw out a dare — photo contests, scavenger finds, sneaky pics. Submit proof, vote a winner.",
+    tips: [
+      "Post a challenge — add a deadline to keep it spicy",
+      "Submit your proof: words, a photo, or both",
+      "Vote for the best entry (not your own) — winner banks 25 coins",
+    ],
+  },
+  {
     key: "photobook",
     label: "Photobook",
     icon: "image",

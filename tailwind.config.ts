@@ -36,6 +36,7 @@ const config: Config = {
           fuchsia: "#D633FF", // howgay
           coral: "#FF7F50", // photobook
           felt: "#177245", // blackjack
+          rust: "#C1440E", // challenges
 
         },
       },

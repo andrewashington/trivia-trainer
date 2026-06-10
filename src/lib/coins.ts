@@ -30,6 +30,7 @@ export const COIN_RULES: Partial<Record<OutboxEventType, CoinRule>> = {
   "arcade.highscore": { amount: 50, userId: (p) => p.userId, label: "New group record" },
   "arcade.played": { amount: 5, userId: (p) => p.userId, dailyCap: 10, label: "Arcade run" },
   "arcade.tanks.finished": { amount: 40, userId: (p) => p.winnerId, label: "Won a tanks duel" },
+  "challenge.won": { amount: 25, userId: (p) => p.winnerId, label: "Won a challenge" },
 
   // ---- Posting content ----
   "poll.created": { amount: 15, userId: (p) => p.createdBy, dailyCap: 5, label: "Posted a poll" },
@@ -39,6 +40,8 @@ export const COIN_RULES: Partial<Record<OutboxEventType, CoinRule>> = {
   "event.created": { amount: 15, userId: (p) => p.creatorId, dailyCap: 5, label: "Created an event" },
   "listing.created": { amount: 15, userId: (p) => p.sellerId, dailyCap: 5, label: "Posted a listing" },
   "claim.created": { amount: 10, userId: (p) => p.creatorId, dailyCap: 5, label: "Made a stake" },
+  "challenge.created": { amount: 15, userId: (p) => p.creatorId, dailyCap: 5, label: "Threw down a challenge" },
+  "challenge.entry.submitted": { amount: 10, userId: (p) => p.userId, dailyCap: 5, label: "Entered a challenge" },
   "wishlist.added": { amount: 10, userId: (p) => p.userId, dailyCap: 5, label: "Added a wish" },
   "map.pin.added": { amount: 10, userId: (p) => p.addedBy, dailyCap: 5, label: "Dropped a map pin" },
   "countdown.created": { amount: 10, userId: (p) => p.creatorId, dailyCap: 5, label: "Started a countdown" },

@@ -56,7 +56,10 @@ export type OutboxEventType =
   | "howgay.checked"
   | "photobook.photo.added"
   | "photobook.photo.deleted"
-  | "arcade.blackjack.won";
+  | "arcade.blackjack.won"
+  | "challenge.created"
+  | "challenge.entry.submitted"
+  | "challenge.won";
 
 /**
  * Write a domain event (and apply any coin award it earns) on an open
