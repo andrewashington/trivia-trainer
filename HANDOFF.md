@@ -42,19 +42,25 @@ Current HEAD both branches: see `git log --oneline -1`.
 - [x] `/api/health` returns `{"status":"ok","db":"up"}`
 - [ ] **Owner has completed first sign-in** (magic link → onboarding) — verify
 - [ ] Friends added (Admin page, allowlist-only)
-- [ ] File/photo uploads (needs real S3/R2 — see Outstanding)
+- [x] File/photo uploads — wired to a **Railway Bucket** (`reserved-envelope`), CORS set
 - [ ] Railway billing/payment method added (was on trial credit)
 
 ---
 
 ## Outstanding work (in rough priority order)
 
-1. **File & photo uploads are disabled.** The `S3_*` env vars on Railway
-   are still the local-dev **MinIO placeholders** (`http://localhost:9000`,
-   `minioadmin`). Files tab, Market photos, and recipe photos will error
-   until real storage is set. Fix: create a **Cloudflare R2** bucket +
-   API token and set `S3_ENDPOINT/S3_REGION/S3_BUCKET/S3_ACCESS_KEY_ID/
-   S3_SECRET_ACCESS_KEY/S3_FORCE_PATH_STYLE=false` (see DEPLOY.md Phase 7).
+1. ~~**File & photo uploads are disabled.**~~ **DONE (2026-06-10).** Now
+   backed by a **Railway Bucket** named `reserved-envelope` (S3-compatible,
+   no third-party signup). The `S3_*` vars on `trivia-trainer` point at it:
+   `S3_ENDPOINT=https://t3.storageapi.dev`, `S3_BUCKET=reserved-envelope-mlptabt`,
+   `S3_REGION=auto`, `S3_FORCE_PATH_STYLE=false`, plus the bucket's
+   access key / secret. **Bucket CORS is required** for the browser's
+   direct presigned PUT — a policy allowing `PUT/GET/HEAD` from the live
+   origin was applied via the S3 API (`PutBucketCors`). If uploads ever
+   start failing with a CORS/preflight error (e.g. after changing the
+   domain), re-apply CORS for the new origin. Credentials come from the
+   Railway API (`bucketS3Credentials` query) or the bucket's Connect tab,
+   not the repo.
 2. **Add the friends.** Sign in as admin → avatar menu → **Admin** → add
    each person's email + display name. Allowlist-only: add them *before*
    they try to sign in. No public signup exists by design.

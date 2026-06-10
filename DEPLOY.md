@@ -155,21 +155,51 @@ Only allowlisted emails can sign in — add the person *before* they try.
 
 ---
 
-## Phase 7 *(optional)* — File & photo uploads with Cloudflare R2
+## Phase 7 *(optional)* — File & photo uploads
 
 Skip this and Files/photo features just show friendly errors; everything
-else works. To enable:
+else works. The storage layer is plain S3-compatible (presigned PUT/GET),
+so any S3 API works.
+
+### Option A — Railway Bucket *(in use as of 2026-06-10, no signup)*
+
+Railway has built-in S3-compatible **Buckets**. In the project → **New →
+Bucket**. Grab its connection details from the bucket's **Connect** tab
+(endpoint, bucket name, access key, secret) — or via the API
+`bucketS3Credentials(bucketId,environmentId,projectId)` query. The live
+bucket is `reserved-envelope` (`endpoint=https://t3.storageapi.dev`,
+virtual-host URL style → `S3_FORCE_PATH_STYLE=false`).
+
+### Option B — Cloudflare R2
 
 1. Cloudflare dashboard → **R2** → create a bucket (e.g. `udmplus`).
 2. **R2 → Manage API Tokens** → create one with read/write → note the
-   Access Key ID, Secret, and your account's S3 endpoint.
-3. Add these app variables and redeploy:
-   - `S3_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com`
+   Access Key ID, Secret, and your account's S3 endpoint
+   (`https://<accountid>.r2.cloudflarestorage.com`).
+
+### Then (either option)
+
+Set these app variables and redeploy:
+   - `S3_ENDPOINT=...`
    - `S3_REGION=auto`
-   - `S3_BUCKET=udmplus`
+   - `S3_BUCKET=...`
    - `S3_ACCESS_KEY_ID=...`
    - `S3_SECRET_ACCESS_KEY=...`
-   - `S3_FORCE_PATH_STYLE=false`
+   - `S3_FORCE_PATH_STYLE=false`  *(`true` only for path-style stores like MinIO)*
+
+**⚠️ Set the bucket's CORS policy** — the browser uploads **directly** to
+the bucket via a presigned PUT (cross-origin, non-simple `Content-Type` →
+triggers a CORS preflight). Without CORS the upload fails even though the
+env vars are correct. Allow `PUT/GET/HEAD` from the app's origin, e.g.:
+
+```json
+[{ "AllowedOrigins": ["https://trivia-trainer-production.up.railway.app"],
+   "AllowedMethods": ["PUT","GET","HEAD"], "AllowedHeaders": ["*"],
+   "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3600 }]
+```
+
+Apply it in the provider's dashboard, or via the S3 API `PutBucketCors`
+(R2/Railway both support it). Re-apply if the app's domain changes.
 
 ---
 
