@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { PixelIcon } from "@/components/icons";
 
 export const metadata = { title: "Sign-in problem" };
 
@@ -8,7 +9,9 @@ export default function SignInErrorPage() {
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-4">
       <Logo size="md" />
       <div className="brutal-card tilt-r w-full max-w-sm p-8 text-center">
-        <div className="text-5xl">🚧</div>
+        <div className="flex justify-center text-ink/70">
+          <PixelIcon name="warning-diamond" size={48} />
+        </div>
         <h1 className="mt-4 text-2xl">That link didn&apos;t work</h1>
         <p className="mt-2 text-sm text-ink/60">
           It may have expired, been used already, or your email isn&apos;t on

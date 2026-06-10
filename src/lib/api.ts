@@ -22,9 +22,15 @@ export function apiHandler<Args extends unknown[]>(
           { status: 400 }
         );
       }
-      console.error(err);
+      // Unexpected: log with request context + a short ref the client
+      // also gets, so a tester's screenshot ties back to a server log.
+      const ref = Math.random().toString(36).slice(2, 8).toUpperCase();
+      const req = args[0];
+      const where =
+        req instanceof Request ? `${req.method} ${new URL(req.url).pathname}` : "handler";
+      console.error(`[UDM+ 500 ${ref}] ${where} —`, err);
       return NextResponse.json(
-        { error: "Something went wrong." },
+        { error: `Something went wrong. (ref ${ref})` },
         { status: 500 }
       );
     }

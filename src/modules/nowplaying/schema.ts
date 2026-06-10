@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { IconName } from "@/components/icons";
 
 export const nowPlayingInput = z.object({
   mediaType: z.enum(["show", "movie", "book"]),
@@ -11,10 +12,11 @@ export const nowPlayingPatch = z.object({
   title: z.string().trim().min(1).max(300).optional(),
   note: z.string().trim().max(500).nullish(),
   status: z.enum(["active", "finished"]).optional(),
+  rating: z.number().int().min(1).max(5).nullish(),
 });
 
-export const MEDIA_ICONS: Record<string, string> = {
-  show: "📺",
-  movie: "🎬",
-  book: "📚",
+export const MEDIA_ICONS: Record<string, IconName> = {
+  show: "tv",
+  movie: "clapperboard",
+  book: "book-open",
 };

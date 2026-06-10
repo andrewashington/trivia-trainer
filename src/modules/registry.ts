@@ -1,134 +1,291 @@
+import type { IconName } from "@/components/icons";
+
 /**
  * The module registry: each feature plugs into the shell here.
  * Adding a module = create its folder under src/modules + src/app
- * routes, then append one entry. No edits to existing modules.
+ * routes, then append one entry (and pick its category). No edits to
+ * existing modules.
  */
+export type CategoryKey = "quests" | "shelf" | "stash" | "arcade";
+
+export type CategoryDef = {
+  key: CategoryKey;
+  label: string;
+  icon: IconName;
+  /** One-line answer to "what lives in here?" — shown in nav surfaces. */
+  tagline: string;
+  /** Tailwind class for the category's accent surface (nav). */
+  accentBg: string;
+};
+
+/**
+ * The four shelves of the cartridge. Every module belongs to exactly
+ * one; nav surfaces (sidebar sections, mobile tab sheets) are built
+ * from this list.
+ */
+export const categories: CategoryDef[] = [
+  {
+    key: "quests",
+    label: "Quests",
+    icon: "sword",
+    tagline: "Plans, places & people",
+    accentBg: "bg-accent-blue",
+  },
+  {
+    key: "shelf",
+    label: "Shelf",
+    icon: "library",
+    tagline: "The shared shelf you consume from",
+    accentBg: "bg-accent-yellow",
+  },
+  {
+    key: "stash",
+    label: "Stash",
+    icon: "backpack",
+    tagline: "Stuff you own, want, and swap",
+    accentBg: "bg-accent-green",
+  },
+  {
+    key: "arcade",
+    label: "Arcade",
+    icon: "gamepad",
+    tagline: "Fun & games",
+    accentBg: "bg-accent-pink",
+  },
+];
+
 export type ModuleDef = {
   key: string;
   label: string;
-  /** Emoji works as a chunky brutalist icon and needs no asset pipeline. */
-  icon: string;
+  /** Pixel icon name (see src/components/icons.tsx). */
+  icon: IconName;
+  category: CategoryKey;
   navOrder: number;
   href: string;
   /** Tailwind class for the module's accent surface (nav + headers). */
   accentBg: string;
+  /** One-liner shown on the module's first-visit intro card. */
+  intro: string;
+  /** 2-3 "try this" pointers on the intro card — concrete first moves. */
+  tips: string[];
 };
 
 export const modules: ModuleDef[] = [
   {
     key: "cookbook",
     label: "Cookbook",
-    icon: "🍳",
+    icon: "book-open",
+    category: "shelf",
     navOrder: 1,
     href: "/cookbook",
     accentBg: "bg-accent-red",
+    intro: "The group cookbook. Save the recipes worth repeating — markdown welcome, photos too.",
+    tips: [
+      "Post a recipe — plain markdown, so paste from anywhere",
+      "Attach a photo as proof it actually came out like that",
+      "Steal someone else's recipe for dinner tonight",
+    ],
   },
   {
     key: "events",
     label: "Events",
-    icon: "📅",
+    icon: "calendar",
+    category: "quests",
     navOrder: 2,
     href: "/events",
     accentBg: "bg-accent-blue",
+    intro: "Plan the hangs. RSVPs, details, and an iCal feed your calendar can subscribe to.",
+    tips: [
+      "Make an event and watch the RSVPs roll in",
+      "Subscribe your phone's calendar to the iCal feed (on your profile)",
+      "RSVP 'maybe' and keep everyone guessing",
+    ],
   },
   {
     key: "nowplaying",
     label: "Now Playing",
-    icon: "📺",
+    icon: "tv",
+    category: "shelf",
     navOrder: 3,
     href: "/nowplaying",
     accentBg: "bg-accent-yellow",
+    intro: "What everyone's watching, reading, and playing right now. Add yours, judge freely.",
+    tips: [
+      "Add what you're watching, reading, or playing",
+      "Mark something finished to move it off your list",
+      "Find your next show by raiding everyone else's lists",
+    ],
   },
   {
     key: "files",
     label: "Files",
-    icon: "📦",
+    icon: "folder",
+    category: "shelf",
     navOrder: 4,
     href: "/files",
     accentBg: "bg-accent-green",
+    intro: "The shared stash. Drop files in, grab them with short-lived private links.",
+    tips: [
+      "Upload images or PDFs — the group meme archive starts here",
+      "Links are private and expire — share freely",
+    ],
   },
   {
     key: "wishlist",
     label: "Wishlist",
-    icon: "🎁",
+    icon: "gift",
+    category: "stash",
     navOrder: 5,
     href: "/wishlist",
     accentBg: "bg-accent-orange",
+    intro: "Everyone's wish lists with link previews — so birthdays stop being a guessing game.",
+    tips: [
+      "Paste a product link — it pulls the picture automatically",
+      "Browse everyone else's lists before the next birthday",
+      "Keep yours updated so you stop getting socks",
+    ],
   },
   {
     key: "contacts",
     label: "People",
-    icon: "📇",
+    icon: "contact",
+    category: "quests",
     navOrder: 6,
     href: "/contacts",
     accentBg: "bg-accent-pink",
+    intro: "The group address book: numbers, addresses, birthdays, and who to call in a pinch.",
+    tips: [
+      "Fill in your own card — phone, address, birthday",
+      "Add your partner or emergency contact as a related party",
+      "Never ask the chat for someone's address again",
+    ],
   },
   {
     key: "vault",
     label: "Vault",
-    icon: "🔐",
+    icon: "lock",
+    category: "stash",
     navOrder: 7,
     href: "/vault",
     accentBg: "bg-accent-cyan",
+    intro: "Shared logins, encrypted at rest. Passwords reveal one at a time, only when you ask.",
+    tips: [
+      "Add a shared login the whole group uses",
+      "Tap reveal to decrypt a password — one at a time, on purpose",
+      "Passwords are encrypted at rest; backups stay safe",
+    ],
   },
   {
     key: "map",
     label: "Map",
-    icon: "🗺️",
+    icon: "map-pin",
+    category: "quests",
     navOrder: 8,
     href: "/map",
     accentBg: "bg-accent-teal",
+    intro: "The group atlas. Pin the good taco truck, trip ideas, and everyone's favorites.",
+    tips: [
+      "Drop a pin on the good taco truck",
+      "Search any address to pin it — no API keys, all free maps",
+      "Categorize pins: food, drinks, outdoors, trip ideas",
+    ],
   },
   {
     key: "ideas",
     label: "Ideas",
-    icon: "💡",
+    icon: "lightbulb",
+    category: "arcade",
     navOrder: 9,
     href: "/ideas",
     accentBg: "bg-accent-lime",
+    intro: "The suggestion box. Pitch an idea, vote on the rest, watch the winners get shipped.",
+    tips: [
+      "Pitch anything — trips, traditions, dumb bits",
+      "You get one vote per idea; make it count",
+      "Admins move winners to planned, then done",
+    ],
   },
   {
     key: "marketplace",
     label: "Market",
-    icon: "🏷️",
+    icon: "store",
+    category: "stash",
     navOrder: 10,
     href: "/marketplace",
     accentBg: "bg-accent-magenta",
+    intro: "The group garage sale. List it, claim it first-come-first-served, settle on Venmo.",
+    tips: [
+      "List something you're done with — price it or mark it free",
+      "Claiming is first-come-first-served and atomic, so be quick",
+      "Money changes hands on Venmo, not here",
+    ],
   },
   {
     key: "polls",
     label: "Polls",
-    icon: "🗳️",
+    icon: "chart-bar-big",
+    category: "arcade",
     navOrder: 11,
     href: "/polls",
     accentBg: "bg-accent-indigo",
+    intro: "Put it to a vote. Single or multi-choice, anonymous when it needs to be.",
+    tips: [
+      "Ask the group anything — single or multi-choice",
+      "Go anonymous for the spicy questions",
+      "Close the poll when the people have spoken",
+    ],
   },
   {
     key: "reveal",
     label: "Reveal",
-    icon: "🎭",
+    icon: "eye",
+    category: "arcade",
     navOrder: 12,
     href: "/reveal",
     accentBg: "bg-ink",
+    intro: "Everyone answers blind, then all answers unmask at once. No peeking, no editing.",
+    tips: [
+      "Answer the prompt — nobody sees anything until everyone's in",
+      "When the last person submits, all answers unmask at once",
+      "No edits after reveal. Stand by your words",
+    ],
   },
   {
     key: "stakes",
     label: "Stakes",
-    icon: "🎯",
+    icon: "target",
+    category: "arcade",
     navOrder: 13,
     href: "/stakes",
     accentBg: "bg-accent-forest",
+    intro: "Call your shots. Friendly bets with deadlines, receipts, and consequences.",
+    tips: [
+      "Call a shot: what happens, by when, what's on the line",
+      "Pick a counterparty or bet against the field",
+      "Resolution day comes with receipts",
+    ],
   },
   {
     key: "pet",
     label: "Pet",
-    icon: "🐣",
+    icon: "robot-face-happy",
+    category: "arcade",
     navOrder: 14,
     href: "/pet",
     accentBg: "bg-accent-sky",
+    intro: "A little creature powered by group activity. Quiet weeks make it sad. Keep it fed.",
+    tips: [
+      "It feeds on group activity — posts, RSVPs, votes, anything",
+      "Quiet weeks make it sad. It never dies, but it remembers",
+      "Give it a nudge if it's looking rough",
+    ],
   },
 ];
 
 export function sortedModules(): ModuleDef[] {
   return [...modules].sort((a, b) => a.navOrder - b.navOrder);
+}
+
+export function modulesByCategory(key: CategoryKey): ModuleDef[] {
+  return sortedModules().filter((m) => m.category === key);
 }

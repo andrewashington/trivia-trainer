@@ -15,6 +15,7 @@ export const GET = apiHandler(async () => {
       include: {
         creator: { select: { id: true, displayName: true } },
         submissions: { include: { user: { select: { id: true, displayName: true } } } },
+        unlockVotes: { select: { userId: true } },
       },
     }),
     db.user.count(),
@@ -39,6 +40,7 @@ export const POST = apiHandler(async (req: Request) => {
           scaleMax: data.type === "oracle" ? (data.scaleMax ?? 10) : null,
           deadline: data.type === "sealed" ? null : (data.deadline ?? null),
           unlockAt: data.type === "sealed" ? data.unlockAt : null,
+          unlockVotesNeeded: data.type === "sealed" ? (data.unlockVotesNeeded ?? null) : null,
         },
       });
       if (data.type === "sealed") {

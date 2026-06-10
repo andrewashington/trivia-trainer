@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { IconName } from "@/components/icons";
 
 export const promptInput = z
   .object({
@@ -9,6 +10,8 @@ export const promptInput = z
     deadline: z.coerce.date().optional(),
     unlockAt: z.coerce.date().optional(),
     sealedBody: z.string().trim().min(1).max(10_000).optional(),
+    // sealed: optional early unseal once this many members vote for it
+    unlockVotesNeeded: z.number().int().min(2).max(50).nullish(),
   })
   .superRefine((p, ctx) => {
     if (p.type === "rank" && (p.items?.length ?? 0) < 2) {
@@ -51,7 +54,7 @@ export const submissionInput = z.object({
 });
 
 export const REVEAL_TYPE_META = {
-  rank: { label: "Blind Rank", icon: "🥇", blurb: "Everyone ranks privately; the consensus drops at once." },
-  sealed: { label: "Sealed", icon: "✉️", blurb: "A note locked until a date — even you can't peek." },
-  oracle: { label: "Oracle", icon: "🔮", blurb: "Answer on a scale; only the blend is ever shown." },
-} as const;
+  rank: { label: "Blind Rank", icon: "trophy", blurb: "Everyone ranks privately; the consensus drops at once." },
+  sealed: { label: "Sealed", icon: "mail", blurb: "A note locked until a date — even you can't peek." },
+  oracle: { label: "Oracle", icon: "sparkles", blurb: "Answer on a scale; only the blend is ever shown." },
+} as const satisfies Record<string, { label: string; icon: IconName; blurb: string }>;

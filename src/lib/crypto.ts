@@ -14,7 +14,9 @@ import {
  * vault; it is deliberately not end-to-end.
  */
 function key(): Buffer {
-  const secret = process.env.VAULT_KEY ?? process.env.AUTH_SECRET;
+  // `||`, not `??`: .env templates ship VAULT_KEY="" and an empty key
+  // must fall back to AUTH_SECRET rather than win the coalesce.
+  const secret = process.env.VAULT_KEY || process.env.AUTH_SECRET;
   if (!secret) throw new Error("Set VAULT_KEY (or AUTH_SECRET) to use the vault.");
   return scryptSync(secret, "udmplus-vault-v1", 32);
 }

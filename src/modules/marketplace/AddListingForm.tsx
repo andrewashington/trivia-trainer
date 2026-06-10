@@ -4,12 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input, Textarea } from "@/components/ui";
+import { PixelIcon, type IconName } from "@/components/icons";
 
 const DELIVERY_OPTIONS = [
-  { value: "pickup", label: "🚪 Pickup" },
-  { value: "delivery", label: "🚗 I'll deliver" },
-  { value: "either", label: "🤝 Either" },
-] as const;
+  { value: "pickup", label: "Pickup", icon: "door-closed" },
+  { value: "delivery", label: "I'll deliver", icon: "car" },
+  { value: "either", label: "Either", icon: "arrows-horizontal" },
+] as const satisfies readonly { value: string; label: string; icon: IconName }[];
 
 export function AddListingForm({ hasVenmo }: { hasVenmo: boolean }) {
   const router = useRouter();
@@ -115,6 +116,7 @@ export function AddListingForm({ hasVenmo }: { hasVenmo: boolean }) {
                   delivery === d.value ? "bg-accent-magenta text-white" : "bg-card"
                 }`}
               >
+                <PixelIcon name={d.icon} size={13} className="-mt-0.5 mr-1 inline" />
                 {d.label}
               </button>
             ))}

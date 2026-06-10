@@ -62,10 +62,47 @@ const config: Config = {
           "0%, 100%": { transform: "rotate(-1.5deg)" },
           "50%": { transform: "rotate(1.5deg)" },
         },
+        hop: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "30%": { transform: "translateY(-14px) rotate(-4deg)" },
+          "60%": { transform: "translateY(0)" },
+        },
+        blockblink: {
+          "0%, 100%": { opacity: "0.15" },
+          "40%": { opacity: "1" },
+        },
+        "stamp-in": {
+          "0%": { transform: "scale(2.6) rotate(-18deg)", opacity: "0" },
+          "55%": { transform: "scale(0.92) rotate(-8deg)", opacity: "1" },
+          "100%": { transform: "scale(1) rotate(-8deg)", opacity: "1" },
+        },
+        "card-out": {
+          "0%": { transform: "scale(1)", opacity: "1" },
+          "100%": { transform: "scale(0.94) translateY(8px)", opacity: "0" },
+        },
+        marquee: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
+        "pulse-ring": {
+          "0%, 100%": { boxShadow: "4px 4px 0 0 #101010" },
+          "50%": { boxShadow: "7px 7px 0 0 #101010" },
+        },
+        flash: {
+          "0%, 100%": { outline: "0 solid transparent", outlineOffset: "3px" },
+          "25%, 65%": { outline: "4px solid #FFD60A", outlineOffset: "3px" },
+        },
       },
       animation: {
         "pop-in": "pop-in 150ms ease-out both",
         wiggle: "wiggle 300ms ease-in-out",
+        hop: "hop 900ms ease-in-out infinite",
+        blockblink: "blockblink 1.1s ease-in-out infinite",
+        "stamp-in": "stamp-in 380ms cubic-bezier(0.2, 1.8, 0.4, 1) both",
+        "card-out": "card-out 420ms ease-in 650ms both",
+        marquee: "marquee 22s linear infinite",
+        "pulse-ring": "pulse-ring 1.6s ease-in-out infinite",
+        flash: "flash 1.4s ease-out 1",
       },
     },
   },

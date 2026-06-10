@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input } from "@/components/ui";
 import { POLL_TYPE_META } from "@/modules/polls/schema";
+import { PixelIcon } from "@/components/icons";
 
 type PollType = "single" | "multi" | "scale";
 
@@ -14,6 +15,8 @@ export function AddPollForm() {
   const [question, setQuestion] = useState("");
   const [type, setType] = useState<PollType>("single");
   const [anonymous, setAnonymous] = useState(false);
+  const [sealed, setSealed] = useState(false);
+  const [revealThreshold, setRevealThreshold] = useState(3);
   const [options, setOptions] = useState<string[]>(["", ""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,12 +37,15 @@ export function AddPollForm() {
           type,
           anonymous,
           options: type === "scale" ? [] : options.map((o) => o.trim()).filter(Boolean),
+          revealThreshold: sealed ? revealThreshold : null,
         },
       });
       setQuestion("");
       setOptions(["", ""]);
       setType("single");
       setAnonymous(false);
+      setSealed(false);
+      setRevealThreshold(3);
       setOpen(false);
       router.refresh();
     } catch (err) {
@@ -80,7 +86,8 @@ export function AddPollForm() {
               type === t ? "bg-accent-indigo text-white" : "bg-card"
             }`}
           >
-            {POLL_TYPE_META[t].icon} {POLL_TYPE_META[t].label}
+            <PixelIcon name={POLL_TYPE_META[t].icon} size={13} className="-mt-0.5 mr-1 inline" />
+            {POLL_TYPE_META[t].label}
           </button>
         ))}
       </div>
@@ -133,10 +140,37 @@ export function AddPollForm() {
           anonymous ? "bg-ink text-white" : "bg-card"
         }`}
       >
+        <PixelIcon name={anonymous ? "sunglasses" : "eye"} size={13} className="-mt-0.5 mr-1 inline" />
         {anonymous
-          ? "🕶️ Anonymous — nobody sees who voted for what"
-          : "👀 Named — votes show names (tap for anonymous)"}
+          ? "Anonymous — nobody sees who voted for what"
+          : "Named — votes show names (tap for anonymous)"}
       </button>
+
+      <button
+        type="button"
+        onClick={() => setSealed(!sealed)}
+        aria-pressed={sealed}
+        className={`brutal-press w-full border-2 border-ink px-3 py-2 text-left font-mono text-xs font-bold uppercase shadow-brutal-sm ${
+          sealed ? "bg-accent-yellow" : "bg-card"
+        }`}
+      >
+        <PixelIcon name={sealed ? "lock" : "unlock"} size={13} className="-mt-0.5 mr-1 inline" />
+        {sealed
+          ? "Sealed — results hidden until the group votes to reveal"
+          : "Open results — tap to seal them behind a group vote"}
+      </button>
+      {sealed && (
+        <Field label="Votes needed to reveal the results">
+          <Input
+            type="number"
+            min={2}
+            max={50}
+            value={revealThreshold}
+            onChange={(e) => setRevealThreshold(Number(e.target.value))}
+            required
+          />
+        </Field>
+      )}
 
       {error && (
         <p className="border-2 border-ink bg-accent-red px-3 py-2 text-sm font-bold text-white">

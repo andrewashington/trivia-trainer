@@ -1,15 +1,22 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { presignView } from "@/lib/storage";
 import { EmptyState, PageHeader } from "@/components/ui";
+import { ModuleHeader } from "@/components/ModuleHeader";
 import { AddListingForm } from "@/modules/marketplace/AddListingForm";
+import { HeroBanner } from "@/components/Hero";
 import { ListingCard, type ListingView } from "@/modules/marketplace/ListingCard";
 
 export const metadata = { title: "Market" };
 export const dynamic = "force-dynamic";
 
-export default async function MarketplacePage() {
+export default async function MarketplacePage({
+  searchParams,
+}: {
+  searchParams: { history?: string };
+}) {
   const user = await currentUser();
   if (!user) redirect("/signin");
 
@@ -51,40 +58,83 @@ export default async function MarketplacePage() {
     tilt: i % 2 === 0 ? "tilt-l" : "tilt-r",
   });
 
+  const showHistory = searchParams.history === "1";
   const active = listings.filter((l) => l.status !== "gone");
-  const gone = listings.filter((l) => l.status === "gone").slice(0, 12);
+  const gone = listings.filter((l) => l.status === "gone");
 
   return (
     <div className="space-y-6">
-      <PageHeader title="🏷️ Market" accentBg="bg-accent-magenta text-white" />
-      <AddListingForm hasVenmo={!!user.venmoHandle} />
-
-      {active.length === 0 && gone.length === 0 ? (
-        <EmptyState
-          icon="🧸"
-          title="Nothing for sale"
-          hint="Someone's garage disagrees. List that toaster."
+      {showHistory ? (
+        <PageHeader
+          title="Sold & gone"
+          icon="archive"
+          accentBg="bg-accent-magenta text-white"
+          action={
+            <Link
+              href="/marketplace"
+              className="brutal-press border-2 border-ink bg-card px-3 py-1 font-mono text-xs font-bold uppercase no-underline shadow-brutal-sm"
+            >
+              ← The market
+            </Link>
+          }
         />
       ) : (
-        <>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            {active.map((l, i) => (
-              <ListingCard key={l.id} listing={toView(l, i)} />
-            ))}
-          </div>
-          {gone.length > 0 && (
-            <section className="space-y-4">
-              <h2 className="font-mono text-sm font-bold uppercase tracking-widest text-ink/50">
-                Sold &amp; gone
-              </h2>
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                {gone.map((l, i) => (
-                  <ListingCard key={l.id} listing={toView(l, i)} />
-                ))}
+        <ModuleHeader
+          title="Market"
+          icon="store"
+          accentBg="bg-accent-magenta text-white"
+          addLabel="Listing"
+          extra={
+            <Link
+              href="/marketplace?history=1"
+              className="brutal-press border-2 border-ink bg-card px-3 py-1 font-mono text-xs font-bold uppercase no-underline shadow-brutal-sm"
+            >
+              Sold &amp; gone ({gone.length})
+            </Link>
+          }
+        >
+          <AddListingForm hasVenmo={!!user.venmoHandle} />
+        </ModuleHeader>
+      )}
+
+      {!showHistory && (() => {
+        const fresh = active.find((l) => l.status === "available");
+        if (!fresh) return null;
+        const days = Math.floor((Date.now() - fresh.createdAt.getTime()) / 86_400_000);
+        const price = fresh.priceCents === null ? "FREE" : `$${(fresh.priceCents / 100).toFixed(fresh.priceCents % 100 === 0 ? 0 : 2)}`;
+        return (
+          <HeroBanner accentBg="bg-accent-magenta text-white" pattern="dots" kicker="Up for grabs" kickerIcon="store" pulse={fresh.priceCents === null} jumpTo={`listing-${fresh.id}`} jumpLabel="Claim it ↓">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="font-display text-2xl font-bold leading-tight sm:text-3xl">{fresh.title}</h2>
+                <p className="mt-2 font-mono text-xs uppercase tracking-wide text-white/80">
+                  from {fresh.seller.displayName} · {days === 0 ? "listed today" : `unclaimed for ${days}d`} — first come, first served ↓
+                </p>
               </div>
-            </section>
-          )}
-        </>
+              <p className="border-2 border-ink bg-accent-yellow px-4 py-1.5 font-display text-3xl font-bold text-ink shadow-brutal-sm">
+                {price}
+              </p>
+            </div>
+          </HeroBanner>
+        );
+      })()}
+
+      {(showHistory ? gone : active).length === 0 ? (
+        <EmptyState
+          icon={showHistory ? "archive" : "shopping-cart"}
+          title={showHistory ? "Nothing's gone yet" : "Nothing for sale"}
+          hint={
+            showHistory
+              ? "Sold and given-away listings retire here."
+              : "Someone's garage disagrees. List that toaster."
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          {(showHistory ? gone : active).map((l, i) => (
+            <ListingCard key={l.id} listing={toView(l, i)} />
+          ))}
+        </div>
       )}
     </div>
   );

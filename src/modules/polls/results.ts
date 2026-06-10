@@ -4,6 +4,7 @@ type PollWithRelations = Poll & {
   creator: { id: string; displayName: string };
   options: PollOption[];
   votes: (PollVote & { user: { id: string; displayName: string } })[];
+  revealVotes: { userId: string }[];
 };
 
 export type PollResults = {
@@ -28,6 +29,11 @@ export type PollResults = {
   }[];
   /** Scale polls: counts indexed by rating 1..5, plus the average. */
   scale: { distribution: number[]; average: number | null } | null;
+  /** Sealed results: hidden until revealVoteCount reaches the threshold. */
+  revealThreshold: number | null;
+  revealVoteCount: number;
+  iVotedReveal: boolean;
+  resultsHidden: boolean;
 };
 
 /**
@@ -39,18 +45,24 @@ export function pollToResults(poll: PollWithRelations, viewer: User): PollResult
   const myVotes = poll.votes.filter((v) => v.userId === viewer.id);
   const voterCount = new Set(poll.votes.map((v) => v.userId)).size;
 
+  // Sealed results stay sealed HERE, server-side: while hidden, counts,
+  // voter names, and scale stats never reach a client.
+  const revealVoteCount = poll.revealVotes.length;
+  const resultsHidden =
+    poll.revealThreshold !== null && revealVoteCount < poll.revealThreshold;
+
   const options = poll.options.map((opt) => {
     const optVotes = poll.votes.filter((v) => v.optionId === opt.id);
     return {
       id: opt.id,
       label: opt.label,
-      count: optVotes.length,
-      voters: poll.anonymous ? [] : optVotes.map((v) => v.user.displayName),
+      count: resultsHidden ? 0 : optVotes.length,
+      voters: poll.anonymous || resultsHidden ? [] : optVotes.map((v) => v.user.displayName),
     };
   });
 
   let scale: PollResults["scale"] = null;
-  if (poll.type === "scale") {
+  if (poll.type === "scale" && !resultsHidden) {
     const ratings = poll.votes
       .map((v) => v.rating)
       .filter((r): r is number => r !== null);
@@ -81,5 +93,9 @@ export function pollToResults(poll: PollWithRelations, viewer: User): PollResult
     hasVoted: myVotes.length > 0,
     options,
     scale,
+    revealThreshold: poll.revealThreshold,
+    revealVoteCount,
+    iVotedReveal: poll.revealVotes.some((v) => v.userId === viewer.id),
+    resultsHidden,
   };
 }

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input } from "@/components/ui";
+import { PixelIcon } from "@/components/icons";
 
 export type VaultEntryView = {
   id: string;
@@ -156,7 +157,8 @@ export function VaultEntryRow({ entry }: { entry: VaultEntryView }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-display text-lg font-bold leading-tight">
-            🔑 {entry.siteName}
+            <PixelIcon name="lock" size={16} className="-mt-0.5 mr-1 inline" />
+            {entry.siteName}
           </p>
           {entry.siteUrl && (
             <a

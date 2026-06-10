@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Avatar, Badge, Button } from "@/components/ui";
+import { PixelIcon } from "@/components/icons";
+import { StampOverlay, useActionStamp } from "@/components/ActionFx";
 import type { PromptView, RankResults, OracleResults, SealedResults } from "@/modules/reveal/engine";
 import { REVEAL_TYPE_META } from "@/modules/reveal/schema";
 
@@ -16,6 +18,7 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
   const meta = REVEAL_TYPE_META[prompt.type];
   const [busy, setBusy] = useState(false);
   const [armedDelete, setArmedDelete] = useState(false);
+  const { stamp, fire, cardFxClass } = useActionStamp();
   const [armedLock, setArmedLock] = useState(false);
 
   // Rank ballot: tap to move items from pool → your order.
@@ -24,6 +27,19 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
   const [value, setValue] = useState<number | null>(null);
 
   const items = prompt.items ?? [];
+
+  async function voteUnlock() {
+    setBusy(true);
+    try {
+      await api(`/api/reveal/${prompt.id}/unlock`, { method: "PUT" });
+      fire(prompt.iVotedUnlock ? "VOTE WITHDRAWN" : "UNSEAL VOTE ✓", prompt.iVotedUnlock ? "ink" : "yellow");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "That didn't work.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const pool = items.map((_, i) => i).filter((i) => !ranked.includes(i));
   const memberSet = new Set(memberNames);
 
@@ -39,7 +55,7 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
         method: "POST",
         body: prompt.type === "rank" ? { order: ranked } : { value },
       });
-      router.refresh();
+      fire("LOCKED IN ✓", "green");
     } catch (err) {
       alert(err instanceof Error ? err.message : "Couldn't lock that in.");
     } finally {
@@ -57,7 +73,7 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
     setBusy(true);
     try {
       await api(`/api/reveal/${prompt.id}`, { method: "DELETE" });
-      router.refresh();
+      fire("DELETED", "red", { leave: true });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Delete failed.");
       setBusy(false);
@@ -68,19 +84,26 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
     prompt.type === "rank" ? ranked.length === items.length && items.length > 0 : value !== null;
 
   return (
-    <li className={`brutal-card p-4 ${prompt.status === "revealed" ? "" : ""}`}>
+    <li id={`prompt-${prompt.id}`} className={`brutal-card relative scroll-mt-24 p-4 ${cardFxClass}`}>
+      <StampOverlay stamp={stamp} />
       <div className="flex flex-wrap items-center gap-1.5">
-        <Badge className="bg-ink text-white">{meta.icon} {meta.label}</Badge>
+        <Badge className="inline-flex items-center gap-1.5 bg-ink text-white">
+          <PixelIcon name={meta.icon} size={13} /> {meta.label}
+        </Badge>
         {prompt.status === "open" && prompt.type !== "sealed" && (
           <Badge className="bg-paper">
             {prompt.submittedCount}/{prompt.memberCount} in
           </Badge>
         )}
         {prompt.status === "open" && prompt.type === "sealed" && prompt.unlockAt && (
-          <Badge className="bg-accent-yellow">🔒 opens in {daysUntil(prompt.unlockAt)}d</Badge>
+          <Badge className="inline-flex items-center gap-1.5 bg-accent-yellow">
+            <PixelIcon name="lock" size={13} /> opens in {daysUntil(prompt.unlockAt)}d
+          </Badge>
         )}
         {prompt.status === "open" && prompt.deadline && (
-          <Badge className="bg-paper">⏳ {daysUntil(prompt.deadline)}d left</Badge>
+          <Badge className="inline-flex items-center gap-1.5 bg-paper">
+            <PixelIcon name="clock" size={13} /> {daysUntil(prompt.deadline)}d left
+          </Badge>
         )}
         <span className="ml-auto font-mono text-[10px] uppercase text-ink/40">
           by {prompt.creatorName}
@@ -144,22 +167,58 @@ export function PromptCard({ prompt, memberNames }: { prompt: PromptView; member
             </div>
           )}
           <Button onClick={lockIn} disabled={busy || !ready} className="w-full" variant={armedLock ? "danger" : "primary"}>
-            {busy ? "…" : armedLock ? "Sure? NO take-backs" : "🔒 Lock it in"}
+            {busy ? (
+              "…"
+            ) : armedLock ? (
+              "Sure? NO take-backs"
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                <PixelIcon name="lock" size={14} /> Lock it in
+              </span>
+            )}
           </Button>
         </div>
       )}
 
       {prompt.status === "open" && prompt.type !== "sealed" && prompt.iSubmitted && (
         <p className="mt-3 border-2 border-dashed border-ink/30 bg-paper px-3 py-2 font-mono text-xs text-ink/60">
-          🔒 You&apos;re locked in. Waiting on{" "}
+          <PixelIcon name="lock" size={13} className="-mt-0.5 mr-1 inline" />
+          You&apos;re locked in. Waiting on{" "}
           {Math.max(0, prompt.memberCount - prompt.submittedCount)} more…
         </p>
       )}
 
       {prompt.status === "open" && prompt.type === "sealed" && (
-        <p className="mt-3 border-2 border-dashed border-ink/30 bg-paper px-3 py-2 font-mono text-xs text-ink/60">
-          ✉️ Sealed. Nobody can read it — not even {prompt.isMine ? "you" : prompt.creatorName}.
-        </p>
+        <div className="mt-3 border-2 border-dashed border-ink/30 bg-paper px-3 py-2">
+          <p className="font-mono text-xs text-ink/60">
+            <PixelIcon name="mail" size={13} className="-mt-0.5 mr-1 inline" />
+            Sealed. Nobody can read it — not even {prompt.isMine ? "you" : prompt.creatorName}.
+          </p>
+          {prompt.unlockVotesNeeded !== null && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="h-3.5 w-28 border-2 border-ink bg-card">
+                <div
+                  className="h-full bg-accent-yellow"
+                  style={{
+                    width: `${Math.min(100, Math.round((prompt.unlockVoteCount / prompt.unlockVotesNeeded) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className="font-mono text-[10px] font-bold uppercase text-ink/60">
+                {prompt.unlockVoteCount}/{prompt.unlockVotesNeeded} to unseal early
+              </span>
+              <button
+                onClick={voteUnlock}
+                disabled={busy}
+                className={`brutal-press ml-auto border-2 border-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase shadow-brutal-sm ${
+                  prompt.iVotedUnlock ? "bg-ink text-white" : "bg-accent-yellow"
+                }`}
+              >
+                {prompt.iVotedUnlock ? "Withdraw vote" : "Vote to unseal"}
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ---------- REVEALED: aggregates only ---------- */}
@@ -203,8 +262,8 @@ function RankReveal({ results, memberSet }: { results: RankResults; memberSet: S
       ))}
       <div className="flex flex-wrap gap-1.5 pt-1">
         {results.mostOff && (
-          <Badge className="bg-accent-red text-white">
-            🎯 Most off: {results.mostOff.name} (Δ{results.mostOff.delta})
+          <Badge className="inline-flex items-center gap-1.5 bg-accent-red text-white">
+            <PixelIcon name="target" size={13} /> Most off: {results.mostOff.name} (Δ{results.mostOff.delta})
           </Badge>
         )}
         {results.myDelta !== null && (

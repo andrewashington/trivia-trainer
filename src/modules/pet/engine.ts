@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { IconName } from "@/components/icons";
 
 /**
  * The Pet's mood is DERIVED — it reads the outbox, which every module
@@ -17,8 +18,8 @@ export type PetView = {
   name: string;
   mood: PetMood;
   score: number;
-  /** What the pet "ate" this week, by module emoji — collective only. */
-  diet: { emoji: string; label: string; count: number }[];
+  /** What the pet "ate" this week, by module icon — collective only. */
+  diet: { icon: IconName; label: string; count: number }[];
   nudgesToday: number;
   canNudge: boolean;
 };
@@ -33,32 +34,32 @@ const MOOD_THRESHOLDS: [number, PetMood][] = [
 
 export const MOOD_META: Record<
   PetMood,
-  { face: string; line: string; bg: string }
+  { face: IconName; line: string; bg: string }
 > = {
-  thriving: { face: "🤩", line: "is THRIVING. What a week.", bg: "bg-accent-yellow" },
-  happy: { face: "😊", line: "is happy. The group's alive!", bg: "bg-accent-green" },
-  okay: { face: "🙂", line: "is doing okay. Could eat.", bg: "bg-accent-sky" },
-  sleepy: { face: "😴", line: "is sleepy… it's quiet around here.", bg: "bg-paper" },
-  sad: { face: "🥺", line: "misses you all. Anything counts.", bg: "bg-paper" },
+  thriving: { face: "laugh", line: "is THRIVING. What a week.", bg: "bg-accent-yellow" },
+  happy: { face: "smile", line: "is happy. The group's alive!", bg: "bg-accent-green" },
+  okay: { face: "meh", line: "is doing okay. Could eat.", bg: "bg-accent-sky" },
+  sleepy: { face: "moon", line: "is sleepy… it's quiet around here.", bg: "bg-paper" },
+  sad: { face: "frown", line: "misses you all. Anything counts.", bg: "bg-paper" },
 };
 
 // type prefix → module flavor for the diet readout
-const DIET_MAP: [string, string, string][] = [
-  ["recipe.", "🍳", "recipes"],
-  ["event.", "📅", "event buzz"],
-  ["nowplaying.", "📺", "watch updates"],
-  ["file.", "📦", "files"],
-  ["wishlist.", "🎁", "wishes"],
-  ["contact.", "📇", "card updates"],
-  ["vault.", "🔐", "vault keys"],
-  ["map.", "🗺️", "map pins"],
-  ["idea.", "💡", "ideas & votes"],
-  ["listing.", "🏷️", "market action"],
-  ["poll.", "🗳️", "poll energy"],
-  ["reveal.", "🎭", "secrets"],
-  ["claim.", "🎯", "hot takes"],
-  ["forfeit.", "☠️", "consequences"],
-  ["member.", "👋", "roster moves"],
+const DIET_MAP: [string, IconName, string][] = [
+  ["recipe.", "book-open", "recipes"],
+  ["event.", "calendar", "event buzz"],
+  ["nowplaying.", "tv", "watch updates"],
+  ["file.", "folder", "files"],
+  ["wishlist.", "gift", "wishes"],
+  ["contact.", "contact", "card updates"],
+  ["vault.", "lock", "vault keys"],
+  ["map.", "map-pin", "map pins"],
+  ["idea.", "lightbulb", "ideas & votes"],
+  ["listing.", "store", "market action"],
+  ["poll.", "chart-bar-big", "poll energy"],
+  ["reveal.", "eye", "secrets"],
+  ["claim.", "target", "hot takes"],
+  ["forfeit.", "skull", "consequences"],
+  ["member.", "user", "roster moves"],
 ];
 
 export async function getPetView(viewerId: string): Promise<PetView> {
@@ -90,7 +91,7 @@ export async function getPetView(viewerId: string): Promise<PetView> {
     if (hit) dietCounts.set(hit[0], (dietCounts.get(hit[0]) ?? 0) + 1);
   }
   const diet = DIET_MAP.filter(([prefix]) => dietCounts.has(prefix))
-    .map(([prefix, emoji, label]) => ({ emoji, label, count: dietCounts.get(prefix)! }))
+    .map(([prefix, icon, label]) => ({ icon, label, count: dietCounts.get(prefix)! }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
 

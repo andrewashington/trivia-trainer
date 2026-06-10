@@ -4,12 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Input } from "@/components/ui";
+import { PixelIcon, type IconName } from "@/components/icons";
 
 const TYPES = [
-  { value: "show", label: "📺 Show" },
-  { value: "movie", label: "🎬 Movie" },
-  { value: "book", label: "📚 Book" },
-] as const;
+  { value: "show", label: "Show", icon: "tv" },
+  { value: "movie", label: "Movie", icon: "clapperboard" },
+  { value: "book", label: "Book", icon: "book-open" },
+] as const satisfies readonly { value: string; label: string; icon: IconName }[];
 
 export function AddItemForm() {
   const router = useRouter();
@@ -51,6 +52,7 @@ export function AddItemForm() {
               mediaType === t.value ? "bg-accent-yellow" : "bg-card"
             }`}
           >
+            <PixelIcon name={t.icon} size={13} className="-mt-0.5 mr-1 inline" />
             {t.label}
           </button>
         ))}

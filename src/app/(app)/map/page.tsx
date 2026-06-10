@@ -18,7 +18,7 @@ export default async function MapPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="🗺️ The Map" accentBg="bg-accent-teal" />
+      <PageHeader title="The Map" icon="map-pin" accentBg="bg-accent-teal" />
       <MapBoard
         initialPins={pins.map((p) => ({
           id: p.id,
@@ -34,7 +34,7 @@ export default async function MapPage() {
       />
       {pins.length === 0 && (
         <EmptyState
-          icon="🧭"
+          icon="gps"
           title="The map is uncharted"
           hint="Pin the group's favorite taco spot before someone forgets where it is."
         />

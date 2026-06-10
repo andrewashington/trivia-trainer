@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input, Textarea } from "@/components/ui";
 import { REVEAL_TYPE_META } from "@/modules/reveal/schema";
+import { PixelIcon } from "@/components/icons";
 
 type Mode = "rank" | "sealed" | "oracle";
 
@@ -18,6 +19,8 @@ export function AddPromptForm({ memberNames }: { memberNames: string[] }) {
   const [deadline, setDeadline] = useState("");
   const [unlockAt, setUnlockAt] = useState("");
   const [sealedBody, setSealedBody] = useState("");
+  const [earlyUnseal, setEarlyUnseal] = useState(false);
+  const [unlockVotesNeeded, setUnlockVotesNeeded] = useState(3);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +42,7 @@ export function AddPromptForm({ memberNames }: { memberNames: string[] }) {
           deadline: mode !== "sealed" && deadline ? new Date(deadline).toISOString() : undefined,
           unlockAt: mode === "sealed" && unlockAt ? new Date(unlockAt).toISOString() : undefined,
           sealedBody: mode === "sealed" ? sealedBody : undefined,
+          unlockVotesNeeded: mode === "sealed" && earlyUnseal ? unlockVotesNeeded : null,
         },
       });
       setTitle("");
@@ -75,7 +79,8 @@ export function AddPromptForm({ memberNames }: { memberNames: string[] }) {
               mode === m ? "bg-ink text-white" : "bg-card"
             }`}
           >
-            {REVEAL_TYPE_META[m].icon} {REVEAL_TYPE_META[m].label}
+            <PixelIcon name={REVEAL_TYPE_META[m].icon} size={13} className="-mt-0.5 mr-1 inline" />
+            {REVEAL_TYPE_META[m].label}
           </button>
         ))}
       </div>
@@ -111,7 +116,8 @@ export function AddPromptForm({ memberNames }: { memberNames: string[] }) {
               onClick={() => setItemsText(memberNames.join("\n"))}
               className="brutal-press border-2 border-ink bg-accent-yellow px-2 py-1 font-mono text-xs font-bold uppercase shadow-brutal-sm"
             >
-              👥 Rank the group
+              <PixelIcon name="users" size={13} className="-mt-0.5 mr-1 inline" />
+              Rank the group
             </button>
           </div>
         </Field>
@@ -156,6 +162,31 @@ export function AddPromptForm({ memberNames }: { memberNames: string[] }) {
           <Field label="Opens on">
             <Input type="datetime-local" value={unlockAt} onChange={(e) => setUnlockAt(e.target.value)} required />
           </Field>
+          <button
+            type="button"
+            onClick={() => setEarlyUnseal(!earlyUnseal)}
+            aria-pressed={earlyUnseal}
+            className={`brutal-press w-full border-2 border-ink px-3 py-2 text-left font-mono text-xs font-bold uppercase shadow-brutal-sm ${
+              earlyUnseal ? "bg-accent-yellow" : "bg-card"
+            }`}
+          >
+            <PixelIcon name={earlyUnseal ? "unlock" : "lock"} size={13} className="-mt-0.5 mr-1 inline" />
+            {earlyUnseal
+              ? "Early unseal ON — the group can vote it open sooner"
+              : "Date only — tap to let a group vote open it early"}
+          </button>
+          {earlyUnseal && (
+            <Field label="Votes needed to unseal early">
+              <Input
+                type="number"
+                min={2}
+                max={50}
+                value={unlockVotesNeeded}
+                onChange={(e) => setUnlockVotesNeeded(Number(e.target.value))}
+                required
+              />
+            </Field>
+          )}
         </>
       )}
 

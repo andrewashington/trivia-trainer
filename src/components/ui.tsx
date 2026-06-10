@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+import { PixelIcon, type IconName } from "@/components/icons";
+import { dicebearUrl } from "@/lib/avatar";
 
 type ButtonVariant = "primary" | "danger" | "ghost" | "yellow" | "green";
 
@@ -75,18 +77,21 @@ export function Card({
 /** Big friendly module header with the module's accent color. */
 export function PageHeader({
   title,
+  icon,
   accentBg,
   action,
 }: {
   title: string;
+  icon?: IconName;
   accentBg: string;
   action?: ReactNode;
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
       <h1
-        className={`tilt-l inline-block border-3 border-ink px-4 py-1 text-3xl shadow-brutal ${accentBg}`}
+        className={`tilt-l inline-flex items-center gap-2.5 border-3 border-ink px-4 py-1 text-3xl shadow-brutal ${accentBg}`}
       >
+        {icon && <PixelIcon name={icon} size={26} />}
         {title}
       </h1>
       {action}
@@ -95,10 +100,12 @@ export function PageHeader({
 }
 
 /** Sensible, playful empty states — required by the brief. */
-export function EmptyState({ icon, title, hint }: { icon: string; title: string; hint?: string }) {
+export function EmptyState({ icon, title, hint }: { icon: IconName; title: string; hint?: string }) {
   return (
     <div className="brutal-card tilt-r mx-auto max-w-sm p-8 text-center">
-      <div className="text-5xl">{icon}</div>
+      <div className="flex justify-center text-ink/70">
+        <PixelIcon name={icon} size={48} />
+      </div>
       <p className="mt-3 font-display text-xl font-bold">{title}</p>
       {hint && <p className="mt-1 text-sm text-ink/60">{hint}</p>}
     </div>
@@ -113,32 +120,33 @@ const AVATAR_COLORS = [
   "bg-accent-grape text-white",
 ];
 
-/** Initials avatar with a deterministic accent color per person. */
+/**
+ * DiceBear pixel-art avatar with a deterministic accent backdrop per
+ * person. `src` (the user's chosen avatar) wins; otherwise the display
+ * name seeds the art, so the same person looks the same everywhere.
+ */
 export function Avatar({
   name,
+  src,
   size = "md",
   title,
 }: {
   name: string;
-  size?: "sm" | "md";
+  src?: string | null;
+  size?: "sm" | "md" | "lg";
   title?: string;
 }) {
   let hash = 0;
   for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
   const color = AVATAR_COLORS[hash % AVATAR_COLORS.length];
-  const initials = name
-    .split(/\s+/)
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-  const sizeClass = size === "sm" ? "h-7 w-7 text-xs" : "h-9 w-9 text-sm";
+  const sizeClass = size === "sm" ? "h-7 w-7" : size === "lg" ? "h-16 w-16" : "h-9 w-9";
   return (
     <span
       title={title ?? name}
-      className={`inline-flex items-center justify-center border-2 border-ink font-display font-bold ${color} ${sizeClass}`}
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden border-2 border-ink ${color} ${sizeClass}`}
     >
-      {initials}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src || dicebearUrl(name)} alt={name} className="h-full w-full" />
     </span>
   );
 }

@@ -4,6 +4,7 @@ import { currentUser } from "@/lib/session";
 import { signOut } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { MemberManager } from "@/modules/admin/MemberManager";
+import { FeedbackList } from "@/modules/admin/FeedbackList";
 
 export const metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
@@ -13,10 +14,26 @@ export default async function AdminPage() {
   if (!user) redirect("/signin");
   if (user.role !== "admin") redirect("/");
 
-  const members = await db.user.findMany({
-    orderBy: { createdAt: "asc" },
-    select: { id: true, email: true, displayName: true, role: true },
-  });
+  const [members, feedback] = await Promise.all([
+    db.user.findMany({
+      orderBy: { createdAt: "asc" },
+      select: { id: true, email: true, displayName: true, role: true },
+    }),
+    db.feedback.findMany({
+      orderBy: [{ resolvedAt: "asc" }, { createdAt: "desc" }],
+      include: { user: { select: { displayName: true } } },
+    }),
+  ]);
+  const feedbackItems = feedback.map((f) => ({
+    id: f.id,
+    kind: f.kind,
+    message: f.message,
+    path: f.path,
+    userAgent: f.userAgent,
+    resolvedAt: f.resolvedAt?.toISOString() ?? null,
+    createdAt: f.createdAt.toISOString(),
+    userName: f.user.displayName,
+  }));
 
   async function doSignOut() {
     "use server";
@@ -25,8 +42,9 @@ export default async function AdminPage() {
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <PageHeader title="🔧 Admin" accentBg="bg-accent-grape text-white" />
+      <PageHeader title="Admin" icon="settings-cog" accentBg="bg-accent-grape text-white" />
       <MemberManager members={members} selfId={user.id} />
+      <FeedbackList items={feedbackItems} />
       <form action={doSignOut} className="pt-4">
         <button
           type="submit"

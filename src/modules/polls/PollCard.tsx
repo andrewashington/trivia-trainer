@@ -4,8 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Badge, Button } from "@/components/ui";
+import { StampOverlay, useActionStamp } from "@/components/ActionFx";
 import type { PollResults } from "@/modules/polls/results";
 import { POLL_TYPE_META } from "@/modules/polls/schema";
+import { PixelIcon } from "@/components/icons";
 
 export function PollCard({ poll }: { poll: PollResults }) {
   const router = useRouter();
@@ -15,9 +17,11 @@ export function PollCard({ poll }: { poll: PollResults }) {
   const [rating, setRating] = useState<number | null>(poll.myRating);
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
+  const { stamp, fire, cardFxClass } = useActionStamp();
 
   const showBallot = !poll.closed && (!poll.hasVoted || revoting);
-  const showResults = !showBallot;
+  const showResults = !showBallot && !poll.resultsHidden;
+  const showSealed = !showBallot && poll.resultsHidden;
 
   function togglePick(id: string) {
     if (poll.type === "single") {
@@ -35,9 +39,21 @@ export function PollCard({ poll }: { poll: PollResults }) {
         body: poll.type === "scale" ? { rating } : { optionIds: picked },
       });
       setRevoting(false);
-      router.refresh();
+      fire("VOTED ✓", "green");
     } catch (err) {
       alert(err instanceof Error ? err.message : "Vote failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function voteReveal() {
+    setBusy(true);
+    try {
+      await api(`/api/polls/${poll.id}/reveal`, { method: "PUT" });
+      fire(poll.iVotedReveal ? "VOTE WITHDRAWN" : "REVEAL VOTE ✓", poll.iVotedReveal ? "ink" : "yellow");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "That didn't work.");
     } finally {
       setBusy(false);
     }
@@ -47,7 +63,7 @@ export function PollCard({ poll }: { poll: PollResults }) {
     setBusy(true);
     try {
       await api(`/api/polls/${poll.id}`, { method: "PATCH", body: { closed } });
-      router.refresh();
+      fire(closed ? "CLOSED" : "REOPENED", closed ? "ink" : "green", { leave: true });
     } catch (err) {
       alert(err instanceof Error ? err.message : "That didn't work.");
     } finally {
@@ -64,7 +80,7 @@ export function PollCard({ poll }: { poll: PollResults }) {
     setBusy(true);
     try {
       await api(`/api/polls/${poll.id}`, { method: "DELETE" });
-      router.refresh();
+      fire("DELETED", "red", { leave: true });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Delete failed.");
       setBusy(false);
@@ -75,15 +91,26 @@ export function PollCard({ poll }: { poll: PollResults }) {
   const maxScaleCount = Math.max(1, ...(poll.scale?.distribution ?? [1]));
 
   return (
-    <li className={`brutal-card p-4 ${poll.closed ? "opacity-75" : ""}`}>
+    <li id={`poll-${poll.id}`} className={`brutal-card relative scroll-mt-24 p-4 ${poll.closed ? "opacity-75" : ""} ${cardFxClass}`}>
+      <StampOverlay stamp={stamp} />
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-display text-lg font-bold leading-tight">{poll.question}</p>
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <Badge className="bg-paper">{POLL_TYPE_META[poll.type].icon} {POLL_TYPE_META[poll.type].label}</Badge>
-        <Badge className={poll.anonymous ? "bg-ink text-white" : "bg-paper"}>
-          {poll.anonymous ? "🕶️ Anonymous" : "👀 Named"}
+        <Badge className="inline-flex items-center gap-1.5 bg-paper">
+          <PixelIcon name={POLL_TYPE_META[poll.type].icon} size={13} /> {POLL_TYPE_META[poll.type].label}
         </Badge>
+        <Badge
+          className={`inline-flex items-center gap-1.5 ${poll.anonymous ? "bg-ink text-white" : "bg-paper"}`}
+        >
+          <PixelIcon name={poll.anonymous ? "sunglasses" : "eye"} size={13} />
+          {poll.anonymous ? "Anonymous" : "Named"}
+        </Badge>
+        {poll.resultsHidden && (
+          <Badge className="inline-flex items-center gap-1.5 bg-accent-yellow">
+            <PixelIcon name="lock" size={13} /> Sealed results
+          </Badge>
+        )}
         {poll.closed && <Badge className="bg-accent-red text-white">CLOSED</Badge>}
         <span className="font-mono text-[10px] uppercase text-ink/40">
           by {poll.creatorName} · {poll.voterCount} voted
@@ -137,6 +164,35 @@ export function PollCard({ poll }: { poll: PollResults }) {
               </Button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ---- Sealed results: revealed only by group vote ---- */}
+      {showSealed && (
+        <div className="mt-3 border-2 border-dashed border-ink bg-paper p-4 text-center">
+          <PixelIcon name="lock" size={28} className="mx-auto text-ink/60" />
+          <p className="mt-2 font-display font-bold">
+            Results are sealed.
+          </p>
+          <p className="mt-1 font-mono text-xs text-ink/60">
+            {poll.revealVoteCount} / {poll.revealThreshold} votes to crack it open
+          </p>
+          <div className="mx-auto mt-2 h-4 max-w-[12rem] border-2 border-ink bg-card">
+            <div
+              className="h-full bg-accent-indigo"
+              style={{
+                width: `${Math.min(100, Math.round((poll.revealVoteCount / (poll.revealThreshold || 1)) * 100))}%`,
+              }}
+            />
+          </div>
+          <Button
+            variant={poll.iVotedReveal ? "ghost" : "yellow"}
+            onClick={voteReveal}
+            disabled={busy}
+            className="mt-3 !py-1.5 text-sm"
+          >
+            {poll.iVotedReveal ? "Withdraw my reveal vote" : "Vote to reveal"}
+          </Button>
         </div>
       )}
 

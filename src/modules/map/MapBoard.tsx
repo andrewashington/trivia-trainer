@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap, LayerGroup, Marker } from "leaflet";
 import { api } from "@/lib/client";
 import { Button, Field, Input } from "@/components/ui";
-import { PIN_CATEGORIES, pinEmoji } from "@/modules/map/schema";
+import { PIN_CATEGORIES, pinIcon } from "@/modules/map/schema";
+import { PixelIcon, pixelIconSvg, type IconName } from "@/components/icons";
 
 export type PinView = {
   id: string;
@@ -28,13 +29,13 @@ const TILE_URL =
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
-function markerHtml(emoji: string, draft = false): string {
+function markerHtml(icon: IconName, draft = false): string {
   return `<div style="
     display:flex;align-items:center;justify-content:center;
-    width:34px;height:34px;font-size:18px;
+    width:34px;height:34px;
     background:${draft ? "#FFD60A" : "#fff"};
     border:3px solid #101010;box-shadow:3px 3px 0 #101010;
-  ">${emoji}</div>`;
+  ">${pixelIconSvg(icon, 18)}</div>`;
 }
 
 export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
@@ -90,7 +91,7 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
     for (const pin of pins) {
       const marker = L.marker([pin.lat, pin.lng], {
         icon: L.divIcon({
-          html: markerHtml(pinEmoji(pin.category)),
+          html: markerHtml(pinIcon(pin.category)),
           className: "",
           iconSize: [34, 34],
           iconAnchor: [17, 17],
@@ -121,7 +122,7 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
     if (draft) {
       draftMarkerRef.current = L.marker([draft.lat, draft.lng], {
         icon: L.divIcon({
-          html: markerHtml(pinEmoji(category), true),
+          html: markerHtml(pinIcon(category), true),
           className: "",
           iconSize: [34, 34],
           iconAnchor: [17, 17],
@@ -217,7 +218,13 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
             placeholder="Search an address or place…"
           />
           <Button type="submit" variant="yellow" disabled={searching || query.trim().length < 2} className="shrink-0">
-            {searching ? "…" : "🔍 Search"}
+            {searching ? (
+              "…"
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                <PixelIcon name="search" size={14} /> Search
+              </span>
+            )}
           </Button>
         </form>
 
@@ -230,7 +237,8 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
                   onClick={() => pickResult(r)}
                   className="block w-full px-3 py-2 text-left text-sm hover:bg-accent-yellow"
                 >
-                  📍 {r.label}
+                  <PixelIcon name="map-pin" size={14} className="-mt-0.5 mr-1 inline" />
+                  {r.label}
                 </button>
               </li>
             ))}
@@ -239,7 +247,9 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
 
         {draft && (
           <form onSubmit={savePin} className="space-y-3 border-t-2 border-dashed border-ink/30 pt-3">
-            <p className="font-mono text-xs text-ink/60">📌 {draft.label}</p>
+            <p className="flex items-center gap-1.5 font-mono text-xs text-ink/60">
+              <PixelIcon name="map-pin" size={14} className="shrink-0" /> {draft.label}
+            </p>
             <Field label="Call it">
               <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="The good taco truck" />
             </Field>
@@ -249,11 +259,11 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
                   key={c.value}
                   type="button"
                   onClick={() => setCategory(c.value)}
-                  className={`brutal-press border-2 border-ink px-2 py-1 font-mono text-xs font-bold uppercase shadow-brutal-sm ${
+                  className={`brutal-press inline-flex items-center gap-1.5 border-2 border-ink px-2 py-1 font-mono text-xs font-bold uppercase shadow-brutal-sm ${
                     category === c.value ? "bg-accent-teal" : "bg-card"
                   }`}
                 >
-                  {c.emoji} {c.label}
+                  <PixelIcon name={c.icon} size={14} /> {c.label}
                 </button>
               ))}
             </div>
@@ -278,7 +288,7 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
         <ul className="space-y-2">
           {pins.map((pin) => (
             <li key={pin.id} className="brutal-card flex items-center gap-3 p-3">
-              <span className="text-xl">{pinEmoji(pin.category)}</span>
+              <PixelIcon name={pinIcon(pin.category)} size={20} className="shrink-0" />
               <button
                 type="button"
                 onClick={() => focusPin(pin)}

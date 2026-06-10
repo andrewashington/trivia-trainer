@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { Avatar, Badge, Card, LinkButton } from "@/components/ui";
 import { DeleteButton } from "@/components/DeleteButton";
+import { PixelIcon } from "@/components/icons";
 import { RsvpButtons } from "@/modules/events/RsvpButtons";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +20,8 @@ export default async function EventPage({ params }: { params: { id: string } }) 
     db.event.findUnique({
       where: { id: params.id },
       include: {
-        creator: { select: { id: true, displayName: true } },
-        rsvps: { include: { user: { select: { id: true, displayName: true } } } },
+        creator: { select: { id: true, displayName: true, avatarUrl: true } },
+        rsvps: { include: { user: { select: { id: true, displayName: true, avatarUrl: true } } } },
       },
     }),
   ]);
@@ -51,7 +52,9 @@ export default async function EventPage({ params }: { params: { id: string } }) 
           {dateLine} · {timeLine}
         </p>
         {event.location && (
-          <p className="mt-1 font-mono text-sm text-ink/60">📍 {event.location}</p>
+          <p className="mt-1 flex items-center gap-1.5 font-mono text-sm text-ink/60">
+            <PixelIcon name="map-pin" size={14} /> {event.location}
+          </p>
         )}
         <p className="mt-1 text-sm text-ink/50">
           planned by {event.creator.displayName}
@@ -84,7 +87,7 @@ export default async function EventPage({ params }: { params: { id: string } }) 
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {bucket.map((r) => (
                   <span key={r.userId} className="inline-flex items-center gap-1.5">
-                    <Avatar name={r.user.displayName} size="sm" />
+                    <Avatar name={r.user.displayName} src={r.user.avatarUrl} size="sm" />
                     <span className="text-sm">{r.user.displayName}</span>
                   </span>
                 ))}

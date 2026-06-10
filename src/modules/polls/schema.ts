@@ -1,10 +1,13 @@
 import { z } from "zod";
+import type { IconName } from "@/components/icons";
 
 export const pollInput = z
   .object({
     question: z.string().trim().min(1, "Ask the question!").max(300),
     type: z.enum(["single", "multi", "scale"]),
     anonymous: z.boolean(),
+    // Sealed results: hidden until this many members vote to reveal.
+    revealThreshold: z.number().int().min(2).max(50).nullish(),
     // Scale polls have no options; choice polls need 2–8.
     options: z.array(z.string().trim().min(1).max(120)).max(8),
   })
@@ -32,7 +35,7 @@ export const pollPatch = z.object({
 });
 
 export const POLL_TYPE_META = {
-  single: { label: "Pick one", icon: "🔘" },
-  multi: { label: "Pick any", icon: "☑️" },
-  scale: { label: "Rate 1–5", icon: "🌶️" },
-} as const;
+  single: { label: "Pick one", icon: "circle" },
+  multi: { label: "Pick any", icon: "checkbox-on" },
+  scale: { label: "Rate 1–5", icon: "fire" },
+} as const satisfies Record<string, { label: string; icon: IconName }>;

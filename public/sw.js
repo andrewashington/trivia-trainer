@@ -2,7 +2,7 @@
  * Static assets are cached; navigations are network-first with an
  * offline fallback page. Data always needs the network (per the brief —
  * no offline data sync in v1). */
-const CACHE = "udmplus-shell-v1";
+const CACHE = "udmplus-shell-v2";
 const SHELL = ["/offline", "/manifest.webmanifest", "/icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {

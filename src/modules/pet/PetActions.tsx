@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Input } from "@/components/ui";
+import { PixelIcon } from "@/components/icons";
 
 export function PetActions({ name, canNudge }: { name: string; canNudge: boolean }) {
   const router = useRouter();
@@ -61,10 +62,13 @@ export function PetActions({ name, canNudge }: { name: string; canNudge: boolean
         disabled={busy || !canNudge || patted}
         className="flex-1"
       >
-        {patted || !canNudge ? "🤚 Patted today ✓" : "🤚 Pat the pet"}
+        <span className="inline-flex items-center gap-2">
+          <PixelIcon name="hand" size={16} />
+          {patted || !canNudge ? "Patted today ✓" : "Pat the pet"}
+        </span>
       </Button>
       <Button variant="ghost" onClick={() => setRenaming(true)} className="shrink-0">
-        ✏️ Rename
+        Rename
       </Button>
     </div>
   );

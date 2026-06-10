@@ -3,6 +3,7 @@ import { z } from "zod";
 import { apiHandler, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
+import { isDicebearUrl } from "@/lib/avatar";
 
 export const GET = apiHandler(async () => {
   const user = await requireUser();
@@ -18,6 +19,12 @@ export const GET = apiHandler(async () => {
 
 const mePatch = z.object({
   displayName: z.string().trim().min(1).max(100).optional(),
+  // null clears a custom avatar (falls back to the name-seeded one).
+  avatarUrl: z
+    .string()
+    .max(300)
+    .refine(isDicebearUrl, "Avatars must come from DiceBear.")
+    .nullish(),
   venmoHandle: z
     .string()
     .trim()
@@ -33,7 +40,7 @@ export const PATCH = apiHandler(async (req: Request) => {
   const updated = await db.user.update({
     where: { id: user.id },
     data,
-    select: { id: true, displayName: true, venmoHandle: true },
+    select: { id: true, displayName: true, avatarUrl: true, venmoHandle: true },
   });
   return NextResponse.json({ user: updated });
 });

@@ -7,6 +7,7 @@ type PromptWithSubs = RevealPrompt & {
   submissions: (RevealSubmission & {
     user: { id: string; displayName: string };
   })[];
+  unlockVotes: { userId: string }[];
 };
 
 /**
@@ -33,6 +34,10 @@ export type PromptView = {
   memberCount: number;
   minSubmitters: number;
   iSubmitted: boolean;
+  // sealed early-unseal (null threshold = date-only)
+  unlockVotesNeeded: number | null;
+  unlockVoteCount: number;
+  iVotedUnlock: boolean;
   // revealed-state aggregates (null until revealed)
   results: RankResults | OracleResults | SealedResults | null;
 };
@@ -126,7 +131,11 @@ function oracleResults(prompt: PromptWithSubs, viewerId: string): OracleResults 
 function shouldReveal(prompt: PromptWithSubs, memberCount: number, now: Date): boolean {
   if (prompt.status === "revealed") return false;
   if (prompt.type === "sealed") {
-    return prompt.unlockAt !== null && prompt.unlockAt <= now;
+    if (prompt.unlockAt !== null && prompt.unlockAt <= now) return true;
+    return (
+      prompt.unlockVotesNeeded !== null &&
+      prompt.unlockVotes.length >= prompt.unlockVotesNeeded
+    );
   }
   const subs = prompt.submissions.length;
   if (subs >= Math.min(prompt.minSubmitters, memberCount) && subs >= memberCount) {
@@ -155,6 +164,7 @@ export async function sweepReveals(): Promise<void> {
       include: {
         creator: { select: { id: true, displayName: true } },
         submissions: { include: { user: { select: { id: true, displayName: true } } } },
+        unlockVotes: { select: { userId: true } },
       },
     }),
     db.user.count(),
@@ -215,6 +225,9 @@ export function toPromptView(
     memberCount,
     minSubmitters: prompt.minSubmitters,
     iSubmitted: prompt.submissions.some((s) => s.userId === viewer.id),
+    unlockVotesNeeded: prompt.unlockVotesNeeded,
+    unlockVoteCount: prompt.unlockVotes.length,
+    iVotedUnlock: prompt.unlockVotes.some((v) => v.userId === viewer.id),
     results,
   };
 }

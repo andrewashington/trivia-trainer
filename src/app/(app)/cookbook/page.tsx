@@ -2,6 +2,8 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { presignView } from "@/lib/storage";
 import { Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
+import { HeroBanner, HeroCta } from "@/components/Hero";
+import { PixelIcon } from "@/components/icons";
 
 export const metadata = { title: "Cookbook" };
 export const dynamic = "force-dynamic";
@@ -28,14 +30,33 @@ export default async function CookbookPage() {
   return (
     <div>
       <PageHeader
-        title="🍳 Cookbook"
+        title="Cookbook"
+        icon="book-open"
         accentBg="bg-accent-red text-white"
         action={<LinkButton href="/cookbook/new" variant="yellow">+ Recipe</LinkButton>}
       />
 
+      {recipes.length > 0 && (
+        <HeroBanner accentBg="bg-accent-red text-white" pattern="rays" kicker="Fresh out the kitchen" kickerIcon="fire" className="mb-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="font-display text-2xl font-bold leading-tight sm:text-3xl">
+                {recipes[0].title}
+              </h2>
+              <p className="mt-2 font-mono text-xs uppercase tracking-wide text-white/80">
+                by {recipes[0].author.displayName} · who's making it first?
+              </p>
+            </div>
+            <HeroCta href={`/cookbook/${recipes[0].id}`} className="bg-accent-yellow text-ink">
+              Cook it →
+            </HeroCta>
+          </div>
+        </HeroBanner>
+      )}
+
       {recipes.length === 0 ? (
         <EmptyState
-          icon="🥘"
+          icon="fire"
           title="No recipes yet"
           hint="Add the first one — the group is hungry."
         />
@@ -56,8 +77,8 @@ export default async function CookbookPage() {
                     className="h-40 w-full border-b-3 border-ink object-cover"
                   />
                 ) : (
-                  <div className="flex h-40 w-full items-center justify-center border-b-3 border-ink bg-accent-yellow text-5xl">
-                    🍽️
+                  <div className="flex h-40 w-full items-center justify-center border-b-3 border-ink bg-accent-yellow">
+                    <PixelIcon name="coffee" size={48} className="text-ink/70" />
                   </div>
                 )}
                 <div className="p-4">

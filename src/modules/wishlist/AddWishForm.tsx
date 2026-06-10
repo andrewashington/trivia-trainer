@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input } from "@/components/ui";
+import { PixelIcon } from "@/components/icons";
 
 export function AddWishForm() {
   const router = useRouter();
@@ -86,7 +87,13 @@ export function AddWishForm() {
           disabled={fetching || !url}
           className="shrink-0"
         >
-          {fetching ? "…" : "✨ Fetch"}
+          {fetching ? (
+            "…"
+          ) : (
+            <span className="inline-flex items-center gap-1.5">
+              <PixelIcon name="sparkles" size={14} /> Fetch
+            </span>
+          )}
         </Button>
       </div>
 

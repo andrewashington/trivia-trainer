@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Input } from "@/components/ui";
+import { PixelIcon } from "@/components/icons";
 
 type SpinResult = {
   forfeit: { text: string };
@@ -64,7 +65,9 @@ export function Wheel({
 
   return (
     <div className="brutal-card space-y-3 p-4">
-      <p className="brutal-label">☸️ The Forfeit Wheel</p>
+      <p className="brutal-label flex items-center gap-1.5">
+        <PixelIcon name="loader" size={14} /> The Forfeit Wheel
+      </p>
 
       <div
         className={`flex h-24 items-center justify-center border-3 border-ink text-center ${
@@ -72,7 +75,9 @@ export function Wheel({
         }`}
       >
         {spinning ? (
-          <span className="font-display text-2xl font-bold">☸️ spinning…</span>
+          <span className="inline-flex items-center gap-2 font-display text-2xl font-bold">
+            <PixelIcon name="loader" size={22} /> spinning…
+          </span>
         ) : result ? (
           <div className="animate-pop-in px-3 text-white">
             <p className="font-display text-lg font-bold leading-tight">{result.forfeit.text}</p>

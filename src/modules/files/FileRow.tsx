@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
+import { PixelIcon } from "@/components/icons";
 
 function formatBytes(n: number): string {
   if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -28,7 +29,7 @@ export function FileRow({
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
 
-  const icon = file.mimeType === "application/pdf" ? "📄" : "🖼️";
+  const icon = file.mimeType === "application/pdf" ? ("file-text" as const) : ("image" as const);
 
   async function download() {
     setBusy(true);
@@ -60,7 +61,7 @@ export function FileRow({
 
   return (
     <li className="brutal-card flex items-center gap-3 p-3">
-      <span className="text-2xl">{icon}</span>
+      <PixelIcon name={icon} size={24} className="shrink-0 text-ink/70" />
       <div className="min-w-0 flex-1">
         <p className="truncate font-bold leading-snug">{file.filename}</p>
         <p className="font-mono text-xs text-ink/50">

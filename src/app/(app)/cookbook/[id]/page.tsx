@@ -14,7 +14,7 @@ export default async function RecipePage({ params }: { params: { id: string } })
     currentUser(),
     db.recipe.findUnique({
       where: { id: params.id },
-      include: { author: { select: { id: true, displayName: true } } },
+      include: { author: { select: { id: true, displayName: true, avatarUrl: true } } },
     }),
   ]);
   if (!recipe) notFound();
@@ -34,7 +34,7 @@ export default async function RecipePage({ params }: { params: { id: string } })
       <div>
         <h1 className="text-3xl sm:text-4xl">{recipe.title}</h1>
         <div className="mt-2 flex items-center gap-2 text-sm text-ink/60">
-          <Avatar name={recipe.author.displayName} size="sm" />
+          <Avatar name={recipe.author.displayName} src={recipe.author.avatarUrl} size="sm" />
           <span>
             {recipe.author.displayName} ·{" "}
             {recipe.createdAt.toLocaleDateString(undefined, {

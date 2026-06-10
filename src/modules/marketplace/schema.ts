@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { IconName } from "@/components/icons";
 
 export const listingInput = z.object({
   title: z.string().trim().min(1, "What is it?").max(200),
@@ -23,10 +24,10 @@ export const listingImageRequest = z.object({
   mimeType: z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]),
 });
 
-export const DELIVERY_LABELS: Record<string, string> = {
-  pickup: "🚪 Pickup",
-  delivery: "🚗 Delivery",
-  either: "🚪🚗 Either",
+export const DELIVERY_META: Record<string, { icon: IconName; label: string }> = {
+  pickup: { icon: "door-closed", label: "Pickup" },
+  delivery: { icon: "car", label: "Delivery" },
+  either: { icon: "arrows-horizontal", label: "Either" },
 };
 
 export function formatPrice(priceCents: number | null): string {

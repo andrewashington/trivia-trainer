@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { Avatar, Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { CopyIcalLink } from "@/modules/events/CopyIcalLink";
+import { HeroBanner, HeroCta } from "@/components/Hero";
+import { Countdown } from "@/components/Countdown";
 
 export const metadata = { title: "Events" };
 export const dynamic = "force-dynamic";
@@ -13,7 +15,7 @@ type EventWithRsvps = Awaited<ReturnType<typeof fetchEvents>>["upcoming"][number
 async function fetchEvents() {
   const now = new Date();
   const include = {
-    rsvps: { include: { user: { select: { id: true, displayName: true } } } },
+    rsvps: { include: { user: { select: { id: true, displayName: true, avatarUrl: true } } } },
   } as const;
   const [upcoming, past] = await Promise.all([
     db.event.findMany({
@@ -62,7 +64,7 @@ function EventCard({ event, dim }: { event: EventWithRsvps; dim?: boolean }) {
         {going.length > 0 && (
           <div className="mt-3 flex -space-x-1">
             {going.slice(0, 8).map((r) => (
-              <Avatar key={r.userId} name={r.user.displayName} size="sm" />
+              <Avatar key={r.userId} name={r.user.displayName} src={r.user.avatarUrl} size="sm" />
             ))}
           </div>
         )}
@@ -76,18 +78,64 @@ export default async function EventsPage() {
   if (!user) redirect("/signin");
   const { upcoming, past } = await fetchEvents();
 
+  // Hero: the next hang, with a live countdown and whether YOU are in.
+  const next = upcoming[0] ?? null;
+  const myRsvp = next?.rsvps.find((r) => r.userId === user.id) ?? null;
+  const nextGoing = next?.rsvps.filter((r) => r.status === "going") ?? [];
+
   return (
     <div className="space-y-8">
       <PageHeader
-        title="📅 Events"
+        title="Events"
+        icon="calendar"
         accentBg="bg-accent-blue text-white"
         action={<LinkButton href="/events/new" variant="yellow">+ Event</LinkButton>}
       />
 
+      {next && (
+        <HeroBanner
+          accentBg="bg-accent-blue text-white"
+          pattern="stripes"
+          kicker="Next hang"
+          kickerIcon="calendar"
+          pulse={!myRsvp}
+        >
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="font-display text-3xl font-bold leading-none sm:text-4xl">
+                {next.title}
+              </h2>
+              <p className="mt-2 font-mono text-xs uppercase tracking-wide text-white/80">
+                {next.startAt.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+                {next.location ? ` · ${next.location}` : ""}
+              </p>
+              <p className="mt-3 inline-block border-2 border-ink bg-ink px-3 py-1 font-display text-2xl font-bold tabular-nums text-accent-yellow shadow-brutal-sm">
+                <Countdown to={next.startAt.toISOString()} doneText="IT'S HAPPENING" />
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              {nextGoing.length > 0 && (
+                <div className="flex -space-x-1.5">
+                  {nextGoing.slice(0, 6).map((r) => (
+                    <Avatar key={r.userId} name={r.user.displayName} src={r.user.avatarUrl} size="sm" />
+                  ))}
+                </div>
+              )}
+              <HeroCta
+                href={`/events/${next.id}`}
+                className={myRsvp ? "bg-card text-ink" : "bg-accent-yellow text-ink"}
+              >
+                {myRsvp ? `You're ${myRsvp.status === "going" ? "in ✓" : myRsvp.status}` : "RSVP now →"}
+              </HeroCta>
+            </div>
+          </div>
+        </HeroBanner>
+      )}
+
       <section className="space-y-4">
         {upcoming.length === 0 ? (
           <EmptyState
-            icon="🗓️"
+            icon="calendar"
             title="Nothing planned"
             hint="The calendar is wide open. Be the hero who fixes that."
           />

@@ -1,10 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Badge } from "@/components/ui";
-import { DELIVERY_LABELS, formatPrice } from "@/modules/marketplace/schema";
+import { PixelIcon } from "@/components/icons";
+import { StampOverlay, useActionStamp, type StampTone } from "@/components/ActionFx";
+import { DELIVERY_META, formatPrice } from "@/modules/marketplace/schema";
 
 export type ListingView = {
   id: string;
@@ -24,15 +25,20 @@ export type ListingView = {
 };
 
 export function ListingCard({ listing }: { listing: ListingView }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
+  const { stamp, fire, cardFxClass } = useActionStamp();
 
-  async function act(fn: () => Promise<unknown>) {
+  async function act(
+    fn: () => Promise<unknown>,
+    stampText: string,
+    tone: StampTone = "green",
+    leave = false
+  ) {
     setBusy(true);
     try {
       await fn();
-      router.refresh();
+      fire(stampText, tone, { leave });
     } catch (err) {
       alert(err instanceof Error ? err.message : "That didn't work.");
     } finally {
@@ -40,12 +46,24 @@ export function ListingCard({ listing }: { listing: ListingView }) {
     }
   }
 
-  const claim = () => act(() => api(`/api/marketplace/${listing.id}/claim`, { method: "POST" }));
-  const unclaim = () => act(() => api(`/api/marketplace/${listing.id}/claim`, { method: "DELETE" }));
+  const claim = () =>
+    act(() => api(`/api/marketplace/${listing.id}/claim`, { method: "POST" }), "CLAIMED ✓", "yellow");
+  const unclaim = () =>
+    act(() => api(`/api/marketplace/${listing.id}/claim`, { method: "DELETE" }), "UNCLAIMED", "ink");
   const markGone = () =>
-    act(() => api(`/api/marketplace/${listing.id}`, { method: "PATCH", body: { status: "gone" } }));
+    act(
+      () => api(`/api/marketplace/${listing.id}`, { method: "PATCH", body: { status: "gone" } }),
+      "GONE",
+      "ink",
+      true
+    );
   const relist = () =>
-    act(() => api(`/api/marketplace/${listing.id}`, { method: "PATCH", body: { status: "available" } }));
+    act(
+      () => api(`/api/marketplace/${listing.id}`, { method: "PATCH", body: { status: "available" } }),
+      "RELISTED ✓",
+      "green",
+      true
+    );
 
   async function remove() {
     if (!armed) {
@@ -53,19 +71,20 @@ export function ListingCard({ listing }: { listing: ListingView }) {
       setTimeout(() => setArmed(false), 3000);
       return;
     }
-    await act(() => api(`/api/marketplace/${listing.id}`, { method: "DELETE" }));
+    await act(() => api(`/api/marketplace/${listing.id}`, { method: "DELETE" }), "DELETED", "red", true);
   }
 
   const gone = listing.status === "gone";
 
   return (
-    <div className={`brutal-card overflow-hidden !p-0 ${listing.tilt} ${gone ? "opacity-60" : ""}`}>
+    <div id={`listing-${listing.id}`} className={`brutal-card scroll-mt-24 overflow-hidden !p-0 ${listing.tilt} ${gone ? "opacity-60" : ""} relative ${cardFxClass}`}>
+      <StampOverlay stamp={stamp} />
       {listing.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={listing.imageUrl} alt="" className="h-40 w-full border-b-3 border-ink object-cover" />
       ) : (
-        <div className="flex h-24 w-full items-center justify-center border-b-3 border-ink bg-accent-yellow text-4xl">
-          🏷️
+        <div className="flex h-24 w-full items-center justify-center border-b-3 border-ink bg-accent-yellow">
+          <PixelIcon name="bookmark" size={40} className="text-ink/70" />
         </div>
       )}
 
@@ -82,10 +101,13 @@ export function ListingCard({ listing }: { listing: ListingView }) {
         </div>
 
         <div className="flex flex-wrap gap-1.5">
-          <Badge className="bg-paper">{DELIVERY_LABELS[listing.delivery]}</Badge>
+          <Badge className="inline-flex items-center gap-1.5 bg-paper">
+            <PixelIcon name={DELIVERY_META[listing.delivery].icon} size={13} />
+            {DELIVERY_META[listing.delivery].label}
+          </Badge>
           {listing.status === "claimed" && (
-            <Badge className="bg-accent-yellow">
-              ✋ Claimed by {listing.myClaim ? "you" : listing.claimedByName}
+            <Badge className="inline-flex items-center gap-1.5 bg-accent-yellow">
+              <PixelIcon name="hand" size={13} /> Claimed by {listing.myClaim ? "you" : listing.claimedByName}
             </Badge>
           )}
           {gone && <Badge className="bg-ink text-white">GONE</Badge>}
@@ -119,7 +141,8 @@ export function ListingCard({ listing }: { listing: ListingView }) {
               disabled={busy}
               className="brutal-press border-2 border-ink bg-accent-green px-2.5 py-1 font-mono text-xs font-bold shadow-brutal-sm"
             >
-              ✋ Claim it
+              <PixelIcon name="hand" size={13} className="-mt-0.5 mr-1 inline" />
+              Claim it
             </button>
           )}
           {listing.status === "claimed" && (listing.myClaim || listing.isMine || listing.isAdmin) && (

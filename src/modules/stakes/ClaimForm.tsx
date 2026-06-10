@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input } from "@/components/ui";
+import { PixelIcon } from "@/components/icons";
 
 export function ClaimForm({ members }: { members: { id: string; name: string }[] }) {
   const router = useRouter();
@@ -106,9 +107,10 @@ export function ClaimForm({ members }: { members: { id: string; name: string }[]
             hidden ? "bg-ink text-white" : "bg-card"
           }`}
         >
+          <PixelIcon name={hidden ? "sunglasses" : "eye"} size={13} className="-mt-0.5 mr-1 inline" />
           {hidden
-            ? "🕶️ Hidden until it resolves — maximum smug"
-            : "👀 Visible now (tap to hide until resolution)"}
+            ? "Hidden until it resolves — maximum smug"
+            : "Visible now (tap to hide until resolution)"}
         </button>
       )}
       {error && (
@@ -118,7 +120,13 @@ export function ClaimForm({ members }: { members: { id: string; name: string }[]
       )}
       <div className="flex gap-2">
         <Button type="submit" disabled={busy} className="flex-1">
-          {busy ? "…" : "🔒 Lock it in"}
+          {busy ? (
+            "…"
+          ) : (
+            <span className="inline-flex items-center gap-1.5">
+              <PixelIcon name="lock" size={14} /> Lock it in
+            </span>
+          )}
         </Button>
         <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
           Cancel

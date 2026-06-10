@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { Avatar, Badge, Card, LinkButton, PageHeader } from "@/components/ui";
+import { PixelIcon } from "@/components/icons";
 import { daysUntilBirthday, formatBirthday } from "@/modules/contacts/birthdays";
 
 export const metadata = { title: "People" };
@@ -16,6 +17,7 @@ export default async function ContactsPage() {
     select: {
       id: true,
       displayName: true,
+      avatarUrl: true,
       email: true,
       contactCard: { include: { relatedParties: true } },
     },
@@ -34,14 +36,17 @@ export default async function ContactsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="📇 People"
+        title="People"
+        icon="contact"
         accentBg="bg-accent-pink"
-        action={<LinkButton href="/contacts/edit" variant="yellow">My card</LinkButton>}
+        action={<LinkButton href="/me#card" variant="yellow">My card</LinkButton>}
       />
 
       {upcoming.length > 0 && (
         <div className="brutal-card tilt-l p-3">
-          <p className="brutal-label">🎂 Birthday radar</p>
+          <p className="brutal-label flex items-center gap-1.5">
+            <PixelIcon name="cake" size={14} /> Birthday radar
+          </p>
           <div className="flex flex-wrap gap-2">
             {upcoming.map((b) => (
               <Badge
@@ -49,7 +54,16 @@ export default async function ContactsPage() {
                 className={b.days <= 7 ? "bg-accent-yellow" : "bg-paper"}
               >
                 {b.name} · {b.date}
-                {b.days === 0 ? " · TODAY 🎉" : b.days <= 14 ? ` · in ${b.days}d` : ""}
+                {b.days === 0 ? (
+                  <>
+                    {" · TODAY "}
+                    <PixelIcon name="party-popper" size={12} className="-mt-0.5 inline" />
+                  </>
+                ) : b.days <= 14 ? (
+                  ` · in ${b.days}d`
+                ) : (
+                  ""
+                )}
               </Badge>
             ))}
           </div>
@@ -62,7 +76,7 @@ export default async function ContactsPage() {
           return (
             <Card key={p.id} className={i % 2 === 0 ? "tilt-l" : "tilt-r"}>
               <div className="flex items-center gap-3 border-b-2 border-ink pb-2">
-                <Avatar name={p.displayName} size="sm" />
+                <Avatar name={p.displayName} src={p.avatarUrl} size="sm" />
                 <span className="font-display font-bold">
                   {p.id === user.id ? `${p.displayName} (you)` : p.displayName}
                 </span>

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Badge } from "@/components/ui";
+import { StampOverlay, useActionStamp } from "@/components/ActionFx";
 import { STATUS_META } from "@/modules/ideas/schema";
 
 export type IdeaView = {
@@ -24,6 +25,7 @@ export function IdeaCard({ idea }: { idea: IdeaView }) {
   const [mine, setMine] = useState(idea.myVote);
   const [armed, setArmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { stamp, fire, cardFxClass } = useActionStamp();
 
   async function toggleVote() {
     // Optimistic: flip immediately, reconcile with the server's count.
@@ -47,7 +49,11 @@ export function IdeaCard({ idea }: { idea: IdeaView }) {
   async function setStatus(status: "open" | "planned" | "done") {
     try {
       await api(`/api/ideas/${idea.id}`, { method: "PATCH", body: { status } });
-      router.refresh();
+      fire(
+        status === "planned" ? "PLANNED ✓" : status === "done" ? "SHIPPED ✓" : "REOPENED",
+        status === "done" ? "green" : status === "planned" ? "yellow" : "ink",
+        { leave: true }
+      );
     } catch (err) {
       alert(err instanceof Error ? err.message : "Status change failed.");
     }
@@ -62,7 +68,7 @@ export function IdeaCard({ idea }: { idea: IdeaView }) {
     setBusy(true);
     try {
       await api(`/api/ideas/${idea.id}`, { method: "DELETE" });
-      router.refresh();
+      fire("DELETED", "red", { leave: true });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Delete failed.");
       setBusy(false);
@@ -72,7 +78,8 @@ export function IdeaCard({ idea }: { idea: IdeaView }) {
   const meta = STATUS_META[idea.status];
 
   return (
-    <li className={`brutal-card flex gap-3 p-4 ${idea.status === "done" ? "opacity-70" : ""}`}>
+    <li id={`idea-${idea.id}`} className={`brutal-card flex scroll-mt-24 gap-3 p-4 ${idea.status === "done" ? "opacity-70" : ""} relative ${cardFxClass}`}>
+      <StampOverlay stamp={stamp} />
       <button
         onClick={toggleVote}
         aria-pressed={mine}

@@ -14,6 +14,7 @@ export const GET = apiHandler(async () => {
       creator: { select: { id: true, displayName: true } },
       options: { orderBy: { order: "asc" } },
       votes: { include: { user: { select: { id: true, displayName: true } } } },
+      revealVotes: { select: { userId: true } },
     },
   });
   return NextResponse.json({
@@ -33,6 +34,7 @@ export const POST = apiHandler(async (req: Request) => {
           question: data.question,
           type: data.type,
           anonymous: data.anonymous,
+          revealThreshold: data.revealThreshold ?? null,
           options:
             data.type === "scale"
               ? undefined

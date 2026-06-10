@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
-import { EmptyState, PageHeader } from "@/components/ui";
+import { EmptyState } from "@/components/ui";
+import { ModuleHeader } from "@/components/ModuleHeader";
 import { AddEntryForm } from "@/modules/vault/AddEntryForm";
 import { VaultEntryRow } from "@/modules/vault/VaultEntryRow";
 
@@ -27,12 +28,13 @@ export default async function VaultPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="🔐 Vault" accentBg="bg-accent-cyan" />
-      <AddEntryForm />
+      <ModuleHeader title="Vault" icon="lock" accentBg="bg-accent-cyan" addLabel="Login">
+        <AddEntryForm />
+      </ModuleHeader>
 
       {entries.length === 0 ? (
         <EmptyState
-          icon="🗝️"
+          icon="unlock"
           title="The vault is sealed… and empty"
           hint="Add the shared streaming login everyone keeps texting you for."
         />

@@ -1,9 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { Badge } from "@/components/ui";
+import { PixelIcon } from "@/components/icons";
+import { StampOverlay, useActionStamp, type StampTone } from "@/components/ActionFx";
 
 export type ClaimView = {
   id: string;
@@ -22,18 +23,23 @@ export type ClaimView = {
 };
 
 export function ClaimCard({ claim }: { claim: ClaimView }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
+  const { stamp, fire, cardFxClass } = useActionStamp();
 
   const resolved = claim.outcome !== null;
   const overdue = !resolved && new Date(claim.resolvesAt) < new Date();
 
-  async function act(fn: () => Promise<unknown>) {
+  async function act(
+    fn: () => Promise<unknown>,
+    stampText: string,
+    tone: StampTone,
+    leave: boolean
+  ) {
     setBusy(true);
     try {
       await fn();
-      router.refresh();
+      fire(stampText, tone, { leave });
     } catch (err) {
       alert(err instanceof Error ? err.message : "That didn't work.");
     } finally {
@@ -41,10 +47,26 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
     }
   }
 
+  // Resolving moves the claim to The Record — stamp it, walk it off.
+  const RESOLVE_STAMPS = {
+    right: ["RIGHT ✓", "green"],
+    wrong: ["WRONG ✗", "red"],
+    void: ["VOID", "ink"],
+  } as const;
   const resolve = (outcome: "right" | "wrong" | "void") =>
-    act(() => api(`/api/stakes/claims/${claim.id}`, { method: "PATCH", body: { outcome } }));
+    act(
+      () => api(`/api/stakes/claims/${claim.id}`, { method: "PATCH", body: { outcome } }),
+      RESOLVE_STAMPS[outcome][0],
+      RESOLVE_STAMPS[outcome][1],
+      true
+    );
   const settle = () =>
-    act(() => api(`/api/stakes/claims/${claim.id}/settle`, { method: "POST" }));
+    act(
+      () => api(`/api/stakes/claims/${claim.id}/settle`, { method: "POST" }),
+      "SETTLED ✓",
+      "green",
+      false
+    );
 
   async function remove() {
     if (!armed) {
@@ -52,7 +74,12 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
       setTimeout(() => setArmed(false), 3000);
       return;
     }
-    await act(() => api(`/api/stakes/claims/${claim.id}`, { method: "DELETE" }));
+    await act(
+      () => api(`/api/stakes/claims/${claim.id}`, { method: "DELETE" }),
+      "DELETED",
+      "red",
+      true
+    );
   }
 
   // Who owes whom, if a stake rode on it.
@@ -70,14 +97,23 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
         : null;
 
   return (
-    <li className={`brutal-card p-4 ${resolved ? "opacity-80" : ""}`}>
+    <li id={`claim-${claim.id}`} className={`brutal-card relative scroll-mt-24 p-4 ${resolved ? "opacity-80" : ""} ${cardFxClass}`}>
+      <StampOverlay stamp={stamp} />
       <div className="flex flex-wrap items-center gap-1.5">
         {claim.counterpartyName ? (
-          <Badge className="bg-accent-forest text-white">🤝 Bet</Badge>
+          <Badge className="inline-flex items-center gap-1.5 bg-accent-forest text-white">
+            <PixelIcon name="users" size={13} /> Bet
+          </Badge>
         ) : (
-          <Badge className="bg-paper">🔮 Called it</Badge>
+          <Badge className="inline-flex items-center gap-1.5 bg-paper">
+            <PixelIcon name="sparkles" size={13} /> Called it
+          </Badge>
         )}
-        {claim.hidden && !resolved && <Badge className="bg-ink text-white">🕶️ Hidden</Badge>}
+        {claim.hidden && !resolved && (
+          <Badge className="inline-flex items-center gap-1.5 bg-ink text-white">
+            <PixelIcon name="sunglasses" size={13} /> Hidden
+          </Badge>
+        )}
         {resolved ? (
           <Badge
             className={
@@ -91,14 +127,25 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
             {claim.outcome === "right" ? "✓ RIGHT" : claim.outcome === "wrong" ? "✗ WRONG" : "VOID"}
           </Badge>
         ) : (
-          <Badge className={overdue ? "bg-accent-yellow" : "bg-paper"}>
-            {overdue ? "⏰ awaiting verdict" : `resolves ${new Date(claim.resolvesAt).toLocaleDateString()}`}
+          <Badge className={`inline-flex items-center gap-1.5 ${overdue ? "bg-accent-yellow" : "bg-paper"}`}>
+            {overdue ? (
+              <>
+                <PixelIcon name="clock" size={13} /> awaiting verdict
+              </>
+            ) : (
+              `resolves ${new Date(claim.resolvesAt).toLocaleDateString()}`
+            )}
           </Badge>
         )}
       </div>
 
       <p className="mt-2 font-bold leading-snug">
-        {claim.text ?? <span className="italic text-ink/40">🔒 Hidden until it resolves…</span>}
+        {claim.text ?? (
+          <span className="italic text-ink/40">
+            <PixelIcon name="lock" size={13} className="-mt-0.5 mr-1 inline" />
+            Hidden until it resolves…
+          </span>
+        )}
       </p>
       <p className="mt-1 font-mono text-[10px] uppercase text-ink/40">
         {claim.creatorName}
@@ -107,7 +154,8 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
 
       {claim.stake && (
         <p className="mt-2 border-2 border-dashed border-ink/30 bg-paper px-2 py-1 font-mono text-xs">
-          💪 Stake: {claim.stake}
+          <PixelIcon name="zap" size={13} className="-mt-0.5 mr-1 inline" />
+          Stake: {claim.stake}
           {resolved && loserName && (
             <>
               {" — "}
@@ -158,7 +206,8 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
                   disabled={busy}
                   className="brutal-press border-2 border-ink bg-accent-grape px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-white shadow-brutal-sm"
                 >
-                  ⚖️ → {o}
+                  <PixelIcon name="scale" size={12} className="-mt-0.5 mr-1 inline" />
+                  → {o}
                 </button>
               ))}
           </>
@@ -173,7 +222,8 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
               disabled={busy}
               className="brutal-press border-2 border-ink bg-accent-yellow px-2 py-0.5 font-mono text-[10px] font-bold uppercase shadow-brutal-sm"
             >
-              💸 Mark settled
+              <PixelIcon name="money" size={12} className="-mt-0.5 mr-1 inline" />
+              Mark settled
             </button>
           )}
         {claim.canDelete && (

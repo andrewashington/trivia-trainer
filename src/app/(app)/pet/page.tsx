@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/session";
 import { Badge, Card, PageHeader } from "@/components/ui";
+import { PixelIcon } from "@/components/icons";
 import { getPetView, MOOD_META } from "@/modules/pet/engine";
 import { PetActions } from "@/modules/pet/PetActions";
 
@@ -16,16 +17,16 @@ export default async function PetPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-6">
-      <PageHeader title="🐣 The Pet" accentBg="bg-accent-sky" />
+      <PageHeader title="The Pet" icon="robot-face-happy" accentBg="bg-accent-sky" />
 
       {/* The creature itself */}
       <div className={`brutal-card flex flex-col items-center gap-3 p-8 ${meta.bg}`}>
         <div
-          className={`flex h-32 w-32 items-center justify-center border-3 border-ink bg-card text-7xl shadow-brutal-lg ${
+          className={`flex h-32 w-32 items-center justify-center border-3 border-ink bg-card shadow-brutal-lg ${
             pet.mood === "thriving" || pet.mood === "happy" ? "animate-wiggle" : ""
           } ${pet.mood === "sleepy" || pet.mood === "sad" ? "tilt-r opacity-90" : "tilt-l"}`}
         >
-          {meta.face}
+          <PixelIcon name={meta.face} size={88} />
         </div>
         <p className="text-center font-display text-xl font-bold">
           {pet.name} {meta.line}
@@ -46,7 +47,7 @@ export default async function PetPage() {
           <ul className="space-y-1">
             {pet.diet.map((d) => (
               <li key={d.label} className="flex items-center gap-2 text-sm">
-                <span>{d.emoji}</span>
+                <PixelIcon name={d.icon} size={15} className="text-ink/70" />
                 <span className="font-bold">{d.count}</span>
                 <span className="text-ink/60">{d.label}</span>
               </li>
