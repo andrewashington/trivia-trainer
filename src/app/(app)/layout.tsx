@@ -2,10 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signOut } from "@/lib/auth";
 import { currentUser } from "@/lib/session";
+import { unreadCounts } from "@/lib/unread";
 import { Logo } from "@/components/Logo";
 import { MobileNav, SideNav } from "@/components/NavTabs";
 import { ModuleIntro } from "@/components/ModuleIntro";
 import { OnboardingWizard } from "@/components/OnboardingWizard";
+import { SeenTracker } from "@/components/SeenTracker";
 import { UserMenu } from "@/components/UserMenu";
 import { FeedbackButton } from "@/components/FeedbackButton";
 
@@ -23,11 +25,12 @@ export default async function AppLayout({
   }
 
   const isAdmin = user.role === "admin";
+  const counts = await unreadCounts(user);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl">
       {/* Desktop: persistent sidebar owns the nav (and the logo). */}
-      <SideNav isAdmin={isAdmin} />
+      <SideNav isAdmin={isAdmin} counts={counts} />
 
       <div className="flex min-w-0 flex-1 flex-col px-3 pb-24 pt-4 sm:px-6 md:pb-8">
         <header className="mb-6 flex items-center justify-between md:justify-end">
@@ -54,7 +57,10 @@ export default async function AppLayout({
       )}
 
       {/* Mobile: Home + four category tabs, thumb-reachable. */}
-      <MobileNav isAdmin={isAdmin} />
+      <MobileNav isAdmin={isAdmin} counts={counts} />
+
+      {/* Marks a module seen on arrival, clearing its unread badge. */}
+      <SeenTracker />
 
       {/* Always-on feedback channel for testers. */}
       <FeedbackButton />

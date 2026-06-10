@@ -30,6 +30,24 @@ function categoryOf(pathname: string): CategoryKey | null {
   return mod?.category ?? null;
 }
 
+type Counts = Record<string, number>;
+
+function categoryTotal(counts: Counts, key: CategoryKey): number {
+  return modulesByCategory(key).reduce((sum, m) => sum + (counts[m.key] ?? 0), 0);
+}
+
+/** A small red count chip; nothing renders when the count is 0. */
+function NavBadge({ count, className = "" }: { count: number; className?: string }) {
+  if (!count) return null;
+  return (
+    <span
+      className={`inline-flex h-4 min-w-4 items-center justify-center border border-ink bg-accent-red px-1 font-mono text-[9px] font-bold leading-none text-white ${className}`}
+    >
+      {count > 9 ? "9+" : count}
+    </span>
+  );
+}
+
 /**
  * Desktop navigation: a persistent left sidebar with the modules
  * grouped under their category headers. Rendered from md: up; the
@@ -38,7 +56,7 @@ function categoryOf(pathname: string): CategoryKey | null {
 // Which sidebar sections the user has collapsed, persisted per browser.
 const COLLAPSED_KEY = "udm.nav.collapsed";
 
-export function SideNav({ isAdmin }: { isAdmin: boolean }) {
+export function SideNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState<CategoryKey[]>([]);
 
@@ -100,11 +118,15 @@ export function SideNav({ isAdmin }: { isAdmin: boolean }) {
                 {isCollapsed && containsActive && (
                   <span className="h-2 w-2 border border-ink bg-card" />
                 )}
-                <PixelIcon
-                  name="chevron-down"
-                  size={14}
-                  className={`ml-auto transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
-                />
+                <span className="ml-auto flex items-center gap-1.5">
+                  {/* Collapsed sections surface their modules' unread total. */}
+                  {isCollapsed && <NavBadge count={categoryTotal(counts, cat.key)} />}
+                  <PixelIcon
+                    name="chevron-down"
+                    size={14}
+                    className={`transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                  />
+                </span>
               </button>
               {!isCollapsed && (
                 <div className="mt-1.5 space-y-0.5">
@@ -122,6 +144,7 @@ export function SideNav({ isAdmin }: { isAdmin: boolean }) {
                       >
                         <PixelIcon name={m.icon} size={16} />
                         {m.label}
+                        <NavBadge count={counts[m.key] ?? 0} className="ml-auto" />
                       </Link>
                     );
                   })}
@@ -156,7 +179,7 @@ export function SideNav({ isAdmin }: { isAdmin: boolean }) {
  * thumb-sized tabs, no horizontal scrolling. Tapping a category opens
  * a sheet with its modules.
  */
-export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
+export function MobileNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts }) {
   const pathname = usePathname();
   const [openCat, setOpenCat] = useState<CategoryKey | null>(null);
 
@@ -203,6 +226,7 @@ export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
                 >
                   <PixelIcon name={m.icon} size={18} />
                   {m.label}
+                  <NavBadge count={counts[m.key] ?? 0} className="ml-auto" />
                 </Link>
               ))}
               {isAdmin && open.key === "quests" && (
@@ -239,13 +263,14 @@ export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
           </Link>
           {categories.map((cat) => {
             const lit = openCat === cat.key || (!openCat && currentCat === cat.key);
+            const total = categoryTotal(counts, cat.key);
             return (
               <button
                 key={cat.key}
                 onClick={() =>
                   setOpenCat(openCat === cat.key ? null : cat.key)
                 }
-                className={`flex flex-1 flex-col items-center justify-center gap-0.5 ${
+                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 ${
                   lit ? `${cat.accentBg} ${activeText(cat.accentBg)} border-x-2 border-ink` : "text-ink"
                 }`}
               >
@@ -253,6 +278,9 @@ export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
                 <span className="font-mono text-[9px] font-bold uppercase tracking-wide">
                   {cat.label}
                 </span>
+                {total > 0 && (
+                  <NavBadge count={total} className="absolute right-1.5 top-1" />
+                )}
               </button>
             );
           })}

@@ -49,6 +49,7 @@ model User {
   icalToken     String    @unique @default(cuid())
   onboardedAt   DateTime? // null until the first-login wizard is finished
   introsSeen    String[]  @default([]) // module keys whose intro card was dismissed
+  moduleSeenAt  Json? // { [moduleKey]: ISO } — last time the user opened each module, for unread badges
   createdAt     DateTime  @default(now())
 
   accounts      Account[]
