@@ -58,8 +58,8 @@ export const moduleStyle: Record<
   polls: { accent: "#6A5CFF", accentText: "#FFFFFF", icon: "chart-bar-big", label: "Polls" },
   reveal: { accent: "#101010", accentText: "#FFFFFF", icon: "eye", label: "Reveal" },
   stakes: { accent: "#0B9E63", accentText: "#FFFFFF", icon: "target", label: "Stakes" },
-  pet: { accent: "#38BDF8", accentText: "#101010", icon: "robot-face-happy", label: "Pet" },
-  snake: { accent: "#9B5DE5", accentText: "#FFFFFF", icon: "fish", label: "Snake" },
+  pet: { accent: "#38BDF8", accentText: "#101010", icon: "downasaur", label: "Pet" },
+  snake: { accent: "#9B5DE5", accentText: "#FFFFFF", icon: "apple", label: "Snake" },
   countdowns: { accent: "#FF3366", accentText: "#FFFFFF", icon: "clock", label: "Countdowns" },
   home: { accent: "#FFD60A", accentText: "#101010", icon: "home", label: "UDM+" },
 };

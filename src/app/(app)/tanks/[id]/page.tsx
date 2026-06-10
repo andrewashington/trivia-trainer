@@ -23,7 +23,7 @@ export default async function TanksMatchPage({ params }: { params: { id: string 
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader
         title="Tanks"
-        icon="zap"
+        icon="bullseye-arrow"
         accentBg="bg-accent-orange"
         action={
           <Link

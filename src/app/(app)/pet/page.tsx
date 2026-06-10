@@ -17,7 +17,7 @@ export default async function PetPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-6">
-      <PageHeader title="The Pet" icon="robot-face-happy" accentBg="bg-accent-sky" />
+      <PageHeader title="The Pet" icon="downasaur" accentBg="bg-accent-sky" />
 
       <PetStage
         name={pet.name}

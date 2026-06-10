@@ -20,7 +20,7 @@ export default async function TriviaPage() {
     <div className="mx-auto max-w-md space-y-6">
       <PageHeader
         title="Trivia"
-        icon="zap"
+        icon="circle-question"
         accentBg="bg-accent-ocean"
         action={
           board.myBest != null ? (
@@ -45,7 +45,7 @@ export default async function TriviaPage() {
 
         {board.rows.length === 0 ? (
           <EmptyState
-            icon="zap"
+            icon="circle-question"
             title="No rounds yet"
             hint="Be the first to put up a score."
           />

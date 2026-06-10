@@ -275,7 +275,7 @@ export const modules: ModuleDef[] = [
   {
     key: "pet",
     label: "Pet",
-    icon: "robot-face-happy",
+    icon: "downasaur",
     category: "arcade",
     navOrder: 14,
     href: "/pet",
@@ -305,7 +305,7 @@ export const modules: ModuleDef[] = [
   {
     key: "tanks",
     label: "Tanks",
-    icon: "zap",
+    icon: "bullseye-arrow",
     category: "arcade",
     navOrder: 17,
     href: "/tanks",
@@ -321,7 +321,7 @@ export const modules: ModuleDef[] = [
   {
     key: "snake",
     label: "Snake",
-    icon: "fish",
+    icon: "apple",
     category: "arcade",
     navOrder: 15,
     href: "/snake",
@@ -336,7 +336,7 @@ export const modules: ModuleDef[] = [
   {
     key: "trivia",
     label: "Trivia",
-    icon: "zap",
+    icon: "circle-question",
     category: "arcade",
     navOrder: 17,
     href: "/trivia",

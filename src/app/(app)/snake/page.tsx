@@ -20,7 +20,7 @@ export default async function SnakePage() {
     <div className="mx-auto max-w-md space-y-6">
       <PageHeader
         title="Snake"
-        icon="fish"
+        icon="apple"
         accentBg="bg-accent-grape"
         action={
           board.myBest != null ? (
@@ -45,7 +45,7 @@ export default async function SnakePage() {
 
         {board.rows.length === 0 ? (
           <EmptyState
-            icon="fish"
+            icon="apple"
             title="No scores yet"
             hint="Be the first to feed the snake."
           />

@@ -71,7 +71,7 @@ export default async function TanksPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader
         title="Tanks"
-        icon="zap"
+        icon="bullseye-arrow"
         accentBg="bg-accent-orange"
         action={
           yourTurnCount > 0 ? (
@@ -94,7 +94,7 @@ export default async function TanksPage() {
       <Card>
         <p className="brutal-label mb-3">Live duels</p>
         {sorted.length === 0 ? (
-          <EmptyState icon="zap" title="No duels in progress" hint="Challenge someone above." />
+          <EmptyState icon="bullseye-arrow" title="No duels in progress" hint="Challenge someone above." />
         ) : (
           <ul className="space-y-2">
             {sorted.map((g) => {
