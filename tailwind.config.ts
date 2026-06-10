@@ -32,6 +32,7 @@ const config: Config = {
           forest: "#0B9E63",
           sky: "#38BDF8",
           punch: "#FF3366", // countdowns
+          ocean: "#0077B6", // trivia
 
         },
       },
