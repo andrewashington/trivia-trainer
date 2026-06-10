@@ -92,6 +92,27 @@ const config: Config = {
           "0%, 100%": { outline: "0 solid transparent", outlineOffset: "3px" },
           "25%, 65%": { outline: "4px solid #FFD60A", outlineOffset: "3px" },
         },
+        // Gentle continuous bob — floating logo letters & confetti.
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-12px)" },
+        },
+        // Twinkle for the magic-link sparkles.
+        sparkle: {
+          "0%, 100%": { transform: "scale(0.7) rotate(0deg)", opacity: "0.5" },
+          "50%": { transform: "scale(1.15) rotate(20deg)", opacity: "1" },
+        },
+        // Light sweep across the CTA.
+        sheen: {
+          "0%": { transform: "translateX(-160%) skewX(-20deg)" },
+          "100%": { transform: "translateX(360%) skewX(-20deg)" },
+        },
+        // Big bouncy entrance that settles neutral (keeps child tilt intact).
+        "drop-in": {
+          "0%": { transform: "scale(1.8) translateY(-48px)", opacity: "0" },
+          "60%": { transform: "scale(0.94) translateY(0)", opacity: "1" },
+          "100%": { transform: "scale(1) translateY(0)", opacity: "1" },
+        },
       },
       animation: {
         "pop-in": "pop-in 150ms ease-out both",
@@ -103,6 +124,10 @@ const config: Config = {
         marquee: "marquee 22s linear infinite",
         "pulse-ring": "pulse-ring 1.6s ease-in-out infinite",
         flash: "flash 1.4s ease-out 1",
+        float: "float 3.6s ease-in-out infinite",
+        sparkle: "sparkle 1.3s ease-in-out infinite",
+        sheen: "sheen 2.8s ease-in-out infinite",
+        "drop-in": "drop-in 520ms cubic-bezier(0.2, 1.5, 0.4, 1) both",
       },
     },
   },

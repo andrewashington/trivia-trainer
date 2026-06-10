@@ -1,7 +1,8 @@
 /**
  * The UDM+ wordmark: chunky multicolor letters with a hard black
  * extrusion and per-letter tilt — retro N64-logo energy, rendered in
- * pure CSS so it scales anywhere.
+ * pure CSS so it scales anywhere. Pass `animated` to make the letters
+ * stamp in one-by-one and then bob forever (the sign-in splash).
  */
 const LETTERS: { ch: string; color: string; tilt: string }[] = [
   { ch: "U", color: "text-accent-red", tilt: "-rotate-3" },
@@ -10,7 +11,13 @@ const LETTERS: { ch: string; color: string; tilt: string }[] = [
   { ch: "+", color: "text-accent-green", tilt: "rotate-3" },
 ];
 
-export function Logo({ size = "md" }: { size?: "sm" | "md" | "xl" }) {
+export function Logo({
+  size = "md",
+  animated = false,
+}: {
+  size?: "sm" | "md" | "xl";
+  animated?: boolean;
+}) {
   const sizeClass =
     size === "xl" ? "text-7xl sm:text-8xl" : size === "md" ? "text-4xl" : "text-2xl";
   const shadow =
@@ -23,17 +30,31 @@ export function Logo({ size = "md" }: { size?: "sm" | "md" | "xl" }) {
       aria-label="UDM+"
       className={`inline-flex select-none items-baseline font-display font-bold leading-none ${sizeClass}`}
     >
-      {LETTERS.map(({ ch, color, tilt }, i) => (
-        <span
-          key={i}
-          aria-hidden
-          className={`inline-block ${color} ${tilt} ${shadow} [-webkit-text-stroke:2px_#101010] ${
-            size === "sm" ? "[-webkit-text-stroke-width:1.5px]" : ""
-          }`}
-        >
-          {ch}
-        </span>
-      ))}
+      {LETTERS.map(({ ch, color, tilt }, i) => {
+        const letter = (
+          <span
+            aria-hidden
+            className={`inline-block ${color} ${tilt} ${shadow} [-webkit-text-stroke:2px_#101010] ${
+              size === "sm" ? "[-webkit-text-stroke-width:1.5px]" : ""
+            } ${animated ? "animate-float" : ""}`}
+            style={animated ? { animationDelay: `${600 + i * 140}ms` } : undefined}
+          >
+            {ch}
+          </span>
+        );
+        if (!animated) return <span key={i}>{letter}</span>;
+        // Outer span = staggered stamp-in entrance; inner = perpetual bob.
+        return (
+          <span
+            key={i}
+            aria-hidden
+            className="inline-block animate-drop-in"
+            style={{ animationDelay: `${i * 120}ms` }}
+          >
+            {letter}
+          </span>
+        );
+      })}
     </span>
   );
 }
