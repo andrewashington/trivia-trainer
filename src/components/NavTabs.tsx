@@ -9,7 +9,7 @@ import {
   sortedModules,
   type CategoryKey,
 } from "@/modules/registry";
-import { PixelIcon } from "@/components/icons";
+import { PixelIcon, solidIcon } from "@/components/icons";
 import { Logo } from "@/components/Logo";
 
 // Accents dark enough to need white label text when active.
@@ -49,31 +49,76 @@ function NavBadge({ count, className = "" }: { count: number; className?: string
 }
 
 /**
+ * A module row in the sidebar / mobile sheet. Top-level items keep the
+ * loud filled-box treatment; these sub-items signal "selected" quietly:
+ * bold label + the icon's filled (Pro) variant.
+ */
+function ModuleLink({
+  href,
+  icon,
+  label,
+  active,
+  count,
+  className = "",
+}: {
+  href: string;
+  icon: Parameters<typeof PixelIcon>[0]["name"];
+  label: string;
+  active: boolean;
+  count: number;
+  className?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={`flex items-center gap-2.5 border-2 border-transparent px-3 py-1.5 font-mono text-xs uppercase tracking-wide no-underline transition-[color,transform] duration-150 ${
+        active
+          ? "font-bold text-ink"
+          : "font-normal text-ink/60 hover:translate-x-0.5 hover:text-ink"
+      } ${className}`}
+    >
+      <PixelIcon name={active ? solidIcon(icon) : icon} size={16} />
+      {label}
+      <NavBadge count={count} className="ml-auto" />
+    </Link>
+  );
+}
+
+/**
  * Desktop navigation: a persistent left sidebar with the modules
  * grouped under their category headers. Rendered from md: up; the
  * bottom tab bar takes over below that.
  */
-// Which sidebar sections the user has collapsed, persisted per browser.
-const COLLAPSED_KEY = "udm.nav.collapsed";
+// Which sidebar sections the user has opened, persisted per browser.
+// Everything starts collapsed; the section you're inside opens itself.
+const EXPANDED_KEY = "udm.nav.expanded";
 
 export function SideNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState<CategoryKey[]>([]);
+  const [expanded, setExpanded] = useState<CategoryKey[]>([]);
 
-  // Restore after mount — the sidebar is server-rendered expanded, and
-  // reading localStorage during hydration would mismatch.
+  // Restore after mount — the sidebar is server-rendered collapsed, and
+  // reading localStorage during hydration would mismatch. First visit
+  // (nothing stored): open just the section containing the current page.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(COLLAPSED_KEY);
-      if (raw) setCollapsed(JSON.parse(raw));
+      const raw = localStorage.getItem(EXPANDED_KEY);
+      if (raw) {
+        setExpanded(JSON.parse(raw));
+        return;
+      }
     } catch {}
+    const cat = categoryOf(pathname);
+    if (cat) setExpanded([cat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function toggle(key: CategoryKey) {
-    setCollapsed((prev) => {
+    setExpanded((prev) => {
       const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
       try {
-        localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
+        localStorage.setItem(EXPANDED_KEY, JSON.stringify(next));
       } catch {}
       return next;
     });
@@ -96,12 +141,12 @@ export function SideNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts 
               : "border-transparent text-ink hover:border-ink"
           }`}
         >
-          <PixelIcon name="home" size={18} />
+          <PixelIcon name={pathname === "/" ? "home-solid" : "home"} size={18} />
           Home
         </Link>
 
         {categories.map((cat) => {
-          const isCollapsed = collapsed.includes(cat.key);
+          const isExpanded = expanded.includes(cat.key);
           const containsActive = modulesByCategory(cat.key).some((m) =>
             pathname.startsWith(m.href)
           );
@@ -109,47 +154,50 @@ export function SideNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts 
             <div key={cat.key} className="mb-4">
               <button
                 onClick={() => toggle(cat.key)}
-                aria-expanded={!isCollapsed}
-                className={`flex w-full items-center gap-2 border-2 border-ink px-3 py-1.5 font-display text-sm font-bold uppercase tracking-wider shadow-brutal-sm ${cat.accentBg} ${activeText(cat.accentBg)}`}
+                aria-expanded={isExpanded}
+                className={`brutal-press flex w-full items-center gap-2 border-2 border-ink px-3 py-1.5 font-display text-sm font-bold uppercase tracking-wider shadow-brutal-sm ${cat.accentBg} ${activeText(cat.accentBg)}`}
               >
                 <PixelIcon name={cat.icon} size={16} />
                 {cat.label}
                 {/* When collapsed, a dot marks "you are in here somewhere". */}
-                {isCollapsed && containsActive && (
+                {!isExpanded && containsActive && (
                   <span className="h-2 w-2 border border-ink bg-card" />
                 )}
                 <span className="ml-auto flex items-center gap-1.5">
                   {/* Collapsed sections surface their modules' unread total. */}
-                  {isCollapsed && <NavBadge count={categoryTotal(counts, cat.key)} />}
+                  {!isExpanded && <NavBadge count={categoryTotal(counts, cat.key)} />}
                   <PixelIcon
                     name="chevron-down"
                     size={14}
-                    className={`transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                    className={`transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`}
                   />
                 </span>
               </button>
-              {!isCollapsed && (
-                <div className="mt-1.5 space-y-0.5">
-                  {modulesByCategory(cat.key).map((m) => {
-                    const active = pathname.startsWith(m.href);
-                    return (
-                      <Link
+              {/* 0fr→1fr grid keeps the list mounted so height animates. */}
+              <div
+                className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+                  isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                }`}
+              >
+                <div
+                  className={`overflow-hidden transition-[visibility] duration-200 ${
+                    isExpanded ? "visible" : "invisible"
+                  }`}
+                >
+                  <div className="mt-1.5 space-y-0.5" aria-hidden={!isExpanded}>
+                    {modulesByCategory(cat.key).map((m) => (
+                      <ModuleLink
                         key={m.key}
                         href={m.href}
-                        className={`flex items-center gap-2.5 border-2 px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-wide no-underline ${
-                          active
-                            ? `border-ink shadow-brutal-sm ${m.accentBg} ${activeText(m.accentBg)}`
-                            : "border-transparent text-ink/70 hover:border-ink hover:text-ink"
-                        }`}
-                      >
-                        <PixelIcon name={m.icon} size={16} />
-                        {m.label}
-                        <NavBadge count={counts[m.key] ?? 0} className="ml-auto" />
-                      </Link>
-                    );
-                  })}
+                        icon={m.icon}
+                        label={m.label}
+                        active={pathname.startsWith(m.href)}
+                        count={counts[m.key] ?? 0}
+                      />
+                    ))}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           );
         })}
@@ -165,7 +213,10 @@ export function SideNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts 
                 : "border-transparent text-ink hover:border-ink"
             }`}
           >
-            <PixelIcon name="settings-cog" size={18} />
+            <PixelIcon
+              name={pathname.startsWith("/admin") ? solidIcon("settings-cog") : "settings-cog"}
+              size={18}
+            />
             Admin
           </Link>
         </div>
@@ -195,12 +246,15 @@ export function MobileNav({ isAdmin, counts }: { isAdmin: boolean; counts: Count
         <button
           aria-label="Close menu"
           onClick={() => setOpenCat(null)}
-          className="fixed inset-0 z-[1030] bg-ink/40"
+          className="fixed inset-0 z-[1030] animate-fade-in bg-ink/40"
         />
       )}
 
       {open && (
-        <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-[1040] border-t-3 border-ink bg-card">
+        <div
+          key={open.key}
+          className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-[1040] animate-sheet-up border-t-3 border-ink bg-card"
+        >
           <div className="mx-auto max-w-3xl p-3">
             <div
               className={`mb-2 flex items-center justify-between border-2 border-ink px-3 py-1.5 shadow-brutal-sm ${open.accentBg} ${activeText(open.accentBg)}`}
@@ -214,31 +268,37 @@ export function MobileNav({ isAdmin, counts }: { isAdmin: boolean; counts: Count
               </span>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {modulesByCategory(open.key).map((m) => (
-                <Link
-                  key={m.key}
-                  href={m.href}
-                  className={`flex items-center gap-2.5 border-2 border-ink px-3 py-2.5 font-mono text-xs font-bold uppercase tracking-wide no-underline shadow-brutal-sm ${
-                    pathname.startsWith(m.href)
-                      ? `${m.accentBg} ${activeText(m.accentBg)}`
-                      : "bg-paper text-ink"
-                  }`}
-                >
-                  <PixelIcon name={m.icon} size={18} />
-                  {m.label}
-                  <NavBadge count={counts[m.key] ?? 0} className="ml-auto" />
-                </Link>
-              ))}
+              {modulesByCategory(open.key).map((m) => {
+                const active = pathname.startsWith(m.href);
+                return (
+                  <Link
+                    key={m.key}
+                    href={m.href}
+                    className={`flex items-center gap-2.5 border-2 border-ink px-3 py-2.5 font-mono text-xs uppercase tracking-wide no-underline ${
+                      active
+                        ? "bg-card font-bold text-ink shadow-brutal-sm"
+                        : "bg-paper font-normal text-ink/70"
+                    }`}
+                  >
+                    <PixelIcon name={active ? solidIcon(m.icon) : m.icon} size={18} />
+                    {m.label}
+                    <NavBadge count={counts[m.key] ?? 0} className="ml-auto" />
+                  </Link>
+                );
+              })}
               {isAdmin && open.key === "quests" && (
                 <Link
                   href="/admin"
-                  className={`flex items-center gap-2.5 border-2 border-ink px-3 py-2.5 font-mono text-xs font-bold uppercase tracking-wide no-underline shadow-brutal-sm ${
+                  className={`flex items-center gap-2.5 border-2 border-ink px-3 py-2.5 font-mono text-xs uppercase tracking-wide no-underline ${
                     pathname.startsWith("/admin")
-                      ? "bg-accent-grape text-white"
-                      : "bg-paper text-ink"
+                      ? "bg-card font-bold text-ink shadow-brutal-sm"
+                      : "bg-paper font-normal text-ink/70"
                   }`}
                 >
-                  <PixelIcon name="settings-cog" size={18} />
+                  <PixelIcon
+                    name={pathname.startsWith("/admin") ? solidIcon("settings-cog") : "settings-cog"}
+                    size={18}
+                  />
                   Admin
                 </Link>
               )}
@@ -252,11 +312,11 @@ export function MobileNav({ isAdmin, counts }: { isAdmin: boolean; counts: Count
           <Link
             href="/"
             onClick={() => setOpenCat(null)}
-            className={`flex flex-1 flex-col items-center justify-center gap-0.5 no-underline ${
+            className={`flex flex-1 flex-col items-center justify-center gap-0.5 no-underline transition-colors duration-150 ${
               pathname === "/" && !openCat ? "bg-ink text-white" : "text-ink"
             }`}
           >
-            <PixelIcon name="home" size={20} />
+            <PixelIcon name={pathname === "/" && !openCat ? "home-solid" : "home"} size={20} />
             <span className="font-mono text-[9px] font-bold uppercase tracking-wide">
               Home
             </span>
@@ -270,7 +330,7 @@ export function MobileNav({ isAdmin, counts }: { isAdmin: boolean; counts: Count
                 onClick={() =>
                   setOpenCat(openCat === cat.key ? null : cat.key)
                 }
-                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 ${
+                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 transition-colors duration-150 ${
                   lit ? `${cat.accentBg} ${activeText(cat.accentBg)} border-x-2 border-ink` : "text-ink"
                 }`}
               >

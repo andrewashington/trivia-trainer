@@ -88,12 +88,12 @@ export function ModuleHeader({
       </div>
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/60 p-4 pt-12 sm:pt-20"
+          className="fixed inset-0 z-50 flex animate-fade-in items-start justify-center overflow-y-auto bg-ink/60 p-4 pt-12 sm:pt-20"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setOpen(false);
           }}
         >
-          <div className="brutal-card w-full max-w-lg bg-card p-4">
+          <div className="brutal-card w-full max-w-lg animate-pop-in bg-card p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
               <p className="brutal-label !mb-0 flex items-center gap-1.5">
                 <PixelIcon name={icon} size={14} /> New {addLabel.toLowerCase()}

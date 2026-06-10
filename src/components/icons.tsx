@@ -1,7 +1,8 @@
 /**
- * Pixel icons inlined from the \"pixelarticons\" package (MIT, halfmage/pixelarticons).
- * 24x24 grid, fill-based — they read as chunky pixels at any size.
- * Add an icon: copy the path `d` from node_modules/pixelarticons/svg/<name>.svg.
+ * Pixel icons inlined from \"pixelarticons\" (MIT, halfmage/pixelarticons) plus
+ * filled variants from the Pixelarticons Pro pack vendored at
+ * vendor/pixelarticons-pro. 24x24 grid, fill-based — chunky at any size.
+ * Add an icon: `node scripts/icon.mjs <name>` and paste the output here.
  */
 export type IconName = keyof typeof PATHS;
 
@@ -87,7 +88,40 @@ const PATHS = {
   "unlock": "M5 8h14v2H5zm0 12h14v2H5zM3 10h2v10H3zm16 0h2v10h-2zM7 4h2v4H7zm2-2h6v2H9zm6 2h2v2h-2z",
   "zap": "M4 13h8v6h2v2h-2v2h-2v-8H2v-4h2v2Zm12 6h-2v-2h2v2Zm2-2h-2v-2h2v2Zm2-2h-2v-2h2v2Zm-6-6h8v4h-2v-2h-8V5h-2V3h2V1h2v8Zm-8 2H4V9h2v2Zm2-2H6V7h2v2Zm2-2H8V5h2v2Z",
   "warning-diamond": "M2 10h2v2H2zm0 4h2v-2H2zm20-4h-2v2h2zm0 4h-2v-2h2zM4 8h2v2H4zm0 8h2v-2H4zm16-8h-2v2h2zm0 8h-2v-2h2zM6 6h2v2H6zm0 12h2v-2H6zM18 6h-2v2h2zm0 12h-2v-2h2zM8 4h2v2H8zm0 16h2v-2H8zm8-16h-2v2h2zm0 16h-2v-2h2zM10 2h2v2h-2zm0 20h2v-2h-2zm4-20h-2v2h2zm0 20h-2v-2h2zm-3-5h2v-2h-2zm0-4h2V7h-2z",
+
+  // ---- Filled variants (Pixelarticons Pro, vendor/pixelarticons-pro) ----
+  // Used for selected-state nav items; add more via scripts/icon.mjs.
+  "home-solid": "M6 8V6h2V4h2V2h4v2h2v2h2v2h2v2h2v10h-2v2H4v-2H2V10h2V8h2Zm4 6v6h4v-6h-4Z",
+  "book-open-solid": "M11 5h2V3h9v2h2v16H13v2h-2v-2H0V5h2V3h9v2Zm0 14h2V7h-2v12Zm4-2h2v-2h-2v2Zm0-4h5v-2h-5v2Zm0-4h5V7h-5v2Z",
+  "calendar-solid": "M17 4h2v2h2v14h-2v2H5v-2H3V6h2V4h2V2h2v2h6V2h2v2ZM5 10h14V8H5v2Z",
+  "tv-solid": "M20 5h2v10h-2v2h-5v2h3v2H6v-2h3v-2H4v-2H2V5h2V3h16v2Z",
+  "folder-glyph": "M12 6h10v14H2V4h10v2Z",
+  "gift-solid": "M11 22H6v-2H4v-6h7v8Zm7 0h-5v-8h7v6h-2v2ZM8 6h3v6H2V8h2V6h2V4h2v2Zm10 0h2v2h2v4h-9V6h3V4h2v2Zm-5 0h-2V4h2v2Zm-2-2H8V2h3v2Zm5 0h-3V2h3v2Z",
+  "contact-solid": "M22 22H2v-2H0V4h2V2h20v2h2v16h-2v2ZM6 15H4v2h2v-2h4v2h2v-2h-2v-2H6v2Zm8 2h4v-2h-4v2Zm0-4h6v-2h-6v2Zm-8-2h4V7H6v4Zm8-2h6V7h-6v2Z",
+  "lock-solid": "M9 8h6V4h2v4h2v2h2v10h-2v2H5v-2H3V10h2V8h2V4h2v4Zm6-4H9V2h6v2Z",
+  "map-pin-solid": "M17 4h2v2h2v8h-2v3h-2v2h-2v2h-2v2h-2v-2H9v-2H7v-2H5v-3H3V6h2V4h2V2h10v2Zm-7 4H8v4h2v2h4v-2h2V8h-2V6h-4v2Zm4 4h-4V8h4v4Z",
+  "lightbulb-solid": "M15 22H9v-4h6v4Zm0-16h2v2h2v6h-2v2H7v-2H5V8h2V6h2V4h6v2ZM3 12H0v-2h3v2Zm21 0h-3v-2h3v2ZM5 6H3V4h2v2Zm16 0h-2V4h2v2ZM3 4H1V2h2v2Zm20 0h-2V2h2v2ZM13 3h-2V0h2v3Z",
+  "store-solid": "M10 13h4v-2h4v2h3v8h-2v2h-3v-6h-2v-2h-4v2H8v6H5v-2H3v-8h3v-2h4v2Zm4 10h-4v-6h4v6Zm0-12h-4V9H6v2H0V7h2V5h2V3h16v2h2v2h2v4h-6V9h-4v2Z",
+  "chart-bar-big-solid": "M22 22H4v-2h18v2ZM4 20H2V2h2v18Zm12-7h2v3h-2v2H8v-2H6v-3h2v-2h8v2Zm2-4H8V7H6V4h2V2h10v2h2v3h-2v2Z",
+  "eye-solid": "M8 18H4v-2H2v-2H0v-4h2V8h2V6h4V4h8v2h4v2h2v2h2v4h-2v2h-2v2h-4v2H8v-2Zm2-8H8v4h2v2h4v-2h2v-4h-2V8h-4v2Zm4 2h-2v-2h2v2Z",
+  "target-solid": "M19 23H5v-2H3v-2H1V5h2V3h2V1h14v2h2v2h2v14h-2v2h-2v2ZM9 19h6v-2H9v2Zm-2-2h2v-2H7v2Zm8 0h2v-2h-2v2ZM5 15h2V9H5v6Zm6 0h2v-2h-2v2Zm6 0h2V9h-2v6Zm-8-2h2v-2H9v2Zm4 0h2v-2h-2v2Zm-2-2h2V9h-2v2ZM7 9h2V7H7v2Zm8 0h2V7h-2v2ZM9 7h6V5H9v2Z",
+  "robot-face-happy-solid": "M13 6h7v2h2v4h2v2h-2v6h-2v2H4v-2H2v-6H0v-2h2V8h2V6h7V4h2v2ZM7 16h2v2h6v-2h2v-2H7v2Zm1-4h2v-2H8v2Zm6 0h2v-2h-2v2Zm3-8h-4V2h4v2Z",
+  "clock-solid": "M18 4h2v2h2v12h-2v2h-2v2H6v-2H4v-2H2V6h2V4h2V2h12v2Zm-3 11v2h2v-2h-2Zm-2-2v2h2v-2h-2Zm-2-7v7h2V6h-2Z",
+  "fish-solid": "M18 7h2v2h2v6h-2v2h-2v2h-6v-2h-2v-2H8v-2H6v2H4v2H2V7h2v2h2v2h2V9h2V7h2V5h6v2Zm-3 5h2v-2h-2v2Z",
+  "settings-cog-solid": "M15 4h2V2h5v5h-2v2h4v6h-4v2h2v5h-5v-2h-2v4H9v-4H7v2H2v-5h2v-2H0V9h4V7H2V2h5v2h2V0h6v4Zm-5 10h4v-4h-4v4Z",
+  "user-solid": "M16 16h2v2h2v4H4v-4h2v-2h2v-2h8v2ZM15 4h2v6h-2v2H9v-2H7V4h2V2h6v2Z",
 } as const;
+
+/**
+ * The filled twin of an outline icon (e.g. selected nav items). Falls
+ * back to the outline when no filled variant has been inlined yet.
+ */
+export function solidIcon(name: IconName): IconName {
+  const solid = `${name}-solid` as IconName;
+  if (solid in PATHS) return solid;
+  const glyph = `${name}-glyph` as IconName;
+  return glyph in PATHS ? glyph : name;
+}
 
 /**
  * Raw SVG markup for contexts that need an HTML string instead of JSX

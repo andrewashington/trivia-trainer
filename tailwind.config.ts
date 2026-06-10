@@ -56,6 +56,14 @@ const config: Config = {
         "3": "3px",
       },
       keyframes: {
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        "sheet-up": {
+          "0%": { transform: "translateY(100%)" },
+          "100%": { transform: "translateY(0)" },
+        },
         "pop-in": {
           "0%": { transform: "scale(0.96) translateY(4px)", opacity: "0" },
           "100%": { transform: "scale(1) translateY(0)", opacity: "1" },
@@ -157,6 +165,8 @@ const config: Config = {
         },
       },
       animation: {
+        "fade-in": "fade-in 120ms ease-out both",
+        "sheet-up": "sheet-up 220ms cubic-bezier(0.2, 1, 0.35, 1) both",
         "pop-in": "pop-in 150ms ease-out both",
         wiggle: "wiggle 300ms ease-in-out",
         hop: "hop 900ms ease-in-out infinite",

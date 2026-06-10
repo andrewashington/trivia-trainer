@@ -133,12 +133,12 @@ export function CommandLauncher(props: LauncherProps) {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/60 p-4 pt-12 sm:pt-20"
+          className="fixed inset-0 z-50 flex animate-fade-in items-start justify-center overflow-y-auto bg-ink/60 p-4 pt-12 sm:pt-20"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) close();
           }}
         >
-          <div className="brutal-card w-full max-w-lg bg-card p-4">
+          <div className="brutal-card w-full max-w-lg animate-pop-in bg-card p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
               {picked ? (
                 <div className="flex items-center gap-2">
@@ -168,11 +168,13 @@ export function CommandLauncher(props: LauncherProps) {
             </div>
 
             {picked?.form ? (
-              <CloseFormProvider onClose={() => onCreated(picked)}>
-                {picked.form(props)}
-              </CloseFormProvider>
+              <div key={picked.key} className="animate-pop-in">
+                <CloseFormProvider onClose={() => onCreated(picked)}>
+                  {picked.form(props)}
+                </CloseFormProvider>
+              </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="grid animate-pop-in grid-cols-2 gap-2 sm:grid-cols-3">
                 {CREATABLES.map((c) => {
                   const mod = MOD[c.key];
                   if (!mod) return null;

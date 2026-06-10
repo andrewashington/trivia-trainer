@@ -52,7 +52,7 @@ export function UserMenu({
       </button>
 
       {open && (
-        <div className="brutal-card absolute right-0 top-full z-[1100] mt-2 w-52 p-0">
+        <div className="brutal-card absolute right-0 top-full z-[1100] mt-2 w-52 origin-top-right animate-pop-in p-0">
           <p className="border-b-2 border-ink px-3 py-2 font-display text-sm font-bold">
             {name}
           </p>
