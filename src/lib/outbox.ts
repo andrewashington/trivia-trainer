@@ -67,7 +67,11 @@ export type OutboxEventType =
   | "comment.created"
   | "comment.deleted"
   | "treasure.dug"
-  | "treasure.found";
+  | "treasure.found"
+  | "canvas.drew"
+  | "smash.deck.created"
+  | "smash.voted"
+  | "smash.deck.deleted";
 
 /**
  * Write a domain event (and apply any coin award it earns) on an open

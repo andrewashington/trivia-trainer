@@ -56,6 +56,9 @@ export const COIN_RULES: Partial<Record<OutboxEventType, CoinRule>> = {
   "event.rsvp.changed": { amount: 2, userId: (p) => p.userId, dailyCap: 5, label: "RSVPed" },
   "pet.nudged": { amount: 2, userId: (p) => p.by, dailyCap: 5, label: "Fed the pet" },
   "comment.created": { amount: 2, userId: (p) => p.authorId, dailyCap: 10, label: "Left a comment" },
+  "canvas.drew": { amount: 2, userId: (p) => p.userId, dailyCap: 5, label: "Doodled on the canvas" },
+  "smash.deck.created": { amount: 15, userId: (p) => p.creatorId, dailyCap: 5, label: "Dealt a smash-or-pass deck" },
+  "smash.voted": { amount: 1, userId: (p) => p.userId, dailyCap: 20, label: "Rendered a verdict" },
   // treasure.found pays the (variable) pot directly in its route — no fixed rule here.
 };
 

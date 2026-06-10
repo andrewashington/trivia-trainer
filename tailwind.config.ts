@@ -40,6 +40,8 @@ const config: Config = {
           crimson: "#D7263D", // tiers
           eggplant: "#7B2FBE", // the key (hidden)
           gold: "#E3A82B", // buried treasure
+          lagoon: "#00B8D9", // infinite canvas
+          smooch: "#FF4FA3", // smash or pass
 
         },
       },

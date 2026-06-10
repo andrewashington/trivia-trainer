@@ -449,6 +449,38 @@ export const modules: ModuleDef[] = [
     ],
   },
   {
+    key: "canvas",
+    label: "Canvas",
+    icon: "sparkles",
+    category: "arcade",
+    navOrder: 22,
+    href: "/canvas",
+    accentBg: "bg-accent-lagoon",
+    intro:
+      "The infinite group doodle wall. Draw, stamp, scrawl — there is no eraser, and there never will be.",
+    tips: [
+      "Pick a brush and a color, then just start scribbling",
+      "Drag with two fingers (or hold space) to roam the infinite page",
+      "No erase. Own your art. Bury mistakes under better art",
+    ],
+  },
+  {
+    key: "smash",
+    label: "Smash or Pass",
+    icon: "fire",
+    category: "forum",
+    navOrder: 23,
+    href: "/smash",
+    accentBg: "bg-accent-smooch",
+    intro:
+      "The judgment chamber. Someone deals a deck of names, everyone renders a verdict, the results speak for themselves.",
+    tips: [
+      "Deal a deck: a theme plus a list of names (image URLs optional)",
+      "Swipe through the cards — smash or pass, no abstaining",
+      "Check the tally to see who the group deemed smashable",
+    ],
+  },
+  {
     key: "thekey",
     label: "The Key",
     icon: "door-closed",

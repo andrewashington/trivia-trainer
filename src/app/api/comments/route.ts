@@ -20,6 +20,7 @@ const TARGET_LOOKUPS: Record<CommentTargetType, (id: string) => Promise<unknown>
   nowplaying: (id) => db.nowPlayingItem.findUnique({ where: { id }, select: { id: true } }),
   claim: (id) => db.claim.findUnique({ where: { id }, select: { id: true } }),
   wish: (id) => db.wishlistItem.findUnique({ where: { id }, select: { id: true } }),
+  smashdeck: (id) => db.smashDeck.findUnique({ where: { id }, select: { id: true } }),
 };
 
 async function assertTargetExists(targetType: CommentTargetType, targetId: string) {

@@ -18,6 +18,7 @@ export const COMMENT_TARGETS = [
   "nowplaying",
   "claim",
   "wish",
+  "smashdeck",
 ] as const;
 export type CommentTargetType = (typeof COMMENT_TARGETS)[number];
 
