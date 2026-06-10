@@ -14,7 +14,8 @@ import { moduleStyle, type CardSpec } from "@/lib/discord/feed";
 export async function postCardToDiscord(
   spec: CardSpec,
   actorName: string | null,
-  png: Buffer
+  png: Buffer,
+  components: object[] | null = null
 ): Promise<void> {
   const { botToken, channelId, canPost } = botConfig();
   const url = process.env.DISCORD_WEBHOOK_URL;
@@ -32,11 +33,15 @@ export async function postCardToDiscord(
   if (base) embed.url = `${base}${spec.path}`;
   if (actorName) embed.author = { name: actorName };
 
+  const payload: Record<string, unknown> = {
+    embeds: [embed],
+    allowed_mentions: { parse: [] },
+  };
+  // Components only work on bot messages, not plain webhooks.
+  if (canPost && components?.length) payload.components = components;
+
   const form = new FormData();
-  form.append(
-    "payload_json",
-    JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } })
-  );
+  form.append("payload_json", JSON.stringify(payload));
   form.append("files[0]", new Blob([new Uint8Array(png)], { type: "image/png" }), "card.png");
 
   const res = canPost

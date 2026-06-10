@@ -74,7 +74,8 @@ async function drain() {
 }
 
 async function postRow(id: string, type: OutboxEventType, payload: unknown) {
-  const spec = specFor(type, (payload ?? {}) as Record<string, unknown>);
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const spec = specFor(type, p);
   if (!spec) {
     await markProcessed(id);
     return;
@@ -91,12 +92,13 @@ async function postRow(id: string, type: OutboxEventType, payload: unknown) {
 
   // Lazy imports keep next/og out of the module graph until a card is
   // actually needed.
-  const [{ renderCardPng }, { postCardToDiscord }] = await Promise.all([
+  const [{ renderCardPng }, { postCardToDiscord }, { componentsFor }] = await Promise.all([
     import("@/lib/discord/card"),
     import("@/lib/discord/webhook"),
+    import("@/lib/discord/feed"),
   ]);
   const png = await renderCardPng(spec, actorName);
-  await postCardToDiscord(spec, actorName, png);
+  await postCardToDiscord(spec, actorName, png, componentsFor(type, p));
   await markProcessed(id);
   // Stay far below Discord's per-webhook rate limit when batching.
   await new Promise((r) => setTimeout(r, 750));

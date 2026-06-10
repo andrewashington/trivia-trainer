@@ -1,6 +1,6 @@
 # Discord Integration — Scope
 
-Status: **Phase 1 shipped** (interactions endpoint, /link + /unlink, bot-mode drainer, registration script). Phases 2–3 open — claim one by updating this doc.
+Status: **Phases 1–2 shipped** (bot + linking; RSVP/Vote/Claim/Upvote buttons on feed cards). Phase 3 (slash commands) open — claim it by updating this doc.
 
 ## Where we are
 

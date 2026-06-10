@@ -66,6 +66,57 @@ export const moduleStyle: Record<
 
 type Payload = Record<string, unknown>;
 
+// --- Phase 2: interactive components on bot-posted cards ---
+// Discord component wire format: action row (type 1) wrapping buttons
+// (type 2; style 1 primary / 2 secondary / 3 success / 4 danger).
+// custom_id encodes "action:...:entityId" and is re-validated against
+// the DB on click (src/lib/discord/interactions.ts) — never trusted.
+
+const row = (...components: object[]) => ({ type: 1, components });
+const btn = (style: number, label: string, custom_id: string) => ({
+  type: 2,
+  style,
+  label,
+  custom_id,
+});
+
+/**
+ * Buttons for a card, or null for a plain card. Only meaningful when
+ * posting as the bot — webhook messages can't carry components.
+ */
+export function componentsFor(type: OutboxEventType, payload: Payload): object[] | null {
+  switch (type) {
+    case "event.created": {
+      const id = str(payload, "eventId");
+      if (!id) return null;
+      return [
+        row(
+          btn(3, "Going", `rsvp:going:${id}`),
+          btn(2, "Maybe", `rsvp:maybe:${id}`),
+          btn(4, "Out", `rsvp:no:${id}`)
+        ),
+      ];
+    }
+    case "poll.created": {
+      const id = str(payload, "pollId");
+      if (!id) return null;
+      return [row(btn(1, "Vote", `poll:vote:${id}`))];
+    }
+    case "listing.created": {
+      const id = str(payload, "listingId");
+      if (!id) return null;
+      return [row(btn(3, "Claim it", `claim:${id}`))];
+    }
+    case "idea.created": {
+      const id = str(payload, "ideaId");
+      if (!id) return null;
+      return [row(btn(1, "▲ Upvote", `idea:up:${id}`))];
+    }
+    default:
+      return null;
+  }
+}
+
 const str = (p: Payload, key: string) =>
   typeof p[key] === "string" ? (p[key] as string) : undefined;
 const num = (p: Payload, key: string) =>
