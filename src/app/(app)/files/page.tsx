@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
+import { presignView } from "@/lib/storage";
 import { EmptyState } from "@/components/ui";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { FileRow } from "@/modules/files/FileRow";
@@ -18,6 +19,23 @@ export default async function FilesPage() {
     include: { uploader: { select: { id: true, displayName: true } } },
   });
   const maxMb = Number(process.env.MAX_FILE_SIZE_MB ?? 25);
+
+  // Presign inline-view URLs for image files so the list can show a
+  // thumbnail (signing is local/cheap; the page is force-dynamic so these
+  // stay fresh within the URL's TTL).
+  const previews = new Map<string, string>(
+    await Promise.all(
+      files
+        .filter((f) => f.mimeType.startsWith("image/"))
+        .map(async (f): Promise<[string, string]> => {
+          try {
+            return [f.id, await presignView(f.storageKey)];
+          } catch {
+            return [f.id, ""];
+          }
+        })
+    )
+  );
 
   return (
     <div className="space-y-6">
@@ -43,6 +61,7 @@ export default async function FilesPage() {
                 sizeBytes: f.sizeBytes,
                 createdAt: f.createdAt.toISOString(),
                 uploaderName: f.uploader.displayName,
+                previewUrl: previews.get(f.id) || null,
               }}
               canDelete={user.id === f.uploaderId || user.role === "admin"}
             />

@@ -22,6 +22,7 @@ export function FileRow({
     sizeBytes: number;
     createdAt: string;
     uploaderName: string;
+    previewUrl?: string | null;
   };
   canDelete: boolean;
 }) {
@@ -61,7 +62,25 @@ export function FileRow({
 
   return (
     <li className="brutal-card flex items-center gap-3 p-3">
-      <PixelIcon name={icon} size={24} className="shrink-0 text-ink/70" />
+      {file.previewUrl ? (
+        <button
+          type="button"
+          onClick={download}
+          disabled={busy}
+          className="block h-12 w-12 shrink-0 overflow-hidden border-2 border-ink"
+          title="Open image"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={file.previewUrl}
+            alt={file.filename}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+        </button>
+      ) : (
+        <PixelIcon name={icon} size={24} className="shrink-0 text-ink/70" />
+      )}
       <div className="min-w-0 flex-1">
         <p className="truncate font-bold leading-snug">{file.filename}</p>
         <p className="font-mono text-xs text-ink/50">

@@ -7,6 +7,41 @@ import { Button, Field, Input, Textarea } from "@/components/ui";
 
 type RecipeShape = { id: string; title: string; body: string; imageKey: string | null };
 
+// Downscale + re-encode a photo in the browser before upload. Recipe
+// images were loading slowly because phone-camera originals (often 3–8MB)
+// were stored as-is; capping the long edge and re-encoding to webp brings
+// them down to a couple hundred KB with no visible quality loss. GIFs are
+// passed through untouched (canvas would flatten the animation), and if
+// the result somehow isn't smaller we keep the original.
+const MAX_EDGE = 1600;
+const WEBP_QUALITY = 0.82;
+
+async function compressImage(file: File): Promise<{ blob: Blob; type: string }> {
+  if (file.type === "image/gif" || typeof createImageBitmap !== "function") {
+    return { blob: file, type: file.type };
+  }
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return { blob: file, type: file.type };
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    const blob = await new Promise<Blob | null>((res) =>
+      canvas.toBlob(res, "image/webp", WEBP_QUALITY)
+    );
+    if (!blob || blob.size >= file.size) return { blob: file, type: file.type };
+    return { blob, type: "image/webp" };
+  } catch {
+    return { blob: file, type: file.type };
+  }
+}
+
 export function RecipeForm({ recipe }: { recipe?: RecipeShape }) {
   const router = useRouter();
   const [title, setTitle] = useState(recipe?.title ?? "");
@@ -17,14 +52,15 @@ export function RecipeForm({ recipe }: { recipe?: RecipeShape }) {
 
   async function uploadImage(): Promise<string | null> {
     if (!imageFile) return recipe?.imageKey ?? null;
+    const { blob, type } = await compressImage(imageFile);
     const { key, uploadUrl } = await api<{ key: string; uploadUrl: string }>(
       "/api/recipes/image",
-      { method: "POST", body: { mimeType: imageFile.type } }
+      { method: "POST", body: { mimeType: type } }
     );
     const put = await fetch(uploadUrl, {
       method: "PUT",
-      headers: { "Content-Type": imageFile.type },
-      body: imageFile,
+      headers: { "Content-Type": type },
+      body: blob,
     });
     if (!put.ok) throw new Error("Image upload failed.");
     return key;

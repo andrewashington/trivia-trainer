@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
-import type { Map as LeafletMap, LayerGroup, Marker } from "leaflet";
+import type { Map as LeafletMap, LayerGroup, Marker, LeafletMouseEvent } from "leaflet";
 import { api } from "@/lib/client";
 import { Button, Field, Input } from "@/components/ui";
 import { PIN_CATEGORIES, pinIcon } from "@/modules/map/schema";
@@ -44,6 +44,10 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
   const pinLayerRef = useRef<LayerGroup | null>(null);
   const draftMarkerRef = useRef<Marker | null>(null);
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
+  // Whether the next draft change should recenter the map. True for
+  // search picks (jump to the result); false for click/drag (the user
+  // already chose the exact spot, so don't yank their view around).
+  const recenterRef = useRef(true);
 
   const [ready, setReady] = useState(false);
   const [pins, setPins] = useState(initialPins);
@@ -112,7 +116,25 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
     }
   }, [ready, pins, draft]);
 
-  // Draft marker for the pin being added.
+  // Click anywhere on the map to drop a draft pin there — for places a
+  // search can't find (the feedback that kicked this off: "would be nice
+  // if I could just move the pin to the location").
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    const onClick = (e: LeafletMouseEvent) => {
+      recenterRef.current = false;
+      setDraft({ lat: e.latlng.lat, lng: e.latlng.lng, label: "Custom location", fromSearch: false });
+      setResults([]);
+    };
+    map.on("click", onClick);
+    return () => {
+      map.off("click", onClick);
+    };
+  }, [ready]);
+
+  // Draft marker for the pin being added — draggable, so you can nudge it
+  // onto the exact spot after searching or clicking.
   useEffect(() => {
     const L = leafletRef.current;
     const map = mapRef.current;
@@ -120,7 +142,7 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
     draftMarkerRef.current?.remove();
     draftMarkerRef.current = null;
     if (draft) {
-      draftMarkerRef.current = L.marker([draft.lat, draft.lng], {
+      const marker = L.marker([draft.lat, draft.lng], {
         icon: L.divIcon({
           html: markerHtml(pinIcon(category), true),
           className: "",
@@ -128,9 +150,21 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
           iconAnchor: [17, 17],
         }),
         zIndexOffset: 1000,
+        draggable: true,
       }).addTo(map);
-      map.setView([draft.lat, draft.lng], Math.max(map.getZoom(), 15));
+      marker.on("dragend", () => {
+        const ll = marker.getLatLng();
+        recenterRef.current = false;
+        setDraft((d) =>
+          d ? { ...d, lat: ll.lat, lng: ll.lng, label: "Custom location", fromSearch: false } : d
+        );
+      });
+      draftMarkerRef.current = marker;
+      if (recenterRef.current) {
+        map.setView([draft.lat, draft.lng], Math.max(map.getZoom(), 15));
+      }
     }
+    recenterRef.current = true; // default back for the next search-driven draft
   }, [ready, draft, category]);
 
   async function search(e: React.FormEvent) {
@@ -211,6 +245,9 @@ export function MapBoard({ initialPins }: { initialPins: PinView[] }) {
       {/* Add flow: search → pick → describe → save */}
       <div className="brutal-card space-y-3 p-4">
         <p className="brutal-label">Drop a pin</p>
+        <p className="-mt-1 font-mono text-[11px] text-ink/50">
+          Search for a place, or tap the map to drop a pin — then drag it to fine-tune.
+        </p>
         <form onSubmit={search} className="flex gap-2">
           <Input
             value={query}

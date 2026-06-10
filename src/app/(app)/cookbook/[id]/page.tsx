@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { presignView } from "@/lib/storage";
@@ -56,7 +57,10 @@ export default async function RecipePage({ params }: { params: { id: string } })
       )}
 
       <div className="brutal-card prose-brutal p-5 [&_a]:font-bold [&_a]:text-accent-blue [&_code]:bg-paper [&_code]:px-1 [&_h1]:mt-4 [&_h1]:text-2xl [&_h2]:mt-4 [&_h2]:text-xl [&_h3]:mt-3 [&_h3]:text-lg [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5">
-        <Markdown remarkPlugins={[remarkGfm]}>{recipe.body}</Markdown>
+        {/* remark-breaks: honor single newlines as line breaks, so a recipe
+            typed with plain returns keeps its structure (CommonMark would
+            otherwise collapse them into one paragraph). */}
+        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]}>{recipe.body}</Markdown>
       </div>
 
       {canModify && (
