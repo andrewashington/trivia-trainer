@@ -6,6 +6,7 @@ import { api } from "@/lib/client";
 import { Button } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { OptionArt } from "./art";
+import { KeyCodeDisplay, KeyLegend } from "./KeyCodeDisplay";
 import {
   CURVE_INTENSITIES,
   CURVE_LATERALS,
@@ -445,9 +446,7 @@ export function KeyQuizForm({ initial }: { initial: KeyFormInitial }) {
               <span className="font-mono text-[10px] uppercase tracking-widest opacity-70">
                 your key
               </span>
-              <code className="border-2 border-white/60 bg-ink/30 px-2 py-1 font-mono text-sm font-bold tracking-wider">
-                {keyCode}
-              </code>
+              <KeyCodeDisplay code={keyCode} />
               <button
                 type="button"
                 onClick={() => {
@@ -459,9 +458,7 @@ export function KeyQuizForm({ initial }: { initial: KeyFormInitial }) {
               >
                 {copied ? "copied ✓" : "copy"}
               </button>
-              <span className="w-full font-mono text-[9px] uppercase opacity-60">
-                only people holding the chart can read it
-              </span>
+              <KeyLegend className="w-full opacity-60" />
             </div>
           )}
         </div>

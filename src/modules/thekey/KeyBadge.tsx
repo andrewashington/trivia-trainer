@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PixelIcon } from "@/components/icons";
+import { KeyCodeDisplay } from "./KeyCodeDisplay";
 
 /**
  * The discreet profile artifact: a 🗝️ chip that reveals the owner's
@@ -27,8 +28,8 @@ export function KeyBadge({ keyCode, isMe }: { keyCode: string; isMe: boolean }) 
 
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5 border-2 border-ink bg-accent-eggplant px-2 py-1 shadow-brutal-sm">
-      <span className="inline-flex items-center gap-1.5 font-mono text-xs font-bold tracking-wider text-white">
-        <PixelIcon name="unlock" size={14} /> {keyCode}
+      <span className="inline-flex items-center gap-1.5 text-white">
+        <PixelIcon name="unlock" size={14} /> <KeyCodeDisplay code={keyCode} />
       </span>
       {isMe && (
         <Link href="/key" className="font-mono text-[10px] text-white/70 underline">
