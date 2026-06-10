@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { Avatar, Badge } from "@/components/ui";
+import { CommentThread } from "@/modules/comments/CommentThread";
 
 export type GalleryPhoto = {
   id: string;
@@ -14,9 +15,18 @@ export type GalleryPhoto = {
   uploader: { id: string; displayName: string; avatarUrl: string | null };
   tagged: { id: string; displayName: string; avatarUrl: string | null }[];
   canDelete: boolean;
+  commentCount: number;
 };
 
-export function PhotoGrid({ photos }: { photos: GalleryPhoto[] }) {
+export function PhotoGrid({
+  photos,
+  viewerId,
+  viewerIsAdmin,
+}: {
+  photos: GalleryPhoto[];
+  viewerId: string;
+  viewerIsAdmin: boolean;
+}) {
   const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
   const [armed, setArmed] = useState(false);
@@ -151,6 +161,13 @@ export function PhotoGrid({ photos }: { photos: GalleryPhoto[] }) {
                   ))}
                 </p>
               )}
+              <CommentThread
+                targetType="photo"
+                targetId={open.id}
+                initialCount={open.commentCount}
+                viewerId={viewerId}
+                viewerIsAdmin={viewerIsAdmin}
+              />
             </div>
           </div>
         </div>

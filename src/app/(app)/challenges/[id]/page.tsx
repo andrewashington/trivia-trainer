@@ -9,6 +9,7 @@ import { ChallengeActions } from "@/modules/challenges/ChallengeActions";
 import { EntryCard, type EntryView } from "@/modules/challenges/EntryCard";
 import { EntryForm } from "@/modules/challenges/EntryForm";
 import { isOpen, settleChallenge } from "@/modules/challenges/lib";
+import { CommentThread } from "@/modules/comments/CommentThread";
 
 export const metadata = { title: "Challenge" };
 export const dynamic = "force-dynamic";
@@ -82,6 +83,10 @@ export default async function ChallengePage({ params }: { params: { id: string }
       );
 
   const winner = entries.find((e) => e.isWinner) ?? null;
+
+  const commentCount = await db.comment.count({
+    where: { targetType: "challenge", targetId: challenge.id },
+  });
 
   return (
     <div className="space-y-6">
@@ -192,6 +197,16 @@ export default async function ChallengePage({ params }: { params: { id: string }
           </>
         )}
       </section>
+
+      <div className="brutal-card p-4">
+        <CommentThread
+          targetType="challenge"
+          targetId={challenge.id}
+          initialCount={commentCount}
+          viewerId={user.id}
+          viewerIsAdmin={user.role === "admin"}
+        />
+      </div>
     </div>
   );
 }

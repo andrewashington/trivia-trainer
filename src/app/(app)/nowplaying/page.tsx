@@ -9,6 +9,8 @@ import { ItemActions } from "@/modules/nowplaying/ItemActions";
 import { HeroBanner, Marquee } from "@/components/Hero";
 import { MEDIA_ICONS } from "@/modules/nowplaying/schema";
 import { PixelIcon } from "@/components/icons";
+import { CommentThread } from "@/modules/comments/CommentThread";
+import { commentCounts } from "@/modules/comments/counts";
 
 export const metadata = { title: "Now Playing" };
 export const dynamic = "force-dynamic";
@@ -27,6 +29,8 @@ export default async function NowPlayingPage({
     orderBy: { updatedAt: "desc" },
     include: { user: { select: { id: true, displayName: true, avatarUrl: true } } },
   });
+
+  const counts = await commentCounts("nowplaying");
 
   // Group by person; the signed-in user's board floats to the top.
   const byUser = new Map<string, { name: string; avatarUrl: string | null; items: typeof items }>();
@@ -141,6 +145,13 @@ export default async function NowPlayingPage({
                           &ldquo;{item.note}&rdquo;
                         </p>
                       )}
+                      <CommentThread
+                        targetType="nowplaying"
+                        targetId={item.id}
+                        initialCount={counts.get(item.id) ?? 0}
+                        viewerId={user.id}
+                        viewerIsAdmin={user.role === "admin"}
+                      />
                     </div>
                     {!showHistory && (userId === user.id || user.role === "admin") && (
                       <ItemActions itemId={item.id} title={item.title} />

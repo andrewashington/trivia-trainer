@@ -5,6 +5,7 @@ import { ModuleHeader } from "@/components/ModuleHeader";
 import { AddCountdownForm } from "@/modules/countdowns/AddCountdownForm";
 import { CountdownBoard, type TileView } from "@/modules/countdowns/CountdownBoard";
 import { LANDED_WINDOW_MS } from "@/modules/countdowns/schema";
+import { commentCounts } from "@/modules/comments/counts";
 
 export const metadata = { title: "Countdowns" };
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export default async function CountdownsPage() {
   if (!user) redirect("/signin");
   const now = new Date();
 
-  const [countdowns, events, cards] = await Promise.all([
+  const [countdowns, events, cards, counts] = await Promise.all([
     db.countdown.findMany({
       where: { targetAt: { gte: new Date(now.getTime() - LANDED_WINDOW_MS) } },
       orderBy: { targetAt: "asc" },
@@ -37,6 +38,7 @@ export default async function CountdownsPage() {
       where: { birthday: { not: null } },
       include: { user: { select: { displayName: true } } },
     }),
+    commentCounts("countdown"),
   ]);
 
   const tiles: TileView[] = [
@@ -51,6 +53,7 @@ export default async function CountdownsPage() {
         creatorId: c.creator.id,
         creatorName: c.creator.displayName,
         canDelete: c.creatorId === user.id || user.role === "admin",
+        commentCount: counts.get(c.id) ?? 0,
       })
     ),
     // Derived: upcoming events + birthdays within 90 days. Not stored,
@@ -98,7 +101,7 @@ export default async function CountdownsPage() {
         <AddCountdownForm />
       </ModuleHeader>
 
-      <CountdownBoard tiles={tiles} />
+      <CountdownBoard tiles={tiles} viewer={{ id: user.id, isAdmin: user.role === "admin" }} />
     </div>
   );
 }

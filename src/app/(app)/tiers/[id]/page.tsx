@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
-import { UserLink } from "@/components/ui";
+import { Card, UserLink } from "@/components/ui";
+import { CommentThread } from "@/modules/comments/CommentThread";
 import { DeleteButton } from "@/components/DeleteButton";
 import { TierBoards, type RankerView } from "@/modules/tiers/TierBoards";
 import { TIERS, type Tier } from "@/modules/tiers/schema";
@@ -25,6 +26,10 @@ export default async function TierListPage({ params }: { params: { id: string } 
   ]);
   if (!user) redirect("/signin");
   if (!list) notFound();
+
+  const commentCount = await db.comment.count({
+    where: { targetType: "tierlist", targetId: list.id },
+  });
 
   // Group placements per user — each ranker gets a board.
   const rankerMap = new Map<string, RankerView>();
@@ -85,6 +90,16 @@ export default async function TierListPage({ params }: { params: { id: string } 
         meId={user.id}
         rankers={[...rankerMap.values()]}
       />
+
+      <Card>
+        <CommentThread
+          targetType="tierlist"
+          targetId={list.id}
+          initialCount={commentCount}
+          viewerId={user.id}
+          viewerIsAdmin={user.role === "admin"}
+        />
+      </Card>
     </div>
   );
 }

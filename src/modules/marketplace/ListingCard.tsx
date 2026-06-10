@@ -8,6 +8,7 @@ import { Avatar, Badge } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { StampOverlay, useActionStamp, type StampTone } from "@/components/ActionFx";
 import { DELIVERY_META, formatPrice } from "@/modules/marketplace/schema";
+import { CommentThread } from "@/modules/comments/CommentThread";
 
 export type ListingView = {
   id: string;
@@ -28,6 +29,8 @@ export type ListingView = {
   myClaim: boolean;
   isAdmin: boolean;
   tilt: string;
+  commentCount: number;
+  viewerId: string;
 };
 
 export function ListingCard({ listing }: { listing: ListingView }) {
@@ -203,6 +206,14 @@ export function ListingCard({ listing }: { listing: ListingView }) {
             </button>
           )}
         </div>
+
+        <CommentThread
+          targetType="listing"
+          targetId={listing.id}
+          initialCount={listing.commentCount}
+          viewerId={listing.viewerId}
+          viewerIsAdmin={listing.isAdmin}
+        />
       </div>
     </div>
   );

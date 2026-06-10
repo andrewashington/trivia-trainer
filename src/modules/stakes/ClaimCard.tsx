@@ -8,6 +8,7 @@ import { Avatar, Badge } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { StampOverlay, useActionStamp, type StampTone } from "@/components/ActionFx";
 import { useCountdown } from "@/lib/useCountdown";
+import { CommentThread } from "@/modules/comments/CommentThread";
 
 /** Live "resolves in 3d 4h" chip; goes urgent inside the final 24h. */
 function DeadlineChip({ resolvesAt }: { resolvesAt: string }) {
@@ -52,6 +53,9 @@ export type ClaimView = {
   canOverride: boolean;
   canDelete: boolean;
   isParty: boolean;
+  commentCount: number;
+  viewerId: string;
+  viewerIsAdmin: boolean;
 };
 
 export function ClaimCard({ claim }: { claim: ClaimView }) {
@@ -305,6 +309,13 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
           </button>
         )}
       </div>
+      <CommentThread
+        targetType="claim"
+        targetId={claim.id}
+        initialCount={claim.commentCount}
+        viewerId={claim.viewerId}
+        viewerIsAdmin={claim.viewerIsAdmin}
+      />
     </li>
   );
 }

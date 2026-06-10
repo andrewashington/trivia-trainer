@@ -1,7 +1,24 @@
 import { z } from "zod";
 
-/** Surfaces that accept a comment thread. Add a key + a validator to extend. */
-export const COMMENT_TARGETS = ["poll", "idea", "event"] as const;
+/**
+ * Surfaces that accept a comment thread. Adding one = a key here + a
+ * lookup in TARGET_LOOKUPS (api/comments) + mounting <CommentThread/>.
+ */
+export const COMMENT_TARGETS = [
+  "poll",
+  "idea",
+  "event",
+  "recipe",
+  "file",
+  "tierlist",
+  "listing",
+  "challenge",
+  "photo",
+  "countdown",
+  "nowplaying",
+  "claim",
+  "wish",
+] as const;
 export type CommentTargetType = (typeof COMMENT_TARGETS)[number];
 
 export const commentInput = z.object({

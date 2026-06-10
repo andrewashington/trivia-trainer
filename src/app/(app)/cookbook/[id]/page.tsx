@@ -6,8 +6,9 @@ import remarkBreaks from "remark-breaks";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { presignView } from "@/lib/storage";
-import { Avatar, LinkButton } from "@/components/ui";
+import { Avatar, Card, LinkButton } from "@/components/ui";
 import { DeleteButton } from "@/components/DeleteButton";
+import { CommentThread } from "@/modules/comments/CommentThread";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,10 @@ export default async function RecipePage({ params }: { params: { id: string } })
     }),
   ]);
   if (!recipe) notFound();
+
+  const commentCount = await db.comment.count({
+    where: { targetType: "recipe", targetId: recipe.id },
+  });
 
   const canModify = user && (user.id === recipe.authorId || user.role === "admin");
   let imageUrl: string | null = null;
@@ -69,6 +74,18 @@ export default async function RecipePage({ params }: { params: { id: string } })
             otherwise collapse them into one paragraph). */}
         <Markdown remarkPlugins={[remarkGfm, remarkBreaks]}>{recipe.body}</Markdown>
       </div>
+
+      {user && (
+        <Card>
+          <CommentThread
+            targetType="recipe"
+            targetId={recipe.id}
+            initialCount={commentCount}
+            viewerId={user.id}
+            viewerIsAdmin={user.role === "admin"}
+          />
+        </Card>
+      )}
 
       {canModify && (
         <div className="flex gap-3">

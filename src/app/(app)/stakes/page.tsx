@@ -11,6 +11,7 @@ import { Countdown } from "@/components/Countdown";
 import { ClaimCard, type ClaimView } from "@/modules/stakes/ClaimCard";
 import { StaggerItem, StaggerList } from "@/components/Motion";
 import { settleDueSportsClaims } from "@/modules/stakes/settle";
+import { commentCounts } from "@/modules/comments/counts";
 
 export const metadata = { title: "Stakes" };
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export default async function StakesPage({
   // Throttled internally; failures just mean the next load retries.
   await settleDueSportsClaims().catch(() => {});
 
-  const [claims, members] = await Promise.all([
+  const [claims, members, counts] = await Promise.all([
     db.claim.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -38,6 +39,7 @@ export default async function StakesPage({
       },
     }),
     db.user.findMany({ select: { id: true, displayName: true, avatarUrl: true }, orderBy: { displayName: "asc" } }),
+    commentCounts("claim"),
   ]);
 
   const toView = (c: (typeof claims)[number]): ClaimView => {
@@ -73,6 +75,9 @@ export default async function StakesPage({
       canOverride: isAdmin && c.outcome !== null,
       canDelete: c.creatorId === user.id || isAdmin,
       isParty,
+      commentCount: counts.get(c.id) ?? 0,
+      viewerId: user.id,
+      viewerIsAdmin: isAdmin,
     };
   };
 

@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { FileRow } from "@/modules/files/FileRow";
 import { UploadForm } from "@/modules/files/UploadForm";
+import { commentCounts } from "@/modules/comments/counts";
 
 export const metadata = { title: "Files" };
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export default async function FilesPage() {
     include: { uploader: { select: { id: true, displayName: true, avatarUrl: true } } },
   });
   const maxMb = Number(process.env.MAX_FILE_SIZE_MB ?? 25);
+  const counts = await commentCounts("file");
 
   // Presign inline-view URLs for image files so the list can show a
   // thumbnail (signing is local/cheap; the page is force-dynamic so these
@@ -63,6 +65,9 @@ export default async function FilesPage() {
                 uploaderName: f.uploader.displayName,
                 uploaderAvatarUrl: f.uploader.avatarUrl,
                 previewUrl: previews.get(f.id) || null,
+                commentCount: counts.get(f.id) ?? 0,
+                viewerId: user.id,
+                viewerIsAdmin: user.role === "admin",
               }}
               canDelete={user.id === f.uploaderId || user.role === "admin"}
             />

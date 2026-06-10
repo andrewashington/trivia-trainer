@@ -6,13 +6,24 @@ import { HttpError, requireUser } from "@/lib/session";
 import { commentInput, commentQuery, type CommentTargetType } from "@/modules/comments/schema";
 
 /** No FK to the target, so insertion validates the target exists here. */
+const TARGET_LOOKUPS: Record<CommentTargetType, (id: string) => Promise<unknown>> = {
+  poll: (id) => db.poll.findUnique({ where: { id }, select: { id: true } }),
+  idea: (id) => db.idea.findUnique({ where: { id }, select: { id: true } }),
+  event: (id) => db.event.findUnique({ where: { id }, select: { id: true } }),
+  recipe: (id) => db.recipe.findUnique({ where: { id }, select: { id: true } }),
+  file: (id) => db.fileObject.findUnique({ where: { id }, select: { id: true } }),
+  tierlist: (id) => db.tierList.findUnique({ where: { id }, select: { id: true } }),
+  listing: (id) => db.listing.findUnique({ where: { id }, select: { id: true } }),
+  challenge: (id) => db.challenge.findUnique({ where: { id }, select: { id: true } }),
+  photo: (id) => db.photobookPhoto.findUnique({ where: { id }, select: { id: true } }),
+  countdown: (id) => db.countdown.findUnique({ where: { id }, select: { id: true } }),
+  nowplaying: (id) => db.nowPlayingItem.findUnique({ where: { id }, select: { id: true } }),
+  claim: (id) => db.claim.findUnique({ where: { id }, select: { id: true } }),
+  wish: (id) => db.wishlistItem.findUnique({ where: { id }, select: { id: true } }),
+};
+
 async function assertTargetExists(targetType: CommentTargetType, targetId: string) {
-  const found =
-    targetType === "poll"
-      ? await db.poll.findUnique({ where: { id: targetId }, select: { id: true } })
-      : targetType === "idea"
-        ? await db.idea.findUnique({ where: { id: targetId }, select: { id: true } })
-        : await db.event.findUnique({ where: { id: targetId }, select: { id: true } });
+  const found = await TARGET_LOOKUPS[targetType](targetId);
   if (!found) throw new HttpError(404, "That item no longer exists.");
 }
 

@@ -6,6 +6,8 @@ import { HeroBanner, HeroCta } from "@/components/Hero";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { AddWishForm } from "@/modules/wishlist/AddWishForm";
 import { WishActions } from "@/modules/wishlist/WishActions";
+import { CommentThread } from "@/modules/comments/CommentThread";
+import { commentCounts } from "@/modules/comments/counts";
 
 export const metadata = { title: "Wishlist" };
 export const dynamic = "force-dynamic";
@@ -18,6 +20,8 @@ export default async function WishlistPage() {
     orderBy: { createdAt: "desc" },
     include: { user: { select: { id: true, displayName: true, avatarUrl: true } } },
   });
+
+  const counts = await commentCounts("wish");
 
   // Birthday radar: the next birthday on file powers the hero.
   const cards = await db.contactCard.findMany({
@@ -129,6 +133,13 @@ export default async function WishlistPage() {
                       {item.note && (
                         <p className="mt-0.5 text-sm italic text-ink/60">{item.note}</p>
                       )}
+                      <CommentThread
+                        targetType="wish"
+                        targetId={item.id}
+                        initialCount={counts.get(item.id) ?? 0}
+                        viewerId={user.id}
+                        viewerIsAdmin={user.role === "admin"}
+                      />
                     </div>
                     {(userId === user.id || user.role === "admin") && (
                       <WishActions itemId={item.id} />

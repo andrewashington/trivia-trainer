@@ -8,6 +8,7 @@ import { ModuleHeader } from "@/components/ModuleHeader";
 import { AddListingForm } from "@/modules/marketplace/AddListingForm";
 import { HeroBanner } from "@/components/Hero";
 import { ListingCard, type ListingView } from "@/modules/marketplace/ListingCard";
+import { commentCounts } from "@/modules/comments/counts";
 
 export const metadata = { title: "Market" };
 export const dynamic = "force-dynamic";
@@ -27,6 +28,8 @@ export default async function MarketplacePage({
       claimedBy: { select: { id: true, displayName: true, avatarUrl: true } },
     },
   });
+
+  const counts = await commentCounts("listing");
 
   const imageUrls = new Map<string, string>();
   await Promise.all(
@@ -60,6 +63,8 @@ export default async function MarketplacePage({
     myClaim: l.claimedById === user.id,
     isAdmin: user.role === "admin",
     tilt: i % 2 === 0 ? "tilt-l" : "tilt-r",
+    commentCount: counts.get(l.id) ?? 0,
+    viewerId: user.id,
   });
 
   const showHistory = searchParams.history === "1";

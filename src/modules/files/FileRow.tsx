@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api } from "@/lib/client";
 import { PixelIcon } from "@/components/icons";
 import { Avatar } from "@/components/ui";
+import { CommentThread } from "@/modules/comments/CommentThread";
 
 function formatBytes(n: number): string {
   if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -25,6 +26,9 @@ export function FileRow({
     uploaderName: string;
     uploaderAvatarUrl: string | null;
     previewUrl?: string | null;
+    commentCount: number;
+    viewerId: string;
+    viewerIsAdmin: boolean;
   };
   canDelete: boolean;
 }) {
@@ -63,7 +67,8 @@ export function FileRow({
   }
 
   return (
-    <li className="brutal-card flex items-center gap-3 p-3">
+    <li className="brutal-card space-y-2 p-3">
+      <div className="flex items-center gap-3">
       {file.previewUrl ? (
         <button
           type="button"
@@ -109,6 +114,14 @@ export function FileRow({
           {armed ? "Sure?" : "✕"}
         </button>
       )}
+      </div>
+      <CommentThread
+        targetType="file"
+        targetId={file.id}
+        initialCount={file.commentCount}
+        viewerId={file.viewerId}
+        viewerIsAdmin={file.viewerIsAdmin}
+      />
     </li>
   );
 }

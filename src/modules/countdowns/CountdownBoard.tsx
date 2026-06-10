@@ -9,6 +9,9 @@ import { confettiCelebrate } from "@/lib/confetti";
 import { useCountdown } from "@/lib/useCountdown";
 import { Badge, EmptyState } from "@/components/ui";
 import { PixelIcon, type IconName } from "@/components/icons";
+import { CommentThread } from "@/modules/comments/CommentThread";
+
+export type Viewer = { id: string; isAdmin: boolean };
 
 export type TileView = {
   /** "countdown" rows are stored + deletable; the rest are derived. */
@@ -21,6 +24,7 @@ export type TileView = {
   creatorId: string | null;
   creatorName: string | null;
   canDelete: boolean;
+  commentCount?: number;
 };
 
 const KIND_META: Record<TileView["kind"], { icon: IconName; chip: string | null }> = {
@@ -29,7 +33,7 @@ const KIND_META: Record<TileView["kind"], { icon: IconName; chip: string | null 
   birthday: { icon: "cake", chip: "Birthday" },
 };
 
-function Tile({ tile, landed }: { tile: TileView; landed: boolean }) {
+function Tile({ tile, landed, viewer }: { tile: TileView; landed: boolean; viewer: Viewer }) {
   const router = useRouter();
   const t = useCountdown(tile.targetAt);
   const [busy, setBusy] = useState(false);
@@ -128,6 +132,24 @@ function Tile({ tile, landed }: { tile: TileView; landed: boolean }) {
         )}
         {tile.link && !derived ? " · link ↗" : ""}
       </p>
+      {tile.kind === "countdown" && (
+        // Comments live inside the card, but the card may be wrapped in a
+        // link — keep thread clicks from navigating.
+        <div
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <CommentThread
+            targetType="countdown"
+            targetId={tile.id}
+            initialCount={tile.commentCount ?? 0}
+            viewerId={viewer.id}
+            viewerIsAdmin={viewer.isAdmin}
+          />
+        </div>
+      )}
     </div>
   );
 
@@ -144,7 +166,7 @@ function Tile({ tile, landed }: { tile: TileView; landed: boolean }) {
   );
 }
 
-export function CountdownBoard({ tiles }: { tiles: TileView[] }) {
+export function CountdownBoard({ tiles, viewer }: { tiles: TileView[]; viewer: Viewer }) {
   const upcomingRef = useRef<HTMLUListElement>(null);
   const landedRef = useRef<HTMLUListElement>(null);
   useEffect(() => {
@@ -170,7 +192,7 @@ export function CountdownBoard({ tiles }: { tiles: TileView[] }) {
         <ul ref={upcomingRef} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {upcoming.map((t) => (
             <li key={`${t.kind}-${t.id}`}>
-              <Tile tile={t} landed={false} />
+              <Tile tile={t} landed={false} viewer={viewer} />
             </li>
           ))}
         </ul>
@@ -184,7 +206,7 @@ export function CountdownBoard({ tiles }: { tiles: TileView[] }) {
           <ul ref={landedRef} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {landed.map((t) => (
               <li key={`${t.kind}-${t.id}`}>
-                <Tile tile={t} landed />
+                <Tile tile={t} landed viewer={viewer} />
               </li>
             ))}
           </ul>

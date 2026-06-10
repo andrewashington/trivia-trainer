@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { PhotoGrid, type GalleryPhoto } from "@/modules/photobook/PhotoGrid";
 import { UploadPhotoForm } from "@/modules/photobook/UploadPhotoForm";
+import { commentCounts } from "@/modules/comments/counts";
 
 export const metadata = { title: "Photobook" };
 export const dynamic = "force-dynamic";
@@ -41,6 +42,7 @@ export default async function PhotobookPage({
     }),
   ]);
   const maxMb = Number(process.env.MAX_FILE_SIZE_MB ?? 25);
+  const counts = await commentCounts("photo");
 
   // Presign short-lived inline-view URLs (signing is local/cheap; the
   // page is force-dynamic so they stay fresh within the TTL).
@@ -61,6 +63,7 @@ export default async function PhotobookPage({
           uploader: p.uploader,
           tagged: p.tags.map((t) => t.user),
           canDelete: user.id === p.uploaderId || user.role === "admin",
+          commentCount: counts.get(p.id) ?? 0,
         };
       })
     )
@@ -121,7 +124,11 @@ export default async function PhotobookPage({
           }
         />
       ) : (
-        <PhotoGrid photos={gallery} />
+        <PhotoGrid
+          photos={gallery}
+          viewerId={user.id}
+          viewerIsAdmin={user.role === "admin"}
+        />
       )}
     </div>
   );
