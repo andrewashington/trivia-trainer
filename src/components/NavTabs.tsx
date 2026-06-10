@@ -226,9 +226,9 @@ export function SideNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts 
 }
 
 /**
- * Mobile navigation: Home + the four categories — five fixed,
- * thumb-sized tabs, no horizontal scrolling. Tapping a category opens
- * a sheet with its modules.
+ * Mobile navigation: Home + the categories as fixed, thumb-sized
+ * tabs, no horizontal scrolling. Tapping a category opens a sheet
+ * with its modules.
  */
 export function MobileNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts }) {
   const pathname = usePathname();

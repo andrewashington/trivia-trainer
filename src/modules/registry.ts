@@ -6,7 +6,7 @@ import type { IconName } from "@/components/icons";
  * routes, then append one entry (and pick its category). No edits to
  * existing modules.
  */
-export type CategoryKey = "quests" | "shelf" | "stash" | "arcade";
+export type CategoryKey = "quests" | "shelf" | "stash" | "forum" | "arcade";
 
 export type CategoryDef = {
   key: CategoryKey;
@@ -19,7 +19,7 @@ export type CategoryDef = {
 };
 
 /**
- * The four shelves of the cartridge. Every module belongs to exactly
+ * The five shelves of the cartridge. Every module belongs to exactly
  * one; nav surfaces (sidebar sections, mobile tab sheets) are built
  * from this list.
  */
@@ -44,6 +44,13 @@ export const categories: CategoryDef[] = [
     icon: "backpack",
     tagline: "Stuff you own, want, and swap",
     accentBg: "bg-accent-green",
+  },
+  {
+    key: "forum",
+    label: "Forum",
+    icon: "megaphone",
+    tagline: "Pitches, votes & secrets",
+    accentBg: "bg-accent-indigo",
   },
   {
     key: "arcade",
@@ -194,7 +201,7 @@ export const modules: ModuleDef[] = [
     key: "ideas",
     label: "Ideas",
     icon: "lightbulb",
-    category: "arcade",
+    category: "forum",
     navOrder: 9,
     href: "/ideas",
     accentBg: "bg-accent-lime",
@@ -224,7 +231,7 @@ export const modules: ModuleDef[] = [
     key: "polls",
     label: "Polls",
     icon: "chart-bar-big",
-    category: "arcade",
+    category: "forum",
     navOrder: 11,
     href: "/polls",
     accentBg: "bg-accent-indigo",
@@ -239,7 +246,7 @@ export const modules: ModuleDef[] = [
     key: "reveal",
     label: "Reveal",
     icon: "eye",
-    category: "arcade",
+    category: "forum",
     navOrder: 12,
     href: "/reveal",
     accentBg: "bg-ink",
