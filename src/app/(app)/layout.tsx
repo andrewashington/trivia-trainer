@@ -4,6 +4,7 @@ import { signOut } from "@/lib/auth";
 import { currentUser } from "@/lib/session";
 import { unreadCounts } from "@/lib/unread";
 import { Logo } from "@/components/Logo";
+import { AppDecor } from "@/components/AppDecor";
 import { MobileNav, SideNav } from "@/components/NavTabs";
 import { ModuleIntro } from "@/components/ModuleIntro";
 import { OnboardingWizard } from "@/components/OnboardingWizard";
@@ -29,6 +30,10 @@ export default async function AppLayout({
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl">
+      {/* Ambient floating shapes in the side gutters — mounted here so
+          they persist (and keep bobbing) across page navigations. */}
+      <AppDecor />
+
       {/* Desktop: persistent sidebar owns the nav (and the logo). */}
       <SideNav isAdmin={isAdmin} counts={counts} />
 
