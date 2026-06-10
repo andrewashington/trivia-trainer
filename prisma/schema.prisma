@@ -540,6 +540,12 @@ enum FeedbackKind {
   praise
 }
 
+enum FeedbackSeverity {
+  low
+  medium
+  high
+}
+
 // In-app feedback so testers can report bugs / wishes without leaving
 // the app. Admins triage these on the Admin page.
 model Feedback {
@@ -547,8 +553,10 @@ model Feedback {
   userId     String
   path       String // the page they were on
   kind       FeedbackKind @default(bug)
+  severity   FeedbackSeverity @default(medium) // only meaningful for bugs
   message    String       @db.Text
   userAgent  String?
+  context    Json? // auto-captured client context (viewport, locale, tz, etc.) for triage
   resolvedAt DateTime?
   createdAt  DateTime     @default(now())
 

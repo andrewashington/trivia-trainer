@@ -4,7 +4,7 @@ import { currentUser } from "@/lib/session";
 import { signOut } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { MemberManager } from "@/modules/admin/MemberManager";
-import { FeedbackList } from "@/modules/admin/FeedbackList";
+import { FeedbackList, type FeedbackContext } from "@/modules/admin/FeedbackList";
 
 export const metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
@@ -27,9 +27,11 @@ export default async function AdminPage() {
   const feedbackItems = feedback.map((f) => ({
     id: f.id,
     kind: f.kind,
+    severity: f.severity,
     message: f.message,
     path: f.path,
     userAgent: f.userAgent,
+    context: (f.context as FeedbackContext | null) ?? null,
     resolvedAt: f.resolvedAt?.toISOString() ?? null,
     createdAt: f.createdAt.toISOString(),
     userName: f.user.displayName,

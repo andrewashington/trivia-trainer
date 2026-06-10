@@ -47,6 +47,23 @@ Current HEAD both branches: see `git log --oneline -1`.
 
 ---
 
+## Feedback triage → agent-ready cards
+The in-app **Feedback** button captures kind (bug/idea/praise), bug
+**severity**, the message, the page path, user agent, and a client
+**context** snapshot (viewport, locale, timezone). Admins triage on the
+**Admin → Feedback** page (per-item *Copy as prompt* button hands an
+agent-ready brief straight to the clipboard). To materialize open items as
+Markdown cards for a coding agent to work through:
+
+```bash
+railway run npm run triage:export   # pulls the PROD database
+# or: npm run triage:export         # local .env DATABASE_URL
+```
+
+Cards land in `docs/triage/` (one per open bug/idea + a README index). The
+script is read-only on the DB and regenerates the whole open set each run —
+resolve an item in the Admin page and re-run to clear its card.
+
 ## Outstanding work (in rough priority order)
 
 1. ~~**File & photo uploads are disabled.**~~ **DONE (2026-06-10).** Now

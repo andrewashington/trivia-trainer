@@ -7,12 +7,36 @@ import { Button } from "@/components/ui";
 import { PixelIcon, type IconName } from "@/components/icons";
 
 type Kind = "bug" | "idea" | "praise";
+type Severity = "low" | "medium" | "high";
 
 const KINDS: { key: Kind; label: string; icon: IconName; bg: string }[] = [
   { key: "bug", label: "Bug", icon: "bug", bg: "bg-accent-red text-white" },
   { key: "idea", label: "Idea", icon: "lightbulb", bg: "bg-accent-lime" },
   { key: "praise", label: "Love it", icon: "heart", bg: "bg-accent-pink" },
 ];
+
+const SEVERITIES: { key: Severity; label: string; bg: string }[] = [
+  { key: "low", label: "Minor", bg: "bg-accent-yellow" },
+  { key: "medium", label: "Annoying", bg: "bg-accent-orange" },
+  { key: "high", label: "Broken", bg: "bg-accent-red text-white" },
+];
+
+/** Snapshot of the browser/device, so bug reports are actionable cold. */
+function captureContext() {
+  if (typeof window === "undefined") return undefined;
+  try {
+    return {
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+      screen: `${window.screen?.width ?? "?"}x${window.screen?.height ?? "?"}`,
+      dpr: window.devicePixelRatio,
+      locale: navigator.language,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      referrer: document.referrer || undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Always-available feedback channel for testers: a floating button that
@@ -23,6 +47,7 @@ export function FeedbackButton() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<Kind>("bug");
+  const [severity, setSeverity] = useState<Severity>("medium");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -35,7 +60,13 @@ export function FeedbackButton() {
     try {
       await api("/api/feedback", {
         method: "POST",
-        body: { kind, message: message.trim(), path: pathname },
+        body: {
+          kind,
+          ...(kind === "bug" ? { severity } : {}),
+          message: message.trim(),
+          path: pathname,
+          context: captureContext(),
+        },
       });
       setSent(true);
       setMessage("");
@@ -43,6 +74,7 @@ export function FeedbackButton() {
         setOpen(false);
         setSent(false);
         setKind("bug");
+        setSeverity("medium");
       }, 1400);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't send that.");
@@ -99,12 +131,32 @@ export function FeedbackButton() {
                   ))}
                 </div>
 
+                {kind === "bug" && (
+                  <div className="mt-3">
+                    <span className="brutal-label">How bad is it?</span>
+                    <div className="flex gap-2">
+                      {SEVERITIES.map((s) => (
+                        <button
+                          key={s.key}
+                          type="button"
+                          onClick={() => setSeverity(s.key)}
+                          className={`brutal-press flex-1 border-2 border-ink px-2 py-1.5 font-mono text-[11px] font-bold uppercase shadow-brutal-sm ${
+                            severity === s.key ? s.bg : "bg-card"
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder={
                     kind === "bug"
-                      ? "What broke? What did you expect to happen?"
+                      ? "What happened, and what did you expect instead? If you can, the steps to make it happen again."
                       : kind === "idea"
                         ? "What would make this better?"
                         : "Tell us what you love!"

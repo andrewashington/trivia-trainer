@@ -15,6 +15,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:demo": "tsx prisma/seed-demo.ts",
     "db:demo:remove": "tsx prisma/seed-demo-remove.ts",
+    "triage:export": "tsx scripts/export-triage.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {
