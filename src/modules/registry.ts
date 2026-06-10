@@ -364,6 +364,21 @@ export const modules: ModuleDef[] = [
       "Check the board to see who's serving today",
     ],
   },
+  {
+    key: "photobook",
+    label: "Photobook",
+    icon: "image",
+    category: "shelf",
+    navOrder: 18,
+    href: "/photobook",
+    accentBg: "bg-accent-coral",
+    intro: "The group photo album. Pics of you all together — tag who's in the shot.",
+    tips: [
+      "Upload a pic from the last hang",
+      "Tag who's in it — receipts matter",
+      "Filter by a person to build their highlight reel",
+    ],
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {

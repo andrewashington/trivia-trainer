@@ -53,7 +53,9 @@ export type OutboxEventType =
   | "countdown.created"
   | "countdown.deleted"
   | "feedback.created"
-  | "howgay.checked";
+  | "howgay.checked"
+  | "photobook.photo.added"
+  | "photobook.photo.deleted";
 
 /**
  * Write a domain event (and apply any coin award it earns) on an open

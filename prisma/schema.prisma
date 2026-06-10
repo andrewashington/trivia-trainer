@@ -87,6 +87,8 @@ model User {
   coinTransactions  CoinTransaction[]
   gameChatMessages  GameChatMessage[]
   gayReadings       GayReading[]
+  photobookPhotos   PhotobookPhoto[]
+  photobookTags     PhotobookTag[]
 }
 
 // --- How Gay?: one deterministic reading per user per day ---
@@ -295,7 +297,38 @@ model FileObject {
 
   uploader User @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
 
+  photobookPhoto PhotobookPhoto?
+
   @@index([createdAt])
+}
+
+// ============ Photobook: pics of the group together ============
+
+// A gallery entry wrapping an image FileObject. Tags record which
+// members appear in the shot.
+model PhotobookPhoto {
+  id         String   @id @default(cuid())
+  uploaderId String
+  fileId     String   @unique
+  caption    String?
+  createdAt  DateTime @default(now())
+
+  uploader User           @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  file     FileObject     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  tags     PhotobookTag[]
+
+  @@index([createdAt])
+}
+
+model PhotobookTag {
+  photoId String
+  userId  String
+
+  photo PhotobookPhoto @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([photoId, userId])
+  @@index([userId])
 }
 
 // Domain-event outbox. Nothing consumes it in v1; the phase-2 Discord

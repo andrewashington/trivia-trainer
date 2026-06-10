@@ -34,6 +34,7 @@ const config: Config = {
           punch: "#FF3366", // countdowns
           ocean: "#0077B6", // trivia
           fuchsia: "#D633FF", // howgay
+          coral: "#FF7F50", // photobook
 
         },
       },
