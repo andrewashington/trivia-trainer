@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { SignInDecor } from "@/components/SignInDecor";
 import { PixelIcon } from "@/components/icons";
 
 export const metadata = { title: "Sign-in problem" };
 
 export default function SignInErrorPage() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-4">
-      <Logo size="md" />
-      <div className="brutal-card tilt-r w-full max-w-sm p-8 text-center">
+    <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden px-4">
+      <SignInDecor />
+      <div className="relative z-10 flex flex-col items-center gap-8">
+        <Logo size="md" animated />
+        <div className="brutal-card tilt-r w-full max-w-sm animate-pop-in p-8 text-center">
         <div className="flex justify-center text-ink/70">
           <PixelIcon name="warning-diamond" size={48} />
         </div>
@@ -23,6 +26,7 @@ export default function SignInErrorPage() {
         >
           Try again
         </Link>
+        </div>
       </div>
     </div>
   );
