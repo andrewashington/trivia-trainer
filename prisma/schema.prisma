@@ -79,6 +79,57 @@ model User {
   feedback          Feedback[]
   arcadeScores      ArcadeScore[]
   countdowns        Countdown[]
+  tanksChallenges   TanksGame[]        @relation("tanksChallenger")
+  tanksDefenses     TanksGame[]        @relation("tanksOpponent")
+  tanksWins         TanksGame[]        @relation("tanksWinner")
+  tanksTurns        TanksTurn[]
+}
+
+// ============ Tanks: async turn-based artillery duels ============
+
+// A match is fully described by its seed + ordered turns (the engine in
+// modules/tanks replays them deterministically). hp/status/currentPlayer
+// are denormalized here so the lobby and the home "needs you" strip can
+// query without replaying physics.
+model TanksGame {
+  id              String    @id @default(cuid())
+  seed            Int
+  challengerId    String
+  opponentId      String
+  currentPlayerId String
+  status          String    @default("active") // "active" | "finished"
+  winnerId        String?
+  challengerHp    Int       @default(100)
+  opponentHp      Int       @default(100)
+  turnCount       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  finishedAt      DateTime?
+
+  challenger User  @relation("tanksChallenger", fields: [challengerId], references: [id], onDelete: Cascade)
+  opponent   User  @relation("tanksOpponent", fields: [opponentId], references: [id], onDelete: Cascade)
+  winner     User? @relation("tanksWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  turns      TanksTurn[]
+
+  @@index([status, updatedAt])
+  @@index([currentPlayerId, status])
+}
+
+// One fired shot. Immutable; the engine derives everything else.
+model TanksTurn {
+  id        String   @id @default(cuid())
+  gameId    String
+  playerId  String
+  index     Int // 0-based turn number within the game
+  weapon    String // "shell" | "bigone" | "triple"
+  angle     Float // degrees, 0 = right, 180 = left
+  power     Float // 10..100
+  createdAt DateTime @default(now())
+
+  game   TanksGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player User      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, index])
 }
 
 // A thing the group is counting down to. Past countdowns linger in a

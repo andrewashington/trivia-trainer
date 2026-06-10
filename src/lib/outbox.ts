@@ -48,6 +48,8 @@ export type OutboxEventType =
   | "pet.renamed"
   | "arcade.played"
   | "arcade.highscore"
+  | "arcade.tanks.challenged"
+  | "arcade.tanks.finished"
   | "countdown.created"
   | "countdown.deleted"
   | "feedback.created";
