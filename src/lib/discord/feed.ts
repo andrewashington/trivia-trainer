@@ -37,6 +37,7 @@ export type ModuleKey =
   | "stakes"
   | "pet"
   | "snake"
+  | "countdowns"
   | "home";
 
 /** Accent hexes mirror tailwind.config.ts — Satori can't read Tailwind. */
@@ -59,6 +60,7 @@ export const moduleStyle: Record<
   stakes: { accent: "#0B9E63", accentText: "#FFFFFF", icon: "target", label: "Stakes" },
   pet: { accent: "#38BDF8", accentText: "#101010", icon: "robot-face-happy", label: "Pet" },
   snake: { accent: "#9B5DE5", accentText: "#FFFFFF", icon: "fish", label: "Snake" },
+  countdowns: { accent: "#FF3366", accentText: "#FFFFFF", icon: "clock", label: "Countdowns" },
   home: { accent: "#FFD60A", accentText: "#101010", icon: "home", label: "UDM+" },
 };
 
@@ -202,6 +204,18 @@ export function specFor(type: OutboxEventType, payload: Payload): CardSpec | nul
         sub: `{actor} just took the ${game} crown`,
         actorId: str(payload, "userId"),
         path: "/snake",
+      };
+    }
+    case "countdown.created": {
+      const when = formatWhen(str(payload, "targetAt"));
+      const emoji = str(payload, "emoji");
+      return {
+        module: "countdowns",
+        kicker: "CLOCK STARTED",
+        headline: `${emoji ? `${emoji} ` : ""}${str(payload, "title") ?? "Something"}`,
+        sub: when ? `lands ${when} · by {actor}` : "by {actor}",
+        actorId: str(payload, "creatorId"),
+        path: "/countdowns",
       };
     }
     case "member.added":

@@ -281,6 +281,21 @@ export const modules: ModuleDef[] = [
     ],
   },
   {
+    key: "countdowns",
+    label: "Countdowns",
+    icon: "clock",
+    category: "quests",
+    navOrder: 16,
+    href: "/countdowns",
+    accentBg: "bg-accent-punch",
+    intro: "The group hype clock. Trips, releases, birthdays — watch the seconds drain together.",
+    tips: [
+      "Add anything worth counting down to — slap an emoji on it",
+      "Upcoming events and birthdays show up automatically",
+      "Be on the page when one hits zero. Trust us",
+    ],
+  },
+  {
     key: "snake",
     label: "Snake",
     icon: "fish",

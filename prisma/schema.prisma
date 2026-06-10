@@ -78,6 +78,24 @@ model User {
   revealUnlockVotes RevealUnlockVote[]
   feedback          Feedback[]
   arcadeScores      ArcadeScore[]
+  countdowns        Countdown[]
+}
+
+// A thing the group is counting down to. Past countdowns linger in a
+// "landed" section for 7 days (query-time filter), then are hidden —
+// never deleted, so the row survives for the activity feed.
+model Countdown {
+  id        String   @id @default(cuid())
+  creatorId String
+  title     String
+  emoji     String?
+  targetAt  DateTime
+  link      String?
+  createdAt DateTime @default(now())
+
+  creator User @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([targetAt])
 }
 
 // One row per finished run of an arcade game. We keep every run (not

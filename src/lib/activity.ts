@@ -24,7 +24,7 @@ export async function recentActivity(limit = 16): Promise<Activity[]> {
   const who = { select: { displayName: true, avatarUrl: true } };
   const recent = { take: PER_KIND, orderBy: { createdAt: "desc" } } as const;
 
-  const [recipes, events, listings, ideas, polls, wishlist, pins, files, reveals, claims, playing] =
+  const [recipes, events, listings, ideas, polls, wishlist, pins, files, reveals, claims, countdowns, playing] =
     await Promise.all([
       db.recipe.findMany({ ...recent, include: { author: who } }),
       db.event.findMany({ ...recent, include: { creator: who } }),
@@ -36,6 +36,7 @@ export async function recentActivity(limit = 16): Promise<Activity[]> {
       db.fileObject.findMany({ ...recent, include: { uploader: who } }),
       db.revealPrompt.findMany({ ...recent, include: { creator: who } }),
       db.claim.findMany({ ...recent, include: { creator: who } }),
+      db.countdown.findMany({ ...recent, include: { creator: who } }),
       db.nowPlayingItem.findMany({
         take: PER_KIND,
         orderBy: { updatedAt: "desc" },
@@ -54,6 +55,7 @@ export async function recentActivity(limit = 16): Promise<Activity[]> {
     ...files.map((f) => mk(f.id, "files", f.uploader, "uploaded", f.filename, "/files", f.createdAt)),
     ...reveals.map((r) => mk(r.id, "reveal", r.creator, "started a reveal", r.title, "/reveal", r.createdAt)),
     ...claims.map((c) => mk(c.id, "stakes", c.creator, "called a shot", c.text, "/stakes", c.createdAt)),
+    ...countdowns.map((c) => mk(c.id, "countdowns", c.creator, "started a countdown to", c.title, "/countdowns", c.createdAt)),
     ...playing.map((n) =>
       mk(
         n.id,

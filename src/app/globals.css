@@ -37,6 +37,22 @@
     @apply w-full border-3 border-ink bg-card px-3 py-2 font-body text-ink placeholder:text-ink/40 focus:outline-none focus:shadow-brutal-sm;
   }
 
+  /* On-theme scroll region: square ink thumb on a paper track. */
+  .brutal-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #101010 #f4f1ea;
+  }
+  .brutal-scroll::-webkit-scrollbar {
+    width: 10px;
+  }
+  .brutal-scroll::-webkit-scrollbar-track {
+    background: #f4f1ea;
+    border-left: 2px solid #101010;
+  }
+  .brutal-scroll::-webkit-scrollbar-thumb {
+    background: #101010;
+  }
+
   .brutal-label {
     @apply mb-1 block font-mono text-xs font-bold uppercase tracking-widest;
   }

@@ -6,6 +6,23 @@ import { confettiBurst, confettiCelebrate } from "@/lib/confetti";
 import { Avatar, Badge } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { StampOverlay, useActionStamp, type StampTone } from "@/components/ActionFx";
+import { useCountdown } from "@/lib/useCountdown";
+
+/** Live "resolves in 3d 4h" chip; goes urgent inside the final 24h. */
+function DeadlineChip({ resolvesAt }: { resolvesAt: string }) {
+  const t = useCountdown(resolvesAt);
+  const urgent = t.ready && !t.done && t.ms < 86_400_000;
+  return (
+    <Badge
+      className={`inline-flex items-center gap-1.5 tabular-nums ${
+        urgent ? "bg-accent-punch text-white" : "bg-paper"
+      }`}
+    >
+      <PixelIcon name="clock" size={13} />
+      {t.ready ? `resolves in ${t.label}` : `resolves ${new Date(resolvesAt).toLocaleDateString()}`}
+    </Badge>
+  );
+}
 
 export type ClaimView = {
   id: string;
@@ -132,16 +149,12 @@ export function ClaimCard({ claim }: { claim: ClaimView }) {
           >
             {claim.outcome === "right" ? "✓ RIGHT" : claim.outcome === "wrong" ? "✗ WRONG" : "VOID"}
           </Badge>
-        ) : (
-          <Badge className={`inline-flex items-center gap-1.5 ${overdue ? "bg-accent-yellow" : "bg-paper"}`}>
-            {overdue ? (
-              <>
-                <PixelIcon name="clock" size={13} /> awaiting verdict
-              </>
-            ) : (
-              `resolves ${new Date(claim.resolvesAt).toLocaleDateString()}`
-            )}
+        ) : overdue ? (
+          <Badge className="inline-flex items-center gap-1.5 bg-accent-yellow">
+            <PixelIcon name="clock" size={13} /> awaiting verdict
           </Badge>
+        ) : (
+          <DeadlineChip resolvesAt={claim.resolvesAt} />
         )}
       </div>
 
