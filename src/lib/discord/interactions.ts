@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { User } from "@prisma/client";
 import { db } from "@/lib/db";
+import { DISCORD_API, botConfig } from "@/lib/discord/bot";
 import { withOutbox } from "@/lib/outbox";
 
 /**
@@ -24,11 +25,26 @@ const EPHEMERAL = 64;
 
 type Interaction = {
   type: number;
-  data?: { name?: string; custom_id?: string; values?: string[] };
+  token?: string;
+  data?: { name?: string; custom_id?: string; values?: string[]; options?: CommandOption[] };
   member?: { user?: DiscordUser };
   user?: DiscordUser;
 };
+type CommandOption = {
+  name: string;
+  type: number;
+  value?: string | number | boolean;
+  options?: CommandOption[];
+};
 type DiscordUser = { id: string; username?: string; global_name?: string | null };
+
+function optValue(options: CommandOption[] | undefined, name: string): string | undefined {
+  const v = options?.find((o) => o.name === name)?.value;
+  return v === undefined ? undefined : String(v);
+}
+
+/** Discord-native timestamp markup: renders in each viewer's timezone. */
+const ts = (d: Date, style: "f" | "R" | "d") => `<t:${Math.floor(d.getTime() / 1000)}:${style}>`;
 
 const LINK_CODE_TTL_MS = 10 * 60 * 1000;
 // No 0/O/1/I — the user retypes this by hand.
@@ -52,11 +68,38 @@ export async function handleInteraction(interaction: Interaction): Promise<objec
   if (!discordUser?.id) return ephemeralReply("Couldn't tell who you are. Try again.");
 
   if (interaction.type === 2) {
-    switch (interaction.data?.name) {
-      case "link":
-        return handleLink(discordUser);
-      case "unlink":
-        return handleUnlink(discordUser);
+    const name = interaction.data?.name;
+    if (name === "link") return handleLink(discordUser);
+    if (name === "unlink") return handleUnlink(discordUser);
+
+    // Every other command acts as a UDM+ user.
+    const user = await db.user.findUnique({ where: { discordUserId: discordUser.id } });
+    if (!user) {
+      return ephemeralReply(
+        "Your Discord isn't linked to UDM+ yet — run `/link` and enter the code on your profile page first."
+      );
+    }
+    const options = interaction.data?.options;
+    switch (name) {
+      case "events":
+        return handleEvents(user);
+      case "countdowns":
+        return handleCountdowns();
+      case "coins":
+        return handleCoins(user, optValue(options, "user"));
+      case "pet":
+        return handlePet(user);
+      case "idea":
+        return handleIdeaCreate(user, optValue(options, "title"), optValue(options, "detail"));
+      case "wishlist": {
+        const add = options?.find((o) => o.name === "add");
+        return handleWishlistAdd(
+          user,
+          optValue(add?.options, "url"),
+          optValue(add?.options, "title"),
+          interaction.token
+        );
+      }
       default:
         return ephemeralReply("Unknown command.");
     }
@@ -102,6 +145,8 @@ async function handleComponent(
       return handleClaim(user, rest[0]);
     case "idea":
       return handleIdeaUpvote(user, rest[1]);
+    case "pet":
+      return handlePetNudge(user);
     default:
       return ephemeralReply("That button isn't wired to anything.");
   }
@@ -277,6 +322,171 @@ async function handleIdeaUpvote(user: User, ideaId: string): Promise<object> {
   );
 
   return ephemeralReply(`Upvoted **${idea.title}** — ${voteCount} vote${voteCount === 1 ? "" : "s"}.`);
+}
+
+// --- Phase 3: slash commands (reads + light writes) ---
+
+async function handleEvents(user: User): Promise<object> {
+  const events = await db.event.findMany({
+    where: { startAt: { gte: new Date() } },
+    orderBy: { startAt: "asc" },
+    take: 5,
+    include: { rsvps: true },
+  });
+  if (events.length === 0) {
+    return ephemeralReply("Nothing on the calendar. Someone should fix that.");
+  }
+
+  const lines = events.map((e) => {
+    const going = e.rsvps.filter((r) => r.status === "going").length;
+    const maybe = e.rsvps.filter((r) => r.status === "maybe").length;
+    const mine = e.rsvps.find((r) => r.userId === user.id)?.status;
+    const you = mine === "going" ? "you're in" : mine === "maybe" ? "you're a maybe" : mine === "no" ? "you're out" : "no RSVP yet";
+    return `**${e.title}** — ${ts(e.startAt, "f")} (${ts(e.startAt, "R")})${e.location ? ` · ${e.location}` : ""}\n· ${going} going, ${maybe} maybe — ${you}`;
+  });
+  return ephemeralReply(`**Next up:**\n\n${lines.join("\n\n")}`);
+}
+
+async function handleCountdowns(): Promise<object> {
+  const clocks = await db.countdown.findMany({
+    where: { targetAt: { gte: new Date() } },
+    orderBy: { targetAt: "asc" },
+    take: 8,
+  });
+  if (clocks.length === 0) return ephemeralReply("No clocks running. `/countdowns` on the app to start one.");
+
+  const lines = clocks.map(
+    (c) => `${c.emoji ? `${c.emoji} ` : ""}**${c.title}** — lands ${ts(c.targetAt, "R")} (${ts(c.targetAt, "d")})`
+  );
+  return ephemeralReply(`**Counting down to:**\n\n${lines.join("\n")}`);
+}
+
+async function handleCoins(user: User, targetDiscordId: string | undefined): Promise<object> {
+  let target = user;
+  if (targetDiscordId && targetDiscordId !== user.discordUserId) {
+    const other = await db.user.findUnique({ where: { discordUserId: targetDiscordId } });
+    if (!other) return ephemeralReply("That person hasn't linked their Discord to UDM+.");
+    target = other;
+  }
+  const recent = await db.coinTransaction.findMany({
+    where: { userId: target.id },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { amount: true, reason: true },
+  });
+  const whose = target.id === user.id ? "You have" : `**${target.displayName}** has`;
+  const ledger = recent.length
+    ? `\n\nRecent:\n${recent.map((t) => `· ${t.amount > 0 ? "+" : ""}${t.amount} — ${t.reason}`).join("\n")}`
+    : "";
+  return ephemeralReply(`${whose} **${target.coins.toLocaleString("en-US")} coins**.${ledger}`);
+}
+
+async function handlePet(user: User): Promise<object> {
+  // Lazy: keeps the pet engine (and its icon imports) out of the
+  // interactions path unless asked for.
+  const { getPetView, MOOD_LABEL, STAGE_TITLE } = await import("@/modules/pet/engine");
+  const pet = await getPetView(user.id);
+  const diet = pet.diet.length
+    ? `\nThis week's diet: ${pet.diet.map((d) => `${d.label} ×${d.count}`).join(", ")}`
+    : "";
+  return {
+    type: 4,
+    data: {
+      content: `**${pet.name}** the ${STAGE_TITLE[pet.stage]} is feeling **${MOOD_LABEL[pet.mood]}**.${diet}\n${pet.nudgesToday} pat${pet.nudgesToday === 1 ? "" : "s"} today.`,
+      flags: EPHEMERAL,
+      components: pet.canNudge
+        ? [{ type: 1, components: [{ type: 2, style: 1, label: "Pat the pet", custom_id: "pet:nudge" }] }]
+        : [],
+    },
+  };
+}
+
+async function handlePetNudge(user: User): Promise<object> {
+  // Same one-per-day rule as /api/pet/nudge.
+  const since = new Date(Date.now() - 86_400_000);
+  const already = await db.petNudge.count({ where: { userId: user.id, createdAt: { gte: since } } });
+  if (already > 0) return ephemeralReply("You already patted today — share the love tomorrow.");
+
+  await withOutbox(
+    (tx) => tx.petNudge.create({ data: { userId: user.id } }),
+    () => ({ type: "pet.nudged", payload: { by: user.id } })
+  );
+  return { type: 7, data: { content: "Patted. The pet wiggles appreciatively.", components: [] } };
+}
+
+async function handleIdeaCreate(
+  user: User,
+  title: string | undefined,
+  detail: string | undefined
+): Promise<object> {
+  const trimmed = title?.trim();
+  if (!trimmed) return ephemeralReply("Give the idea a title.");
+
+  // Mirrors POST /api/ideas, including the author's automatic self-vote.
+  await withOutbox(
+    async (tx) => {
+      const idea = await tx.idea.create({
+        data: { authorId: user.id, title: trimmed.slice(0, 200), detail: detail?.trim() || null },
+      });
+      await tx.ideaVote.create({ data: { ideaId: idea.id, userId: user.id } });
+      return idea;
+    },
+    (i) => ({ type: "idea.created", payload: { ideaId: i.id, title: i.title, authorId: user.id } })
+  );
+  return ephemeralReply(`Idea pitched: **${trimmed}** — the card (with its upvote button) is on the way.`);
+}
+
+async function handleWishlistAdd(
+  user: User,
+  url: string | undefined,
+  title: string | undefined,
+  interactionToken: string | undefined
+): Promise<object> {
+  if (!url || !/^https?:\/\//i.test(url)) {
+    return ephemeralReply("Give me a full http(s) link.");
+  }
+
+  // The OG scrape can take seconds — past Discord's 3s ack window. Ack
+  // with a deferred ephemeral response (type 5), do the work, then edit
+  // the original via the interaction-token webhook. Railway is one
+  // long-lived process, so post-response work is safe here.
+  const { appId } = botConfig();
+  const finish = async () => {
+    let content: string;
+    try {
+      const { fetchLinkPreview } = await import("@/modules/wishlist/linkPreview");
+      const preview = await fetchLinkPreview(url).catch(() => null);
+      const finalTitle =
+        title?.trim() || preview?.title || new URL(url).hostname.replace(/^www\./, "");
+      const item = await withOutbox(
+        (tx) =>
+          tx.wishlistItem.create({
+            data: {
+              userId: user.id,
+              title: finalTitle.slice(0, 200),
+              url,
+              imageUrl: preview?.imageUrl ?? null,
+              siteName: preview?.siteName ?? null,
+            },
+          }),
+        (i) => ({ type: "wishlist.added", payload: { itemId: i.id, userId: user.id, title: i.title } })
+      );
+      content = `Wishlisted: **${item.title}** ✓`;
+    } catch (err) {
+      console.error("[discord] wishlist add failed:", err);
+      content = "Couldn't add that — try it from the app.";
+    }
+    if (appId && interactionToken) {
+      await fetch(`${DISCORD_API}/webhooks/${appId}/${interactionToken}/messages/@original`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      }).catch((err) => console.error("[discord] follow-up failed:", err));
+    }
+  };
+  void finish();
+
+  return { type: 5, data: { flags: EPHEMERAL } }; // deferred ephemeral
 }
 
 async function handleLink(discordUser: DiscordUser): Promise<object> {

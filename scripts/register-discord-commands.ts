@@ -20,6 +20,7 @@ if (existsSync(envPath)) {
   }
 }
 
+// Option types: 1 sub-command, 3 string, 6 user.
 const COMMANDS = [
   {
     name: "link",
@@ -30,6 +31,54 @@ const COMMANDS = [
     name: "unlink",
     description: "Disconnect this Discord account from UDM+",
     type: 1,
+  },
+  {
+    name: "events",
+    description: "The next few events, with RSVP counts and your status",
+    type: 1,
+  },
+  {
+    name: "countdowns",
+    description: "Active countdown clocks",
+    type: 1,
+  },
+  {
+    name: "coins",
+    description: "Coin balance and recent earnings",
+    type: 1,
+    options: [
+      { name: "user", description: "Whose balance (default: you)", type: 6, required: false },
+    ],
+  },
+  {
+    name: "pet",
+    description: "Check on the pet (and give it a pat)",
+    type: 1,
+  },
+  {
+    name: "idea",
+    description: "Pitch an idea to the suggestion box",
+    type: 1,
+    options: [
+      { name: "title", description: "The idea", type: 3, required: true, max_length: 200 },
+      { name: "detail", description: "Optional detail", type: 3, required: false, max_length: 1000 },
+    ],
+  },
+  {
+    name: "wishlist",
+    description: "Wishlist quick actions",
+    type: 1,
+    options: [
+      {
+        name: "add",
+        description: "Add a link to your wishlist",
+        type: 1,
+        options: [
+          { name: "url", description: "Product link", type: 3, required: true },
+          { name: "title", description: "Override the auto-detected title", type: 3, required: false, max_length: 200 },
+        ],
+      },
+    ],
   },
 ];
 

@@ -1,6 +1,6 @@
 # Discord Integration — Scope
 
-Status: **Phases 1–2 shipped** (bot + linking; RSVP/Vote/Claim/Upvote buttons on feed cards). Phase 3 (slash commands) open — claim it by updating this doc.
+Status: **Phases 1–3 shipped** (bot + linking; RSVP/Vote/Claim/Upvote buttons; /events /countdowns /coins /pet /idea /wishlist-add slash commands). Future ideas welcome — extend via componentsFor (feed.ts) + handlers (interactions.ts) + COMMANDS (register script).
 
 ## Where we are
 
