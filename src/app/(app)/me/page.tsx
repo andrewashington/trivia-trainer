@@ -6,6 +6,7 @@ import { currentUser } from "@/lib/session";
 import { Avatar, Badge, Card } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { ProfileForm } from "@/components/ProfileForm";
+import { parseAvatarConfig } from "@/lib/avatar";
 import { ContactCardForm } from "@/modules/contacts/ContactCardForm";
 
 export const metadata = { title: "You" };
@@ -46,7 +47,7 @@ export default async function MePage() {
       <ProfileForm
         initialName={user.displayName}
         initialVenmo={user.venmoHandle ? `@${user.venmoHandle}` : ""}
-        initialAvatarUrl={user.avatarUrl}
+        initialAvatarConfig={parseAvatarConfig(user.avatarConfig)}
       />
 
       <div id="card">

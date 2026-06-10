@@ -3,7 +3,7 @@ import { z } from "zod";
 import { apiHandler, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { isDicebearUrl } from "@/lib/avatar";
+import { avatarUrlFromConfig, parseAvatarConfig } from "@/lib/avatar";
 import { modules } from "@/modules/registry";
 
 const onboardingInput = z.discriminatedUnion("action", [
@@ -11,11 +11,8 @@ const onboardingInput = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("complete"),
     displayName: z.string().trim().min(1).max(100).optional(),
-    avatarUrl: z
-      .string()
-      .max(300)
-      .refine(isDicebearUrl, "Avatars must come from DiceBear.")
-      .optional(),
+    // Structured Open Peeps config; URL rebuilt server-side (see /api/me).
+    avatarConfig: z.unknown().optional(),
   }),
   // Dismiss one module's first-visit intro card.
   z.object({
@@ -31,12 +28,13 @@ export const POST = apiHandler(async (req: Request) => {
   const input = await parseBody(req, onboardingInput);
 
   if (input.action === "complete") {
+    const config = input.avatarConfig !== undefined ? parseAvatarConfig(input.avatarConfig) : null;
     const updated = await db.user.update({
       where: { id: user.id },
       data: {
         onboardedAt: user.onboardedAt ?? new Date(),
         ...(input.displayName ? { displayName: input.displayName } : {}),
-        ...(input.avatarUrl ? { avatarUrl: input.avatarUrl } : {}),
+        ...(config ? { avatarConfig: config, avatarUrl: avatarUrlFromConfig(config) } : {}),
       },
       select: { id: true, displayName: true, avatarUrl: true, onboardedAt: true },
     });
