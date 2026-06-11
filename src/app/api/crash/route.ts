@@ -57,9 +57,11 @@ export const GET = apiHandler(async () => {
     });
   }
 
-  // Round is still live — return safe fields (no crashPoint).
+  // Round is still live — return safe fields (no crashPoint) plus the
+  // server's current time so the client can sync its animation clock.
   return NextResponse.json({
     round: { id: round.id, stake: round.stake, startedAt: round.startedAt },
+    serverNow: Date.now(),
   });
 });
 
@@ -119,9 +121,9 @@ export const POST = apiHandler(async (req: Request) => {
       select: { id: true, stake: true, startedAt: true },
     });
 
-    return newRound;
+    return { ...newRound, serverNow: now.getTime() };
   });
 
-  // Return the round without crashPoint.
+  // Return the round without crashPoint, plus server time for clock sync.
   return NextResponse.json(result);
 });

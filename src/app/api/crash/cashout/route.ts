@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { apiHandler } from "@/lib/api";
+import { apiHandler, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { HttpError, requireUser } from "@/lib/session";
 import {
@@ -8,6 +8,7 @@ import {
   payout,
 } from "@/modules/arcade/bank";
 import { multiplierAt } from "@/modules/crash/curve";
+import { cashoutInput } from "@/modules/crash/schema";
 
 /**
  * POST /api/crash/cashout — attempt to cash out the active round.
@@ -21,8 +22,9 @@ import { multiplierAt } from "@/modules/crash/curve";
  * both pay out — if the round was already settled the guard hits 0 rows
  * and we throw 409.
  */
-export const POST = apiHandler(async () => {
+export const POST = apiHandler(async (req: Request) => {
   const user = await requireUser();
+  const { multiplier: shownMultiplier } = await parseBody(req, cashoutInput);
 
   const result = await db.$transaction(async (tx) => {
     // Load the active round.
@@ -42,11 +44,17 @@ export const POST = apiHandler(async () => {
 
     const now = Date.now();
     const elapsedMs = now - round.startedAt.getTime();
-    const m = multiplierAt(elapsedMs);
+    const serverM = multiplierAt(elapsedMs);
     const settledAt = new Date(now);
 
+    // Honor the multiplier the player actually saw, but never pay more than
+    // the server's own clock allows (guards against an inflated client
+    // value). With clock sync the two agree, so the payout matches the
+    // displayed number.
+    const m = Math.max(1, Math.min(shownMultiplier, serverM));
+
     if (m >= round.crashPoint) {
-      // Too late — the multiplier has already passed the crash point.
+      // The value the player cashed at had already reached the crash point.
       const updated = await tx.crashRound.updateMany({
         where: { id: round.id, status: "active" },
         data: { status: "busted", settledAt },

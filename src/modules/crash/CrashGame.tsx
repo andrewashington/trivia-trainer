@@ -16,10 +16,10 @@ type ActiveRound = {
 };
 
 type GetResponse =
-  | { round: ActiveRound; justBusted?: never }
-  | { round: null; justBusted?: { crashPoint: number } };
+  | { round: ActiveRound; serverNow: number; justBusted?: never }
+  | { round: null; serverNow?: number; justBusted?: { crashPoint: number } };
 
-type StartResponse = { id: string; stake: number; startedAt: string };
+type StartResponse = { id: string; stake: number; startedAt: string; serverNow: number };
 
 type CashoutBusted = { busted: true; crashPoint: number; coins: number };
 type CashoutWin = {
@@ -54,12 +54,19 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
   const rafRef = useRef<number | null>(null);
   const phaseRef = useRef<Phase>(phase);
   phaseRef.current = phase;
+  // Estimated (serverClock − deviceClock) offset, so the multiplier we
+  // animate matches what the server computes regardless of device clock.
+  const clockOffsetRef = useRef(0);
+
+  /** Multiplier the player is currently being shown, on the server's clock. */
+  const shownMultiplierAt = useCallback((startedAtMs: number) => {
+    return multiplierAt(Date.now() + clockOffsetRef.current - startedAtMs);
+  }, []);
 
   /* ── Animation loop ── */
   const startLoop = useCallback((startedAtMs: number) => {
     const tick = () => {
-      const elapsed = Date.now() - startedAtMs;
-      const m = multiplierAt(elapsed);
+      const m = shownMultiplierAt(startedAtMs);
       setLiveMultiplier(m);
 
       // Safety: auto-cashout if we somehow reach MAX_MULTIPLIER
@@ -90,7 +97,8 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
           // Crashed while we were away — show bust state.
           setPhase({ tag: "bust", crashPoint: data.justBusted.crashPoint, stake: 0 });
         } else if (data.round) {
-          // Resume an active round.
+          // Resume an active round — sync our clock to the server first.
+          clockOffsetRef.current = (data.serverNow ?? Date.now()) - Date.now();
           const startedAtMs = new Date(data.round.startedAt).getTime();
           setPhase({ tag: "live", roundId: data.round.id, stake: data.round.stake, startedAtMs });
           startLoop(startedAtMs);
@@ -111,6 +119,9 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
         method: "POST",
         body: { bet },
       });
+      // Sync our animation clock to the server's so the displayed
+      // multiplier matches what the server will compute.
+      clockOffsetRef.current = res.serverNow - Date.now();
       const startedAtMs = new Date(res.startedAt).getTime();
       setLiveMultiplier(1.0);
       setPhase({ tag: "live", roundId: res.id, stake: res.stake, startedAtMs });
@@ -127,10 +138,15 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
     if (phaseRef.current.tag !== "live") return;
     stopLoop();
     const stakeAtCashout = phaseRef.current.stake;
+    // The exact value on screen at the tap — the server pays this.
+    const shown = shownMultiplierAt(phaseRef.current.startedAtMs);
     setBusy(true);
     setError(null);
     try {
-      const res = await api<CashoutResponse>("/api/crash/cashout", { method: "POST" });
+      const res = await api<CashoutResponse>("/api/crash/cashout", {
+        method: "POST",
+        body: { multiplier: shown },
+      });
       setCoins(res.coins);
       if (res.busted) {
         setPhase({ tag: "bust", crashPoint: res.crashPoint, stake: stakeAtCashout });
