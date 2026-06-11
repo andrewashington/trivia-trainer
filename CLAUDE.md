@@ -37,6 +37,23 @@ A broken deploy is cheap to undo — prefer rollback over heavier gatekeeping:
 - Avoid `push --force` to roll back; a `revert` keeps history honest and
   doesn't break other clones.
 
+### The lockfile trap (read before committing deps)
+Railway's Dockerfile builds with **Node 22 + `npm ci`**, which hard-fails if
+`package-lock.json` is even slightly out of sync with `package.json`.
+`tsc`/typecheck does NOT catch this — it only shows up in the Railway build.
+- **Don't commit incidental lockfile churn.** A local `npm install` on a
+  different Node/npm version (e.g. Node 25) silently rewrites
+  `package-lock.json` (hoisting, optional peers like nodemailer). If you
+  didn't intentionally change deps, **don't stage that diff** — restore it:
+  `git checkout origin/main -- package-lock.json`.
+- **Never `git add -A` blindly.** Stage the files you actually changed;
+  review `git status` first so an unrelated lockfile rewrite doesn't ride
+  along.
+- **When you DO add/remove a dep:** change `package.json`, run `npm install`
+  to update the lockfile, commit both together. If the Railway build then
+  rejects the lockfile, it's a Node-version mismatch — match Railway by
+  using Node 22 locally (`nvm use 22`; the repo pins it via `.nvmrc`).
+
 ## Parallel sessions
 Multiple Claude sessions often work this repo at once, each on its own
 feature. Keep that cheap:
