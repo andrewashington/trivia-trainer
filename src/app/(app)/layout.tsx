@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signOut } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { unreadCounts } from "@/lib/unread";
 import { Logo } from "@/components/Logo";
@@ -14,6 +15,7 @@ import { CoinBadge } from "@/components/CoinBadge";
 import { PresenceBadge } from "@/components/PresenceBadge";
 import { CommandButton } from "@/components/command/CommandButton";
 import { FeedbackButton } from "@/components/FeedbackButton";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export default async function AppLayout({
   children,
@@ -30,6 +32,7 @@ export default async function AppLayout({
 
   const isAdmin = user.role === "admin";
   const counts = await unreadCounts(user);
+  const notifUnread = await db.notification.count({ where: { userId: user.id, readAt: null } });
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl">
@@ -48,6 +51,7 @@ export default async function AppLayout({
           <div className="flex items-center gap-2 md:gap-3">
             <PresenceBadge />
             <CoinBadge initialCoins={user.coins} />
+            <NotificationBell initialUnread={notifUnread} />
             <CommandButton />
             <UserMenu
               name={user.displayName}

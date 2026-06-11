@@ -3,30 +3,8 @@ import { apiHandler, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { withOutbox } from "@/lib/outbox";
 import { HttpError, requireUser } from "@/lib/session";
-import { commentInput, commentQuery, type CommentTargetType } from "@/modules/comments/schema";
-
-/** No FK to the target, so insertion validates the target exists here. */
-const TARGET_LOOKUPS: Record<CommentTargetType, (id: string) => Promise<unknown>> = {
-  poll: (id) => db.poll.findUnique({ where: { id }, select: { id: true } }),
-  idea: (id) => db.idea.findUnique({ where: { id }, select: { id: true } }),
-  event: (id) => db.event.findUnique({ where: { id }, select: { id: true } }),
-  recipe: (id) => db.recipe.findUnique({ where: { id }, select: { id: true } }),
-  file: (id) => db.fileObject.findUnique({ where: { id }, select: { id: true } }),
-  tierlist: (id) => db.tierList.findUnique({ where: { id }, select: { id: true } }),
-  listing: (id) => db.listing.findUnique({ where: { id }, select: { id: true } }),
-  challenge: (id) => db.challenge.findUnique({ where: { id }, select: { id: true } }),
-  photo: (id) => db.photobookPhoto.findUnique({ where: { id }, select: { id: true } }),
-  countdown: (id) => db.countdown.findUnique({ where: { id }, select: { id: true } }),
-  nowplaying: (id) => db.nowPlayingItem.findUnique({ where: { id }, select: { id: true } }),
-  claim: (id) => db.claim.findUnique({ where: { id }, select: { id: true } }),
-  wish: (id) => db.wishlistItem.findUnique({ where: { id }, select: { id: true } }),
-  smashdeck: (id) => db.smashDeck.findUnique({ where: { id }, select: { id: true } }),
-};
-
-async function assertTargetExists(targetType: CommentTargetType, targetId: string) {
-  const found = await TARGET_LOOKUPS[targetType](targetId);
-  if (!found) throw new HttpError(404, "That item no longer exists.");
-}
+import { commentInput, commentQuery } from "@/modules/comments/schema";
+import { resolveOwner, TARGET_LABEL, hrefForTarget } from "@/modules/comments/targets";
 
 export const GET = apiHandler(async (req: Request) => {
   await requireUser();
@@ -55,18 +33,36 @@ export const GET = apiHandler(async (req: Request) => {
 export const POST = apiHandler(async (req: Request) => {
   const user = await requireUser();
   const data = await parseBody(req, commentInput);
-  await assertTargetExists(data.targetType, data.targetId);
+
+  const ownerId = await resolveOwner(data.targetType, data.targetId);
+  if (ownerId === null) throw new HttpError(404, "That item no longer exists.");
 
   const comment = await withOutbox(
-    (tx) =>
-      tx.comment.create({
+    async (tx) => {
+      const c = await tx.comment.create({
         data: {
           targetType: data.targetType,
           targetId: data.targetId,
           authorId: user.id,
           body: data.body,
         },
-      }),
+      });
+      if (ownerId !== user.id) {
+        await tx.notification.create({
+          data: {
+            userId: ownerId,
+            type: "comment",
+            actorId: user.id,
+            targetType: c.targetType,
+            targetId: c.targetId,
+            title: `${user.displayName} commented on your ${TARGET_LABEL[data.targetType]}`,
+            body: c.body.slice(0, 160),
+            href: hrefForTarget(data.targetType, data.targetId),
+          },
+        });
+      }
+      return c;
+    },
     (c) => ({
       type: "comment.created",
       payload: {
