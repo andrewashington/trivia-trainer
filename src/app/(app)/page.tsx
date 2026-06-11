@@ -54,32 +54,33 @@ const HOURLY_GREETINGS = [
   "One last scroll", // 23
 ];
 
-// The bizarre second line, one per hour. Renders small under the greeting.
-const HOURLY_ASIDES = [
-  "the raccoons have started their shift", // 0
-  "somewhere, a microwave clock still blinks 12:00", // 1
-  "this hour is legally a cry for help", // 2
-  "even the ghosts think this is excessive", // 3
-  "the birds are stretching. they know what they did", // 4
-  "dew is forming. on everything. unsettling", // 5
-  "the sun has clocked in and expects the same of you", // 6
-  "toast statistically imminent", // 7
-  "cereal negotiations are underway worldwide", // 8
-  "coffee number two is watching coffee number one", // 9
-  "this is the hour meetings were invented to ruin", // 10
-  "your stomach has begun drafting its demands", // 11
-  "the sun is directly overhead and judging", // 12
-  "a sandwich somewhere was eaten too fast. tragic", // 13
-  "office plants are at peak photosynthesis. show respect", // 14
-  "the slump is not a myth. hydrate or perish", // 15
-  "the clock's just showing off now", // 16
-  "somewhere a commuter just sighed in traffic. for you", // 17
-  "stoves across the land are heating with intent", // 18
-  "the streetlights are voting on when to turn on", // 19
-  "couches everywhere brace for impact", // 20
-  "your phone brightness should be illegal right now", // 21
-  "the dishwasher hums its one good song", // 22
-  "tomorrow is already loading. no rush though", // 23
+// The 25%-roll variants: ironic, satirical, unnecessarily grandiose.
+// Hour-matched to the standard set; rolled fresh on every page render.
+const HOURLY_GREETINGS_ZANY = [
+  "Embrace the void", // 0
+  "Your ancestors slept for this?", // 1
+  "Honored guest of the insomnia society", // 2
+  "The demons are impressed, frankly", // 3
+  "Hark — the world's forklifts awaken", // 4
+  "Salute the dawn, you absolute machine", // 5
+  "Another day of limitless productivity awaits", // 6
+  "Seize the morning before it seizes you", // 7
+  "The grind welcomes its favorite cog", // 8
+  "Synergy levels rising dangerously", // 9
+  "Peak civilization happens now", // 10
+  "Hold strong — lunch approaches like destiny", // 11
+  "The sun has reached maximum judgment", // 12
+  "Welcome back from your lunch-based journey", // 13
+  "Productivity theater, act two", // 14
+  "All hail the sacred slump", // 15
+  "The finish line shimmers, mirage-like", // 16
+  "You are legally free, citizen", // 17
+  "Feast hours have commenced", // 18
+  "Twilight approves of your choices, barely", // 19
+  "Prime time, as foretold by the prophecy", // 20
+  "The couch has fully claimed you", // 21
+  "Society sleeps; legends scroll", // 22
+  "One final act of defiance before bed", // 23
 ];
 
 // The server clock is UTC on Railway, so the greeting buckets by the
@@ -103,11 +104,10 @@ function homeHour(): number {
 }
 
 function greeting(): string {
-  return HOURLY_GREETINGS[homeHour()] ?? "Good day";
-}
-
-function hourlyAside(): string | null {
-  return HOURLY_ASIDES[homeHour()] ?? null;
+  const h = homeHour();
+  // One roll per render: usually the standard line, sometimes the zany one.
+  const deck = Math.random() < 0.25 ? HOURLY_GREETINGS_ZANY : HOURLY_GREETINGS;
+  return deck[h] ?? "Good day";
 }
 
 function timeAgo(d: Date): string {
@@ -303,11 +303,6 @@ export default async function HomePage() {
           <p className="mt-0.5 font-mono text-xs uppercase tracking-widest text-ink/50">
             The group home base
           </p>
-          {hourlyAside() && (
-            <p className="mt-0.5 font-mono text-[10px] lowercase tracking-wide text-ink/45">
-              ({hourlyAside()})
-            </p>
-          )}
           {fact && (
             <p className="mt-1 max-w-md font-mono text-[10px] uppercase tracking-wide text-ink/40">
               On this day · {fact.text}
