@@ -1049,11 +1049,12 @@ model SmashDeck {
 }
 
 model SmashCard {
-  id       String  @id @default(cuid())
-  deckId   String
-  label    String
-  imageUrl String?
-  position Int     @default(0)
+  id         String  @id @default(cuid())
+  deckId     String
+  label      String
+  imageUrl   String? // external link, mutually exclusive with storageKey
+  storageKey String? // uploaded image in the S3 bucket (same flow as photobook)
+  position   Int     @default(0)
 
   deck  SmashDeck   @relation(fields: [deckId], references: [id], onDelete: Cascade)
   votes SmashVote[]

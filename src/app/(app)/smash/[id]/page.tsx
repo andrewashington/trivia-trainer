@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
+import { presignView } from "@/lib/storage";
 import { SmashGame, type DeckView } from "@/modules/smash/SmashGame";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,22 @@ export default async function SmashDeckPage({ params }: { params: { id: string }
     where: { targetType: "smashdeck", targetId: deck.id },
   });
 
+  // Uploaded card images live in the private bucket — presign view URLs
+  // (signing is local/cheap; the page is force-dynamic so they stay fresh).
+  const signed = new Map<string, string>(
+    await Promise.all(
+      deck.cards
+        .filter((c) => c.storageKey)
+        .map(async (c): Promise<[string, string]> => {
+          try {
+            return [c.id, await presignView(c.storageKey!)];
+          } catch {
+            return [c.id, ""];
+          }
+        })
+    )
+  );
+
   const view: DeckView = {
     id: deck.id,
     title: deck.title,
@@ -39,7 +56,7 @@ export default async function SmashDeckPage({ params }: { params: { id: string }
     cards: deck.cards.map((c) => ({
       id: c.id,
       label: c.label,
-      imageUrl: c.imageUrl,
+      imageUrl: signed.get(c.id) || c.imageUrl,
       votes: c.votes.map((v) => ({
         userId: v.user.id,
         userName: v.user.displayName,

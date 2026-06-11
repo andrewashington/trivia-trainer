@@ -3,6 +3,7 @@ import { apiHandler } from "@/lib/api";
 import { db } from "@/lib/db";
 import { withOutbox } from "@/lib/outbox";
 import { assertCanModify, HttpError, requireUser } from "@/lib/session";
+import { deleteObject } from "@/lib/storage";
 
 type Ctx = { params: { id: string } };
 
@@ -49,7 +50,10 @@ export const GET = apiHandler(async (_req: Request, { params }: Ctx) => {
 
 export const DELETE = apiHandler(async (_req: Request, { params }: Ctx) => {
   const user = await requireUser();
-  const existing = await db.smashDeck.findUnique({ where: { id: params.id } });
+  const existing = await db.smashDeck.findUnique({
+    where: { id: params.id },
+    include: { cards: { select: { storageKey: true } } },
+  });
   if (!existing) throw new HttpError(404, "Deck not found.");
   assertCanModify(user, existing.creatorId);
 
@@ -60,5 +64,14 @@ export const DELETE = apiHandler(async (_req: Request, { params }: Ctx) => {
       payload: { deckId: existing.id, title: existing.title, deletedBy: user.id },
     })
   );
+
+  // Best-effort bucket cleanup of uploaded card images — an orphaned
+  // object must not fail the delete.
+  await Promise.all(
+    existing.cards
+      .filter((c) => c.storageKey)
+      .map((c) => deleteObject(c.storageKey!).catch(() => {}))
+  );
+
   return NextResponse.json({ ok: true });
 });
