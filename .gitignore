@@ -29,3 +29,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# licensed asset packs (LimeZu) — repo is public, these must NEVER be committed
+/assets-src/
