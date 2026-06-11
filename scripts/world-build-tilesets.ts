@@ -86,18 +86,28 @@ function cornerWang(
   bc: number,
   br: number,
   cc: number,
-  cr: number
+  cr: number,
+  // additional plain-fill variant tiles to recognize as solid inner/outer,
+  // so the brush can transition from any base fill the map already uses
+  extraIn: [number, number][] = [],
+  extraOut: [number, number][] = []
 ) {
   const id = (c: number, r: number) => r * cols + c;
   // wangid = T,TR,R,BR,B,BL,L,TL ; corner sets use indices 1,3,5,7 ; 1=inner 2=outer
-  const w = (tr: number, brr: number, bl: number, tl: number, tile: number) =>
-    `  <wangtile tileid="${tile}" wangid="0,${tr},0,${brr},0,${bl},0,${tl}"/>`;
+  const seen = new Set<number>();
+  const w = (tr: number, brr: number, bl: number, tl: number, tile: number) => {
+    if (seen.has(tile)) return "";
+    seen.add(tile);
+    return `  <wangtile tileid="${tile}" wangid="0,${tr},0,${brr},0,${bl},0,${tl}"/>`;
+  };
   return [
     ` <wangset name="${name}" type="corner" tile="-1">`,
     `  <wangcolor name="${inner}" color="#00ff00" tile="${id(...fillIn)}" probability="1"/>`,
     `  <wangcolor name="${outer}" color="#0000ff" tile="${id(...fillOut)}" probability="1"/>`,
     w(1, 1, 1, 1, id(...fillIn)),
     w(2, 2, 2, 2, id(...fillOut)),
+    ...extraIn.map(([c, r]) => w(1, 1, 1, 1, id(c, r))),
+    ...extraOut.map(([c, r]) => w(2, 2, 2, 2, id(c, r))),
     w(2, 1, 2, 2, id(bc, br)), w(2, 1, 1, 2, id(bc + 1, br)), w(2, 2, 1, 2, id(bc + 2, br)),
     w(1, 1, 2, 2, id(bc, br + 1)), w(1, 1, 1, 1, id(bc + 1, br + 1)), w(2, 2, 1, 1, id(bc + 2, br + 1)),
     w(1, 2, 2, 2, id(bc, br + 2)), w(1, 2, 2, 1, id(bc + 1, br + 2)), w(2, 2, 2, 1, id(bc + 2, br + 2)),
@@ -107,13 +117,24 @@ function cornerWang(
   ].join("\n");
 }
 
+// Plain-fill variant tiles (verified via world-crop-tiles.mjs crops):
+// kit blob centers for grass, the shimmer/deep-water decor block c25-29
+// r5-6 (a shimmer tile is the common map base fill), dirt texture variants.
+const GRASS_SOLIDS: [number, number][] = [[1, 7], [9, 7], [17, 7]];
+const WATER_SOLIDS: [number, number][] = [
+  [20, 8], [11, 8],
+  [25, 5], [26, 5], [27, 5], [28, 5], [29, 5],
+  [25, 6], [26, 6], [27, 6], [28, 6], [29, 6],
+];
+const DIRT_TAN_SOLIDS: [number, number][] = [[4, 8], [1, 31], [27, 3], [28, 3], [29, 3]];
+
 function terrainWangsets(cols: number): string {
   const sets = [
-    cornerWang(cols, "Grass / Dirt", "grass", "dirt", [1, 7], [4, 8], 0, 6, 3, 6),
-    cornerWang(cols, "Grass / Water (cliff)", "grass", "water", [9, 7], [11, 8], 8, 6, 11, 6),
-    cornerWang(cols, "Grass / Water", "grass", "water", [17, 7], [20, 8], 16, 6, 19, 6),
-    cornerWang(cols, "Dirt patch / Grass", "dirt", "grass", [1, 31], [1, 7], 0, 30, 3, 30),
-    cornerWang(cols, "Dirt (orange) / Grass", "dirt", "grass", [9, 31], [1, 7], 8, 30, 11, 30),
+    cornerWang(cols, "Grass / Dirt", "grass", "dirt", [1, 7], [4, 8], 0, 6, 3, 6, GRASS_SOLIDS, DIRT_TAN_SOLIDS),
+    cornerWang(cols, "Grass / Water (cliff)", "grass", "water", [9, 7], [11, 8], 8, 6, 11, 6, GRASS_SOLIDS, WATER_SOLIDS),
+    cornerWang(cols, "Grass / Water", "grass", "water", [17, 7], [20, 8], 16, 6, 19, 6, GRASS_SOLIDS, WATER_SOLIDS),
+    cornerWang(cols, "Dirt patch / Grass", "dirt", "grass", [1, 31], [1, 7], 0, 30, 3, 30, DIRT_TAN_SOLIDS, GRASS_SOLIDS),
+    cornerWang(cols, "Dirt (orange) / Grass", "dirt", "grass", [9, 31], [1, 7], 8, 30, 11, 30, [], GRASS_SOLIDS),
   ];
   return ` <wangsets>\n${sets.join("\n")}\n </wangsets>\n`;
 }
