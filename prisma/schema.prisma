@@ -105,6 +105,9 @@ model User {
   smashVotes        SmashVote[]
   notifications      Notification[] @relation("UserNotifications")
   notificationsActed Notification[] @relation("ActorNotifications")
+  arcadeRounds       ArcadeRound[]
+  minesGames         MinesGame[]
+  crashRounds        CrashRound[]
 }
 
 // ============ Blackjack: casino hands wagering coins ============
@@ -1100,4 +1103,60 @@ model Notification {
   actor User? @relation("ActorNotifications", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([userId, readAt, createdAt])
+}
+
+// ============ Arcade coin games (Limbo / Mines / Crash) ============
+// Append-only audit log of every settled coin-game round, for auditing
+// and leaderboards. Coin movement itself rides the CoinTransaction ledger
+// (stake debited on play, winnings credited on win) in the same tx.
+model ArcadeRound {
+  id         String   @id @default(cuid())
+  userId     String
+  game       String // "limbo" | "mines" | "crash"
+  stake      Int
+  multiplier Float // realized payout multiplier (0 on a loss)
+  outcome    String // "win" | "loss"
+  net        Int // winnings - stake (negative on a loss)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([game, net])
+  @@index([game, multiplier])
+  @@index([userId, createdAt])
+}
+
+// In-flight Mines round. `mines` (the bomb layout) is server-only and must
+// never be serialized to the client until the round is over.
+model MinesGame {
+  id         String    @id @default(cuid())
+  userId     String
+  stake      Int
+  mineCount  Int
+  mines      Int[] // tile indices 0..24 holding a mine — SERVER SECRET
+  revealed   Int[]     @default([]) // safe tiles revealed so far
+  status     String    @default("active") // "active" | "busted" | "cashed"
+  multiplier Float     @default(1) // current banked multiplier on the revealed tiles
+  createdAt  DateTime  @default(now())
+  settledAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+// In-flight Crash round. `crashPoint` is server-only until the round ends.
+model CrashRound {
+  id                String    @id @default(cuid())
+  userId            String
+  stake             Int
+  crashPoint        Float // multiplier at which it busts — SERVER SECRET
+  status            String    @default("active") // "active" | "cashed" | "busted"
+  cashoutMultiplier Float? // multiplier banked if cashed out
+  startedAt         DateTime  @default(now())
+  settledAt         DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
 }

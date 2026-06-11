@@ -497,6 +497,54 @@ export const modules: ModuleDef[] = [
       "Raw answers stay private — only your encoded key can show on your profile",
     ],
   },
+  {
+    key: "limbo",
+    label: "Limbo",
+    icon: "bullseye-arrow",
+    category: "arcade",
+    navOrder: 24,
+    href: "/limbo",
+    accentBg: "bg-accent-neon",
+    intro:
+      "Set a target multiplier, place a bet, and roll. Clear your target and you cash in — the higher you aim, the rarer the hit.",
+    tips: [
+      "Pick a target like 2.00× — you win if the roll lands at or above it",
+      "Win odds are 1 ÷ target, so 10× pays big but lands ~1 in 10",
+      "The house keeps a small edge — bet what you can afford to burn",
+    ],
+  },
+  {
+    key: "mines",
+    label: "Mines",
+    icon: "warning-diamond",
+    category: "arcade",
+    navOrder: 25,
+    href: "/mines",
+    accentBg: "bg-accent-frost",
+    intro:
+      "Hidden mines on a 5×5 grid. Flip safe tiles to grow your multiplier, then cash out before you hit a bomb.",
+    tips: [
+      "More mines = faster-climbing multiplier, but a riskier next flip",
+      "Cash out any time to bank stake × your current multiplier",
+      "Hit a mine and the round's over — the stake is gone",
+    ],
+  },
+  {
+    key: "crash",
+    label: "Crash",
+    icon: "chart-bar-big",
+    category: "arcade",
+    navOrder: 26,
+    href: "/crash",
+    accentBg: "bg-accent-rocket",
+    intro:
+      "The multiplier rockets upward — cash out before it crashes. Nerve is the whole game.",
+    tips: [
+      "Tap Cash Out while it's climbing to bank stake × the live multiplier",
+      "Wait too long and it busts — you lose the stake",
+      "It can bust at 1.00× instantly, so don't get greedy",
+    ],
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {

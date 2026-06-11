@@ -42,6 +42,9 @@ const config: Config = {
           gold: "#E3A82B", // buried treasure
           lagoon: "#00B8D9", // infinite canvas
           smooch: "#FF4FA3", // smash or pass
+          neon: "#B6FF00", // limbo
+          frost: "#3AD6FF", // mines
+          rocket: "#FF2E63", // crash
 
         },
       },
