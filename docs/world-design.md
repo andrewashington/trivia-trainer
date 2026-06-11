@@ -220,6 +220,8 @@ DB is optional, don't block on it.
 
 ## Andrew's work list (Tiled, do whenever)
 
+Step-by-step painting guide: `docs/tiled-walkthrough.md`.
+
 Install Tiled (mapeditor.org). New Tileset → from
 `assets-src/modern-exteriors/Modern_Exteriors_16x16/Modern_Exteriors_Complete_Tileset.png`
 (or Theme_Sorter sheets if too big), tile size 16×16, **Embed in map** ✅.
