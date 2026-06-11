@@ -71,6 +71,53 @@ const CATS: Record<string, string[]> = {
 
 const up16 = (n: number) => Math.ceil(n / 16) * 16;
 
+// Tiled Terrain Sets (corner Wang sets) for the kits on the
+// 1_Terrain_and_Water composite, so the Terrain Brush works directly on
+// the mega-sheet (kit positions verified via world-crop-tiles.mjs).
+// Layout per kit: 3x3 rounded blob at (bc,br), 2x2 inner-corner block at
+// (cc,cr); fillIn/fillOut are plain fill tiles for each color.
+function cornerWang(
+  cols: number,
+  name: string,
+  inner: string,
+  outer: string,
+  fillIn: [number, number],
+  fillOut: [number, number],
+  bc: number,
+  br: number,
+  cc: number,
+  cr: number
+) {
+  const id = (c: number, r: number) => r * cols + c;
+  // wangid = T,TR,R,BR,B,BL,L,TL ; corner sets use indices 1,3,5,7 ; 1=inner 2=outer
+  const w = (tr: number, brr: number, bl: number, tl: number, tile: number) =>
+    `  <wangtile tileid="${tile}" wangid="0,${tr},0,${brr},0,${bl},0,${tl}"/>`;
+  return [
+    ` <wangset name="${name}" type="corner" tile="-1">`,
+    `  <wangcolor name="${inner}" color="#00ff00" tile="${id(...fillIn)}" probability="1"/>`,
+    `  <wangcolor name="${outer}" color="#0000ff" tile="${id(...fillOut)}" probability="1"/>`,
+    w(1, 1, 1, 1, id(...fillIn)),
+    w(2, 2, 2, 2, id(...fillOut)),
+    w(2, 1, 2, 2, id(bc, br)), w(2, 1, 1, 2, id(bc + 1, br)), w(2, 2, 1, 2, id(bc + 2, br)),
+    w(1, 1, 2, 2, id(bc, br + 1)), w(1, 1, 1, 1, id(bc + 1, br + 1)), w(2, 2, 1, 1, id(bc + 2, br + 1)),
+    w(1, 2, 2, 2, id(bc, br + 2)), w(1, 2, 2, 1, id(bc + 1, br + 2)), w(2, 2, 2, 1, id(bc + 2, br + 2)),
+    w(1, 2, 1, 1, id(cc, cr)), w(1, 1, 2, 1, id(cc + 1, cr)),
+    w(2, 1, 1, 1, id(cc, cr + 1)), w(1, 1, 1, 2, id(cc + 1, cr + 1)),
+    ` </wangset>`,
+  ].join("\n");
+}
+
+function terrainWangsets(cols: number): string {
+  const sets = [
+    cornerWang(cols, "Grass / Dirt", "grass", "dirt", [1, 7], [4, 8], 0, 6, 3, 6),
+    cornerWang(cols, "Grass / Water (cliff)", "grass", "water", [9, 7], [11, 8], 8, 6, 11, 6),
+    cornerWang(cols, "Grass / Water", "grass", "water", [17, 7], [20, 8], 16, 6, 19, 6),
+    cornerWang(cols, "Dirt patch / Grass", "dirt", "grass", [1, 31], [1, 7], 0, 30, 3, 30),
+    cornerWang(cols, "Dirt (orange) / Grass", "dirt", "grass", [9, 31], [1, 7], 8, 30, 11, 30),
+  ];
+  return ` <wangsets>\n${sets.join("\n")}\n </wangsets>\n`;
+}
+
 async function main() {
   if (!fs.existsSync(TS)) {
     console.error(
@@ -112,7 +159,7 @@ async function main() {
     const count = cols * (y / 16);
     fs.writeFileSync(
       `${OUT}/${cat}.tsx`,
-      `<?xml version="1.0" encoding="UTF-8"?>\n<tileset version="1.10" tiledversion="1.11.0" name="${cat}" tilewidth="16" tileheight="16" tilecount="${count}" columns="${cols}">\n <image source="composites/${cat}.png" width="${W}" height="${y}"/>\n</tileset>\n`
+      `<?xml version="1.0" encoding="UTF-8"?>\n<tileset version="1.10" tiledversion="1.11.0" name="${cat}" tilewidth="16" tileheight="16" tilecount="${count}" columns="${cols}">\n <image source="composites/${cat}.png" width="${W}" height="${y}"/>\n${cat === "1_Terrain_and_Water" ? terrainWangsets(cols) : ""}</tileset>\n`
     );
     console.log(`${cat}: ${W}x${y} (${count} tiles)`);
   }
