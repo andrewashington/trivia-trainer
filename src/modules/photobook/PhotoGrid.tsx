@@ -6,12 +6,14 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { Avatar, Badge } from "@/components/ui";
 import { CommentThread } from "@/modules/comments/CommentThread";
+import { Spoiler } from "@/components/Spoiler";
 
 export type GalleryPhoto = {
   id: string;
   caption: string | null;
   createdAt: string;
   viewUrl: string;
+  sensitive: boolean;
   uploader: { id: string; displayName: string; avatarUrl: string | null };
   tagged: { id: string; displayName: string; avatarUrl: string | null }[];
   canDelete: boolean;
@@ -75,13 +77,27 @@ export function PhotoGrid({
               title={p.caption ?? "Open photo"}
             >
               <span className="block aspect-square overflow-hidden border-b-2 border-ink">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={p.viewUrl}
-                  alt={p.caption ?? "Group photo"}
-                  loading="lazy"
-                  className="h-full w-full object-cover"
-                />
+                {p.sensitive ? (
+                  // Inside the lightbox-opener <button>, so passive blur only:
+                  // opening the photo is where it gets revealed.
+                  <Spoiler interactive={false} className="block h-full w-full">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.viewUrl}
+                      alt={p.caption ?? "Group photo"}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
+                  </Spoiler>
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={p.viewUrl}
+                    alt={p.caption ?? "Group photo"}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                  />
+                )}
               </span>
               <span className="flex items-center gap-1.5 px-2 py-1.5 text-left">
                 <Avatar name={p.uploader.displayName} src={p.uploader.avatarUrl} size="sm" />
@@ -141,12 +157,23 @@ export function PhotoGrid({
                 </button>
               </div>
             </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={open.viewUrl}
-              alt={open.caption ?? "Group photo"}
-              className="max-h-[70vh] w-full bg-ink object-contain"
-            />
+            {open.sensitive ? (
+              <Spoiler label="Sensitive — tap to reveal">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={open.viewUrl}
+                  alt={open.caption ?? "Group photo"}
+                  className="max-h-[70vh] w-full bg-ink object-contain"
+                />
+              </Spoiler>
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={open.viewUrl}
+                alt={open.caption ?? "Group photo"}
+                className="max-h-[70vh] w-full bg-ink object-contain"
+              />
+            )}
             <div className="space-y-2 border-t-2 border-ink px-3 py-2">
               {open.caption && <p className="font-bold leading-snug">{open.caption}</p>}
               {open.tagged.length > 0 && (

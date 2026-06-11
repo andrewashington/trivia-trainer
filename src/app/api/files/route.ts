@@ -41,6 +41,7 @@ export const POST = apiHandler(async (req: Request) => {
           mimeType: data.mimeType,
           sizeBytes: data.sizeBytes,
           storageKey,
+          sensitive: data.sensitive,
         },
       }),
     (f) => ({

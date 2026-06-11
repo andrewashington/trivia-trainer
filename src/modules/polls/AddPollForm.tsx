@@ -24,6 +24,7 @@ export function AddPollForm() {
   const [type, setType] = useState<PollType | null>(null);
   const [question, setQuestion] = useState("");
   const [anonymous, setAnonymous] = useState(false);
+  const [sensitive, setSensitive] = useState(false);
   const [blind, setBlind] = useState(false);
   const [revealThreshold, setRevealThreshold] = useState(3);
   const [options, setOptions] = useState<string[]>(["", ""]);
@@ -46,6 +47,7 @@ export function AddPollForm() {
           question,
           type,
           anonymous,
+          sensitive,
           options: type === "scale" ? [] : options.map((o) => o.trim()).filter(Boolean),
           revealThreshold: blind ? revealThreshold : null,
         },
@@ -158,6 +160,20 @@ export function AddPollForm() {
         {anonymous
           ? "Anonymous — nobody sees who voted for what"
           : "Named — votes show names (tap for anonymous)"}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setSensitive(!sensitive)}
+        aria-pressed={sensitive}
+        className={`brutal-press w-full border-2 border-ink px-3 py-2 text-left font-mono text-xs font-bold uppercase shadow-brutal-sm ${
+          sensitive ? "bg-ink text-white" : "bg-card"
+        }`}
+      >
+        <PixelIcon name={sensitive ? "eye-off" : "eye"} size={13} className="-mt-0.5 mr-1 inline" />
+        {sensitive
+          ? "Sensitive — blurred until tapped"
+          : "Visible to all (tap to mark sensitive)"}
       </button>
 
       <button

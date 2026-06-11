@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { api } from "@/lib/client";
 import { Avatar, Button, Field, Input } from "@/components/ui";
 import { useCloseModuleForm } from "@/components/ModuleHeader";
+import { PixelIcon } from "@/components/icons";
 
 export type Member = { id: string; displayName: string; avatarUrl: string | null };
 
@@ -13,6 +14,7 @@ export function UploadPhotoForm({ members, maxMb }: { members: Member[]; maxMb: 
   const closeForm = useCloseModuleForm();
   const inputRef = useRef<HTMLInputElement>(null);
   const [caption, setCaption] = useState("");
+  const [sensitive, setSensitive] = useState(false);
   const [tagged, setTagged] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +37,7 @@ export function UploadPhotoForm({ members, maxMb }: { members: Member[]; maxMb: 
           mimeType: file.type,
           sizeBytes: file.size,
           caption: caption.trim() || undefined,
+          sensitive,
           taggedUserIds: tagged,
         },
       });
@@ -97,6 +100,20 @@ export function UploadPhotoForm({ members, maxMb }: { members: Member[]; maxMb: 
           })}
         </div>
       </div>
+      <button
+        type="button"
+        onClick={() => setSensitive(!sensitive)}
+        aria-pressed={sensitive}
+        className={`brutal-press w-full border-2 border-ink px-3 py-2 text-left font-mono text-xs font-bold uppercase shadow-brutal-sm ${
+          sensitive ? "bg-ink text-white" : "bg-card"
+        }`}
+      >
+        <PixelIcon name={sensitive ? "eye-off" : "eye"} size={13} className="-mt-0.5 mr-1 inline" />
+        {sensitive
+          ? "Sensitive — blurred until tapped"
+          : "Visible to all (tap to mark sensitive)"}
+      </button>
+
       {error && (
         <p className="border-2 border-ink bg-accent-red px-3 py-2 text-sm font-bold text-white">
           {error}

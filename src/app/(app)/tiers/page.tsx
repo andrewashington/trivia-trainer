@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { CreateTierListForm } from "@/modules/tiers/CreateTierListForm";
+import { Spoiler } from "@/components/Spoiler";
 
 export const metadata = { title: "Tiers" };
 export const dynamic = "force-dynamic";
@@ -48,9 +49,21 @@ export default async function TiersPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h2 className="font-display text-lg font-bold leading-snug">{list.title}</h2>
+                      <h2 className="font-display text-lg font-bold leading-snug">
+                        {list.sensitive ? (
+                          <Spoiler interactive={false}>{list.title}</Spoiler>
+                        ) : (
+                          list.title
+                        )}
+                      </h2>
                       {list.description && (
-                        <p className="mt-1 line-clamp-2 text-sm text-ink/60">{list.description}</p>
+                        <p className="mt-1 line-clamp-2 text-sm text-ink/60">
+                          {list.sensitive ? (
+                            <Spoiler interactive={false}>{list.description}</Spoiler>
+                          ) : (
+                            list.description
+                          )}
+                        </p>
                       )}
                       <p className="mt-2 font-mono text-xs uppercase tracking-wide text-ink/50">
                         {list.items.length} items · ranked by {rankers.size}

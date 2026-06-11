@@ -7,6 +7,7 @@ import { CommentThread } from "@/modules/comments/CommentThread";
 import { DeleteButton } from "@/components/DeleteButton";
 import { TierBoards, type RankerView } from "@/modules/tiers/TierBoards";
 import { TIERS, type Tier } from "@/modules/tiers/schema";
+import { Spoiler } from "@/components/Spoiler";
 
 export const dynamic = "force-dynamic";
 
@@ -84,12 +85,23 @@ export default async function TierListPage({ params }: { params: { id: string } 
         {canDelete && <DeleteButton endpoint={`/api/tiers/${list.id}`} redirectTo="/tiers" />}
       </div>
 
-      <TierBoards
-        listId={list.id}
-        items={list.items}
-        meId={user.id}
-        rankers={[...rankerMap.values()]}
-      />
+      {list.sensitive ? (
+        <Spoiler label="Sensitive — tap to reveal">
+          <TierBoards
+            listId={list.id}
+            items={list.items}
+            meId={user.id}
+            rankers={[...rankerMap.values()]}
+          />
+        </Spoiler>
+      ) : (
+        <TierBoards
+          listId={list.id}
+          items={list.items}
+          meId={user.id}
+          rankers={[...rankerMap.values()]}
+        />
+      )}
 
       <Card>
         <CommentThread

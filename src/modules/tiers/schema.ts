@@ -17,6 +17,7 @@ export const TIER_COLORS: Record<Tier, string> = {
 export const tierListInput = z.object({
   title: z.string().trim().min(1, "Name the list!").max(120),
   description: z.string().trim().max(1000).nullish(),
+  sensitive: z.boolean().default(false),
   items: z
     .array(z.string().trim().min(1).max(120))
     .min(2, "Need at least 2 things to rank.")

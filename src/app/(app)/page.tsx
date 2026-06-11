@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { recentActivity, type Activity } from "@/lib/activity";
+import { Spoiler } from "@/components/Spoiler";
 import { onThisDayFact } from "@/lib/numbersFact";
 import { modules } from "@/modules/registry";
 import { Avatar } from "@/components/ui";
@@ -424,7 +425,13 @@ export default async function HomePage() {
                             <span className="min-w-0 flex-1 text-sm leading-snug">
                               <span className="font-bold">{item.actor}</span>{" "}
                               <span className="text-ink/60">{item.verb}</span>{" "}
-                              <span className="font-bold">{item.title}</span>
+                              <span className="font-bold">
+                                {item.sensitive ? (
+                                  <Spoiler interactive={false}>{item.title}</Spoiler>
+                                ) : (
+                                  item.title
+                                )}
+                              </span>
                             </span>
                             <span className="shrink-0 font-mono text-[10px] uppercase text-ink/40">
                               {timeAgo(item.at)}
@@ -493,7 +500,11 @@ export default async function HomePage() {
             {latestPoll ? (
               <>
                 <p className="mt-0.5 line-clamp-2 font-display text-sm font-bold leading-tight">
-                  {latestPoll.question}
+                  {latestPoll.sensitive ? (
+                    <Spoiler interactive={false}>{latestPoll.question}</Spoiler>
+                  ) : (
+                    latestPoll.question
+                  )}
                 </p>
                 <p className="mt-0.5 text-xs opacity-85">
                   {latestPoll._count.votes} vote{latestPoll._count.votes === 1 ? "" : "s"}

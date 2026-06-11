@@ -44,6 +44,7 @@ export const POST = apiHandler(async (req: Request) => {
           creatorId: user.id,
           title: data.title,
           description: data.description ?? null,
+          sensitive: data.sensitive,
           items: {
             create: labels.map((label, i) => ({ label, position: i })),
           },

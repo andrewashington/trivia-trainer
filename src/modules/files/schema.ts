@@ -28,6 +28,7 @@ export const fileUploadRequest = z
       errorMap: () => ({ message: "Only images and PDFs are allowed." }),
     }),
     sizeBytes: z.number().int().positive(),
+    sensitive: z.boolean().default(false),
   })
   .refine(
     (f) =>

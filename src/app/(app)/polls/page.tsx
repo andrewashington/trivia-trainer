@@ -8,6 +8,7 @@ import { AddPollForm } from "@/modules/polls/AddPollForm";
 import { PollCard } from "@/modules/polls/PollCard";
 import { pollToResults } from "@/modules/polls/results";
 import { HeroBanner } from "@/components/Hero";
+import { Spoiler } from "@/components/Spoiler";
 
 export const metadata = { title: "Polls" };
 export const dynamic = "force-dynamic";
@@ -98,7 +99,11 @@ export default async function PollsPage({
           jumpLabel={needsMe ? "Cast your vote ↓" : "See the results ↓"}
         >
           <h2 className="font-display text-2xl font-bold leading-tight sm:text-3xl">
-            {hero.question}
+            {hero.sensitive ? (
+              <Spoiler label="Sensitive poll — tap to reveal">{hero.question}</Spoiler>
+            ) : (
+              hero.question
+            )}
           </h2>
           <p className="mt-2 font-mono text-xs uppercase tracking-wide text-white/80">
             {heroVoters}/{memberCount} voted

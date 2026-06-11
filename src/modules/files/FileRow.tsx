@@ -7,6 +7,7 @@ import { api } from "@/lib/client";
 import { PixelIcon } from "@/components/icons";
 import { Avatar } from "@/components/ui";
 import { CommentThread } from "@/modules/comments/CommentThread";
+import { Spoiler } from "@/components/Spoiler";
 
 function formatBytes(n: number): string {
   if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -28,6 +29,7 @@ export function FileRow({
     uploaderName: string;
     uploaderAvatarUrl: string | null;
     previewUrl?: string | null;
+    sensitive: boolean;
     commentCount: number;
     viewerId: string;
     viewerIsAdmin: boolean;
@@ -123,43 +125,52 @@ export function FileRow({
 
       {/* Inline rendering: anything the browser can show natively gets
           shown, full-width; the ↓ Get button stays for the actual file. */}
-      {file.previewUrl && isImage && (
-        <button
-          type="button"
-          onClick={download}
-          disabled={busy}
-          className="block w-full overflow-hidden border-2 border-ink"
-          title="Open original"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={file.previewUrl}
-            alt={file.filename}
-            loading="lazy"
-            className="max-h-96 w-full object-contain bg-paper"
-          />
-        </button>
-      )}
-      {file.previewUrl && isVideo && (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
-        <video
-          src={file.previewUrl}
-          controls
-          preload="metadata"
-          className="max-h-96 w-full border-2 border-ink bg-ink"
-        />
-      )}
-      {file.previewUrl && isAudio && (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
-        <audio src={file.previewUrl} controls preload="metadata" className="w-full" />
-      )}
-      {file.previewUrl && isPdf && showPdf && (
-        <iframe
-          src={file.previewUrl}
-          title={file.filename}
-          className="h-96 w-full border-2 border-ink bg-card"
-        />
-      )}
+      {file.previewUrl && (isImage || isVideo || isAudio || (isPdf && showPdf)) && (() => {
+        const preview = (
+          <>
+            {isImage && (
+              <button
+                type="button"
+                onClick={download}
+                disabled={busy}
+                className="block w-full overflow-hidden border-2 border-ink"
+                title="Open original"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={file.previewUrl}
+                  alt={file.filename}
+                  loading="lazy"
+                  className="max-h-96 w-full object-contain bg-paper"
+                />
+              </button>
+            )}
+            {isVideo && (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <video
+                src={file.previewUrl}
+                controls
+                preload="metadata"
+                className="max-h-96 w-full border-2 border-ink bg-ink"
+              />
+            )}
+            {isAudio && (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <audio src={file.previewUrl} controls preload="metadata" className="w-full" />
+            )}
+            {isPdf && showPdf && (
+              <iframe
+                src={file.previewUrl}
+                title={file.filename}
+                className="h-96 w-full border-2 border-ink bg-card"
+              />
+            )}
+          </>
+        );
+        return file.sensitive ? (
+          <Spoiler label="Sensitive file — tap to reveal">{preview}</Spoiler>
+        ) : preview;
+      })()}
 
       <CommentThread
         targetType="file"

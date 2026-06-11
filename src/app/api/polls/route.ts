@@ -34,6 +34,7 @@ export const POST = apiHandler(async (req: Request) => {
           question: data.question,
           type: data.type,
           anonymous: data.anonymous,
+          sensitive: data.sensitive,
           revealThreshold: data.revealThreshold ?? null,
           options:
             data.type === "scale"

@@ -48,6 +48,7 @@ export const POST = apiHandler(async (req: Request) => {
           uploaderId: user.id,
           fileId: file.id,
           caption: data.caption || null,
+          sensitive: data.sensitive,
           tags: { create: taggedIds.map((userId) => ({ userId })) },
         },
         include: { tags: true },

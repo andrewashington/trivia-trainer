@@ -71,6 +71,7 @@ export default async function FilesPage() {
                 uploaderName: f.uploader.displayName,
                 uploaderAvatarUrl: f.uploader.avatarUrl,
                 previewUrl: previews.get(f.id) || null,
+                sensitive: f.sensitive,
                 commentCount: counts.get(f.id) ?? 0,
                 viewerId: user.id,
                 viewerIsAdmin: user.role === "admin",

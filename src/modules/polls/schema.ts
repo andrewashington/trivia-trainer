@@ -6,6 +6,7 @@ export const pollInput = z
     question: z.string().trim().min(1, "Ask the question!").max(300),
     type: z.enum(["single", "multi", "scale"]),
     anonymous: z.boolean(),
+    sensitive: z.boolean().default(false),
     // Sealed results: hidden until this many members vote to reveal.
     revealThreshold: z.number().int().min(2).max(50).nullish(),
     // Scale polls have no options; choice polls need 2–8.

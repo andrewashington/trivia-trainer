@@ -18,6 +18,7 @@ export const photoUploadRequest = z
     }),
     sizeBytes: z.number().int().positive(),
     caption: z.string().trim().max(500).optional(),
+    sensitive: z.boolean().default(false),
     taggedUserIds: z.array(z.string().min(1)).max(50).default([]),
   })
   .refine(

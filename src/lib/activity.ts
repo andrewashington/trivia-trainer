@@ -19,6 +19,7 @@ export type Activity = {
   title: string;
   href: string;
   at: Date;
+  sensitive?: boolean;
 };
 
 // How many of each kind to pull before merging — keeps the union small.
@@ -63,10 +64,10 @@ export async function recentActivity(limit = 16, userId?: string): Promise<Activ
     ...events.map((e) => mk(e.id, "events", e.creator, "planned", e.title, `/events/${e.id}`, e.createdAt)),
     ...listings.map((l) => mk(l.id, "marketplace", l.seller, "listed", l.title, "/marketplace", l.createdAt)),
     ...ideas.map((i) => mk(i.id, "ideas", i.author, "pitched an idea", i.title, "/ideas", i.createdAt)),
-    ...polls.map((p) => mk(p.id, "polls", p.creator, "opened a poll", p.question, "/polls", p.createdAt)),
+    ...polls.map((p) => { const a = mk(p.id, "polls", p.creator, "opened a poll", p.question, "/polls", p.createdAt); a.sensitive = p.sensitive; return a; }),
     ...wishlist.map((w) => mk(w.id, "wishlist", w.user, "is wishing for", w.title, "/wishlist", w.createdAt)),
     ...pins.map((p) => mk(p.id, "map", p.creator, "dropped a pin", p.name, "/map", p.createdAt)),
-    ...files.map((f) => mk(f.id, "files", f.uploader, "uploaded", f.filename, "/files", f.createdAt)),
+    ...files.map((f) => { const a = mk(f.id, "files", f.uploader, "uploaded", f.filename, "/files", f.createdAt); a.sensitive = f.sensitive; return a; }),
     ...reveals.map((r) => mk(r.id, "reveal", r.creator, "started a reveal", r.title, "/reveal", r.createdAt)),
     ...claims.map((c) => mk(c.id, "stakes", c.creator, "called a shot", c.text, "/stakes", c.createdAt)),
     ...countdowns.map((c) => mk(c.id, "countdowns", c.creator, "started a countdown to", c.title, "/countdowns", c.createdAt)),

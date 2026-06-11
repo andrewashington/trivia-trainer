@@ -9,6 +9,7 @@ import { Avatar, Badge, Button } from "@/components/ui";
 import { StampOverlay, useActionStamp } from "@/components/ActionFx";
 import type { PollResults } from "@/modules/polls/results";
 import { POLL_TYPE_META } from "@/modules/polls/schema";
+import { Spoiler } from "@/components/Spoiler";
 import { PixelIcon } from "@/components/icons";
 import { CommentThread } from "@/modules/comments/CommentThread";
 
@@ -108,7 +109,13 @@ export function PollCard({
     <li id={`poll-${poll.id}`} className={`brutal-card relative scroll-mt-24 p-4 ${poll.closed ? "opacity-75" : ""} ${cardFxClass}`}>
       <StampOverlay stamp={stamp} />
       <div className="flex flex-wrap items-center gap-2">
-        <p className="font-display text-lg font-bold leading-tight">{poll.question}</p>
+        {poll.sensitive ? (
+          <Spoiler label="Sensitive poll — tap to reveal">
+            <p className="font-display text-lg font-bold leading-tight">{poll.question}</p>
+          </Spoiler>
+        ) : (
+          <p className="font-display text-lg font-bold leading-tight">{poll.question}</p>
+        )}
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <Badge className="inline-flex items-center gap-1.5 bg-paper">

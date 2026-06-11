@@ -5,12 +5,14 @@ import { useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Input, Textarea } from "@/components/ui";
 import { useCloseModuleForm } from "@/components/ModuleHeader";
+import { PixelIcon } from "@/components/icons";
 
 export function CreateTierListForm() {
   const router = useRouter();
   const closeForm = useCloseModuleForm();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [sensitive, setSensitive] = useState(false);
   const [items, setItems] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -42,7 +44,7 @@ export function CreateTierListForm() {
     try {
       const { list } = await api<{ list: { id: string } }>("/api/tiers", {
         method: "POST",
-        body: { title, description: description || null, items: finalItems },
+        body: { title, description: description || null, sensitive, items: finalItems },
       });
       closeForm();
       router.push(`/tiers/${list.id}`);
@@ -110,6 +112,20 @@ export function CreateTierListForm() {
           </Button>
         </div>
       </div>
+      <button
+        type="button"
+        onClick={() => setSensitive(!sensitive)}
+        aria-pressed={sensitive}
+        className={`brutal-press w-full border-2 border-ink px-3 py-2 text-left font-mono text-xs font-bold uppercase shadow-brutal-sm ${
+          sensitive ? "bg-ink text-white" : "bg-card"
+        }`}
+      >
+        <PixelIcon name={sensitive ? "eye-off" : "eye"} size={13} className="-mt-0.5 mr-1 inline" />
+        {sensitive
+          ? "Sensitive — blurred until tapped"
+          : "Visible to all (tap to mark sensitive)"}
+      </button>
+
       <Button type="submit" variant="yellow" disabled={busy || !title.trim()}>
         {busy ? "…" : "Create list"}
       </Button>

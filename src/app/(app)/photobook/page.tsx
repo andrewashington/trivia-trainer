@@ -60,6 +60,7 @@ export default async function PhotobookPage({
           caption: p.caption,
           createdAt: p.createdAt.toISOString(),
           viewUrl,
+          sensitive: p.sensitive,
           uploader: p.uploader,
           tagged: p.tags.map((t) => t.user),
           canDelete: user.id === p.uploaderId || user.role === "admin",

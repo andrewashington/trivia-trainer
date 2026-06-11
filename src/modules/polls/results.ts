@@ -12,6 +12,7 @@ export type PollResults = {
   question: string;
   type: "single" | "multi" | "scale";
   anonymous: boolean;
+  sensitive: boolean;
   closed: boolean;
   creatorId: string;
   creatorName: string;
@@ -88,6 +89,7 @@ export function pollToResults(poll: PollWithRelations, viewer: User): PollResult
     question: poll.question,
     type: poll.type,
     anonymous: poll.anonymous,
+    sensitive: poll.sensitive,
     closed: poll.closedAt !== null,
     creatorId: poll.creator.id,
     creatorName: poll.creator.displayName,

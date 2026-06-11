@@ -140,6 +140,7 @@ model TierList {
   creatorId   String
   title       String
   description String?
+  sensitive   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   creator    User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
@@ -378,6 +379,7 @@ model FileObject {
   mimeType   String // images + pdf only (validated server-side)
   sizeBytes  Int
   storageKey String
+  sensitive  Boolean  @default(false)
   createdAt  DateTime @default(now())
 
   uploader User @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
@@ -397,6 +399,7 @@ model PhotobookPhoto {
   uploaderId String
   fileId     String   @unique
   caption    String?
+  sensitive  Boolean  @default(false)
   createdAt  DateTime @default(now())
 
   uploader User           @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
@@ -597,6 +600,7 @@ model Poll {
   question        String
   type            PollType  @default(single)
   anonymous       Boolean   @default(false)
+  sensitive       Boolean   @default(false)
   closedAt        DateTime?
   // Sealed results: hidden until this many members vote to reveal them.
   revealThreshold Int?
