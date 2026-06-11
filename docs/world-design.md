@@ -226,15 +226,25 @@ Install Tiled (mapeditor.org). New Tileset → from
 New Map: orthogonal, 16×16, ~60×40. Export as **JSON .tmj** into
 `assets-src/runtime/world/maps/`.
 
-Layer contract (names exact, bottom→top):
+Layer contract v2 (names exact, bottom→top; Tiled project + map are
+pre-generated under `assets-src/` with these layers and 6 composite
+category tilesets — see `assets-src/runtime/world/tilesets/composites/manifest.json`):
 | layer | type | contents |
 |---|---|---|
-| `ground` | tiles | base terrain everywhere, no holes |
-| `ground-detail` | tiles | sparse decoration |
-| `props` | tiles | solid stuff (trees, fences, facades) |
-| `props-overhead` | tiles | draws above players (treetops, awnings) |
+| `terrain-base` | tiles | grass/dirt/sand/water everywhere, no holes |
+| `terrain-roads-paths` | tiles | roads, sidewalks, paths on top of base |
+| `terrain-detail` | tiles | walkable decoration: flowers, cracks, leaves |
+| `buildings` | tiles | house facades, walls, large structures |
+| `props-solid` | tiles | solid objects: trees, fences, benches, vehicles |
+| `props-walkover` | tiles | non-solid surface items: doormats, manholes |
+| `overhead` | tiles | draws above players: treetops, awnings, roof peaks |
 | `collision` | objects | rectangles over solids + map border |
 | `spawns` | objects | points: `spawn`, `plot-1-door`…`plot-8-door` |
+
+Engine mapping (conversion script collapses on hand-back): `terrain-*` →
+ground depth, `buildings`/`props-*` → props depth, `overhead` above player.
+Map is 120×80 @ 16px. Animated water painted from first-frame tiles;
+animation wired Phaser-side later.
 
 Design: small road loop, ~8 house facades, park/plaza in the middle.
 Hand back: filename + tilesets used + plot count.
