@@ -10,12 +10,32 @@
 
 ## Deploying
 - **This is a personal-use-only app — take the most direct route to prod.**
-  We evaluate changes in production, not in elaborate review flows. Once a
-  change typechecks cleanly, get it deployed: commit, push, and merge to the
-  deploy branch (`claude/serene-feynman-e4tdza`) without waiting for a
-  separate local sign-off. Railway runs `prisma migrate` on boot, so additive
-  migrations ship automatically. Don't ask whether to merge — just do it
+  We evaluate changes in production, not in elaborate review flows. There are
+  no PRs and no merge dance: **commit straight to `main` and push.** Railway
+  auto-deploys `main` on push and runs `prisma migrate` on boot, so additive
+  migrations ship automatically. Don't ask whether to push — just do it,
   unless the change is genuinely risky (destructive migration, data loss).
+- **The one pre-deploy gate is `npm run typecheck` (i.e. `tsc --noEmit`).**
+  Type errors fail the Railway build (`next.config` keeps `tsc` strict), so a
+  green typecheck is what "confident in the deploy" means here. That's the
+  whole gate — nothing heavier is required.
+- **Lint is NOT a gate.** `next.config` sets `eslint.ignoreDuringBuilds:
+  true`, and `main` carries some pre-existing lint noise, so a failing
+  `npm run lint` does not block a deploy. Don't gate on it or stop to fix
+  unrelated lint findings; only tidy lint in files you're already touching.
+- For a genuinely risky change, optionally run `npm run build` locally for
+  fuller confidence (catches build-time issues beyond types) — but it's not
+  required; we're happy to verify in prod and roll back.
+
+### Rolling back a bad deploy
+A broken deploy is cheap to undo — prefer rollback over heavier gatekeeping:
+- **Fastest:** Railway dashboard → service → Deployments → pick the last good
+  deploy → Redeploy/Rollback. No git changes needed.
+- **Via git:** `git revert <bad-sha> && git push` — ships a clean forward
+  commit that undoes the change and triggers a fresh deploy. Use this when
+  you want `main` itself to reflect the rollback.
+- Avoid `push --force` to roll back; a `revert` keeps history honest and
+  doesn't break other clones.
 
 ## Parallel sessions
 Multiple Claude sessions often work this repo at once, each on its own
