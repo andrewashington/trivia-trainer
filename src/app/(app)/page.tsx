@@ -54,24 +54,60 @@ const HOURLY_GREETINGS = [
   "One last scroll", // 23
 ];
 
+// The bizarre second line, one per hour. Renders small under the greeting.
+const HOURLY_ASIDES = [
+  "the raccoons have started their shift", // 0
+  "somewhere, a microwave clock still blinks 12:00", // 1
+  "this hour is legally a cry for help", // 2
+  "even the ghosts think this is excessive", // 3
+  "the birds are stretching. they know what they did", // 4
+  "dew is forming. on everything. unsettling", // 5
+  "the sun has clocked in and expects the same of you", // 6
+  "toast statistically imminent", // 7
+  "cereal negotiations are underway worldwide", // 8
+  "coffee number two is watching coffee number one", // 9
+  "this is the hour meetings were invented to ruin", // 10
+  "your stomach has begun drafting its demands", // 11
+  "the sun is directly overhead and judging", // 12
+  "a sandwich somewhere was eaten too fast. tragic", // 13
+  "office plants are at peak photosynthesis. show respect", // 14
+  "the slump is not a myth. hydrate or perish", // 15
+  "the clock's just showing off now", // 16
+  "somewhere a commuter just sighed in traffic. for you", // 17
+  "stoves across the land are heating with intent", // 18
+  "the streetlights are voting on when to turn on", // 19
+  "couches everywhere brace for impact", // 20
+  "your phone brightness should be illegal right now", // 21
+  "the dishwasher hums its one good song", // 22
+  "tomorrow is already loading. no rush though", // 23
+];
+
 // The server clock is UTC on Railway, so the greeting buckets by the
 // group's home timezone (override with HOME_TIMEZONE if the group moves).
 const HOME_TZ = process.env.HOME_TIMEZONE ?? "America/Denver";
 
-function greeting(): string {
-  let hour: number;
+function homeHour(): number {
   try {
-    hour = Number(
-      new Intl.DateTimeFormat("en-US", {
-        hour: "numeric",
-        hour12: false,
-        timeZone: HOME_TZ,
-      }).format(new Date())
+    return (
+      Number(
+        new Intl.DateTimeFormat("en-US", {
+          hour: "numeric",
+          hour12: false,
+          timeZone: HOME_TZ,
+        }).format(new Date())
+      ) % 24
     );
   } catch {
-    hour = new Date().getHours(); // bad TZ value — fall back to server time
+    return new Date().getHours(); // bad TZ value — fall back to server time
   }
-  return HOURLY_GREETINGS[hour % 24] ?? "Good day";
+}
+
+function greeting(): string {
+  return HOURLY_GREETINGS[homeHour()] ?? "Good day";
+}
+
+function hourlyAside(): string | null {
+  return HOURLY_ASIDES[homeHour()] ?? null;
 }
 
 function timeAgo(d: Date): string {
@@ -267,6 +303,11 @@ export default async function HomePage() {
           <p className="mt-0.5 font-mono text-xs uppercase tracking-widest text-ink/50">
             The group home base
           </p>
+          {hourlyAside() && (
+            <p className="mt-0.5 font-mono text-[10px] lowercase tracking-wide text-ink/45">
+              ({hourlyAside()})
+            </p>
+          )}
           {fact && (
             <p className="mt-1 max-w-md font-mono text-[10px] uppercase tracking-wide text-ink/40">
               On this day · {fact.text}
