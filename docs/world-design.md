@@ -220,7 +220,10 @@ DB is optional, don't block on it.
 
 ## Andrew's work list (Tiled, do whenever)
 
-Step-by-step painting guide: `docs/tiled-walkthrough.md`.
+Step-by-step painting guide: `docs/tiled-walkthrough.md`. A generated
+baseline layout is committed (see `scripts/world-generate-baseline.ts`;
+re-running it overwrites hand edits). `scripts/world-crop-tiles.mjs`
+renders gridded tileset crops for identifying tile coordinates.
 
 Install Tiled (mapeditor.org). New Tileset → from
 `assets-src/modern-exteriors/Modern_Exteriors_16x16/Modern_Exteriors_Complete_Tileset.png`

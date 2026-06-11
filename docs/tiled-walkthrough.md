@@ -4,6 +4,14 @@ Beginner-oriented, step-by-step guide for filling out
 `assets-src/runtime/world/maps/neighborhood.tmj` (120×80 @ 16px).
 Companion to the layer contract in `docs/world-design.md`.
 
+> **A baseline already exists.** `scripts/world-generate-baseline.ts`
+> generated a crude version of passes 1–4, 6, and 7 below (grass+pond,
+> ring road+sidewalks+plaza, 8 villas, trees, collision, spawns). Open
+> the map in Tiled and treat the passes as a *refinement* checklist —
+> vary the house styles, add transition/corner tiles, props, and detail
+> layers. Don't re-run the generator after hand-editing: it rewrites
+> its layers from scratch.
+
 ## Setup (2 min)
 
 1. Open `assets-src/world.tiled-project` in Tiled (File → Open File or
