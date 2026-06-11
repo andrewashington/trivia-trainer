@@ -83,6 +83,35 @@ const HOURLY_GREETINGS_ZANY = [
   "One final act of defiance before bed", // 23
 ];
 
+// The 1% tier. If you see one of these, screenshot it — nobody will
+// believe you otherwise.
+const HOURLY_GREETINGS_CURSED = [
+  "The clocks agreed to keep this hour secret", // 0
+  "You were not supposed to perceive this hour", // 1
+  "The moon just asked about you. By name", // 2
+  "Wake the others. The hour has chosen", // 3
+  "Every mirror in the house is briefly unsupervised", // 4
+  "The dawn smells of wet drywall and prophecy", // 5
+  "An egg somewhere remembers everything", // 6
+  "Your reflection left for work without you", // 7
+  "The commute is a circle. It has always been a circle", // 8
+  "HR has been notified of your magnificence", // 9
+  "The spreadsheet hungers. Feed it nothing", // 10
+  "Lunch is a construct. Eat the construct", // 11
+  "The sun blinked. Tell no one what you saw", // 12
+  "Your sandwich knew the risks", // 13
+  "The office plant has completed its manifesto", // 14
+  "Beneath the slump lies a second, deeper slump", // 15
+  "The minute hand is buying time. Literally", // 16
+  "You may now remove your human costume", // 17
+  "Dinner has accepted your terms. Mostly", // 18
+  "The streetlights hum your name in B minor", // 19
+  "The television watches back, approvingly", // 20
+  "The couch has filed for joint custody of you", // 21
+  "Your teeth are at their most numerous right now", // 22
+  "Tomorrow called. It knows what you did today", // 23
+];
+
 // The server clock is UTC on Railway, so the greeting buckets by the
 // group's home timezone (override with HOME_TIMEZONE if the group moves).
 const HOME_TZ = process.env.HOME_TIMEZONE ?? "America/Denver";
@@ -105,8 +134,14 @@ function homeHour(): number {
 
 function greeting(): string {
   const h = homeHour();
-  // One roll per render: usually the standard line, sometimes the zany one.
-  const deck = Math.random() < 0.25 ? HOURLY_GREETINGS_ZANY : HOURLY_GREETINGS;
+  // One roll per render: 1% cursed, 25% zany, otherwise the standard line.
+  const roll = Math.random();
+  const deck =
+    roll < 0.01
+      ? HOURLY_GREETINGS_CURSED
+      : roll < 0.26
+        ? HOURLY_GREETINGS_ZANY
+        : HOURLY_GREETINGS;
   return deck[h] ?? "Good day";
 }
 
