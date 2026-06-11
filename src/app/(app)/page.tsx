@@ -25,12 +25,53 @@ const DARK_ACCENTS = new Set([
 ]);
 const onAccent = (bg: string) => (DARK_ACCENTS.has(bg) ? "text-white" : "text-ink");
 
+// One saying per hour of the day. Each reads as a salutation — the header
+// renders `${saying}, ${firstName}.`
+const HOURLY_GREETINGS = [
+  "Burning the midnight oil", // 0
+  "It's 1am and you're here", // 1
+  "Still up at 2am, huh", // 2
+  "It's 3am — this can't be good", // 3
+  "Up before the birds", // 4
+  "Dawn patrol", // 5
+  "Rise and shine", // 6
+  "Top of the morning", // 7
+  "Breakfast hours", // 8
+  "Morning's in full swing", // 9
+  "Peak productivity hours", // 10
+  "Almost lunchtime", // 11
+  "High noon", // 12
+  "Post-lunch power hour", // 13
+  "Mid-afternoon already", // 14
+  "Three o'clock slump check", // 15
+  "The home stretch", // 16
+  "Quitting time", // 17
+  "Dinner o'clock", // 18
+  "Golden hour", // 19
+  "Prime time", // 20
+  "The night is young", // 21
+  "Getting cozy", // 22
+  "One last scroll", // 23
+];
+
+// The server clock is UTC on Railway, so the greeting buckets by the
+// group's home timezone (override with HOME_TIMEZONE if the group moves).
+const HOME_TZ = process.env.HOME_TIMEZONE ?? "America/Denver";
+
 function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 5) return "Up late";
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+  let hour: number;
+  try {
+    hour = Number(
+      new Intl.DateTimeFormat("en-US", {
+        hour: "numeric",
+        hour12: false,
+        timeZone: HOME_TZ,
+      }).format(new Date())
+    );
+  } catch {
+    hour = new Date().getHours(); // bad TZ value — fall back to server time
+  }
+  return HOURLY_GREETINGS[hour % 24] ?? "Good day";
 }
 
 function timeAgo(d: Date): string {
