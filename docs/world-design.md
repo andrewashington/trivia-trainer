@@ -5,8 +5,9 @@ with your friends, own a house, buy furniture with coins, decorate it,
 visit each other, flex. **Purely cosmetic — its job is to be charming and
 to be a coin dump.** No combat, no progression mechanics, no stakes.
 
-Status: **approved direction, pre-build.** This doc is the source of truth
-for the architecture; update it as decisions change.
+Status: **Phase 0 shipped and live; Phase 1 (catalog pipeline) in progress.**
+This doc is the source of truth for the architecture AND the current-state
+handoff — see "Status & handoff" at the bottom. Update it as work lands.
 
 ## Decisions (locked)
 
@@ -147,3 +148,109 @@ Status items with visibly absurd prices (golden toilet, 25k) are the point.
 - Sell-back / refunds? (Lean: 50% buyback, keeps decisions low-stakes.)
 - `vendor/pixelarticons-pro` is a paid pack already in the public repo —
   same license class as the LimeZu issue; worth a separate look.
+
+---
+
+# Status & handoff (updated 2026-06-11)
+
+## Done — Phase 0 shipped (live, verified by Andrew)
+
+- `/world` is live and walkable in prod (commit `20a2b0b`): Phaser 3 scene,
+  Tiled-JSON map, 4-dir animated character, collision, camera follow,
+  WASD/arrows + tap-to-move. **Deliberately NOT in `registry.ts`** — URL-only
+  (`/world`) while WIP; register it when graduating.
+- Asset route `/api/world/assets/[...path]`: dev streams from
+  `assets-src/runtime/world/`, prod 302s to a presigned S3 URL. Auth-gated.
+- `scripts/world-sync-assets.ts` uploads `assets-src/runtime/world/**` to
+  s3 under `world/`. Spike assets (tileset.png, character.png, map.json)
+  are already in the prod bucket.
+- Deps added (intentional, Node 22 lockfile-clean): `phaser`, `sharp`.
+
+### Spike asset facts (verified by measurement; needed for any sprite work)
+- Tileset: `ME_Theme_Sorter_16x16/1_Terrains_and_Fences_16x16.png` —
+  512×1184 px, 32 columns, 2368 tiles.
+- Character: `0_Premade_Characters/16x16/Premade_Character_01.png` —
+  896×656 px, 16×16 frame grid → 56 columns; index = row*56+col.
+  Idle frames 0/1/2/3 = down/left/right/up. Walk cycles in row 1, 6 frames
+  each: down 56–61, left 62–67, right 68–73, up 74–79. (Row order was
+  inferred — if directions look swapped in game, remap in WorldScene.ts.)
+
+### Known rough edges (fine for spike, fix during real content pass)
+- map.json tile indices were guessed off the unlabeled sheet — terrain may
+  look wrong. Replaced wholesale by Andrew's Tiled map.
+- Idle is a single frame per direction.
+- `props` layer renders above the player (depth 10 vs 5) — right for trees,
+  revisit per-prop later (`props-overhead` is the long-term answer).
+
+## In flight — Phase 1 (catalog pipeline). Schema is DONE, rest is NOT.
+
+Prisma models `WorldItem` / `WorldOwnedItem` / `WorldHouse` + migration
+`20260611133243_world_phase1` are committed. **Migration is NOT applied
+anywhere yet** — Railway applies it on next deploy boot (additive, safe).
+Local Postgres on the previous dev machine had a broken `udm` role; local
+DB is optional, don't block on it.
+
+### Locked contracts (build against these)
+- `spriteKey = "<atlasKey>#<frameName>"`; atlases live at
+  `world/atlas/<atlasKey>.png` + `.json` (Phaser JSON-hash format) in S3,
+  written locally to `assets-src/runtime/world/atlas/` first, uploaded by
+  the existing sync script. Same files serve the game AND the admin UI
+  (admin renders frames via CSS background-position; no Phaser needed).
+- **Everything is 16×16.** Always use the `_16x16` pack folders; footprint
+  tileW/tileH = pxW/16, pxH/16. Apparent size = camera zoom (code knob).
+- Item `key` slug: from pack path, e.g. `mi-bathroom-bathtub-1`
+  (`mi`/`me` prefix = interiors/exteriors).
+
+### Remaining Phase 1 work (was about to be delegated to parallel agents)
+1. `scripts/world-ingest.ts` — walk curated singles folders (interiors
+   `Theme_Sorter_Singles` 16x16 regular-shadow variant; exteriors Garden +
+   a few fun theme folders; skip Shadowless/Black_Shadow dupes), measure
+   each PNG with sharp, pack per-theme atlases (max 2048px pages),
+   write atlas png+json, upsert draft `WorldItem` rows (idempotent by
+   `key`; name/category parsed from filename, published=false, price=0).
+   Run against prod DB via `railway run`.
+2. Admin API `/api/world/admin/*` (requireAdmin): paginated item list with
+   q/category/published filters; PATCH item (name/category/price/surface/
+   published); bulk publish + bulk default-pricing (e.g. by footprint area).
+3. Admin UI `/world/admin` (requireAdmin, hidden like /world): visual grid
+   off the atlases, filters, inline edit, bulk actions.
+4. Shop API (`/api/world/shop` list published, `/api/world/shop/buy`
+   atomic debit mirroring `api/treasure/route.ts` with
+   `reason: "world.purchase"`, `/api/world/inventory`). UI is Phase 2.
+
+## Andrew's work list (Tiled, do whenever)
+
+Install Tiled (mapeditor.org). New Tileset → from
+`assets-src/modern-exteriors/Modern_Exteriors_16x16/Modern_Exteriors_Complete_Tileset.png`
+(or Theme_Sorter sheets if too big), tile size 16×16, **Embed in map** ✅.
+New Map: orthogonal, 16×16, ~60×40. Export as **JSON .tmj** into
+`assets-src/runtime/world/maps/`.
+
+Layer contract (names exact, bottom→top):
+| layer | type | contents |
+|---|---|---|
+| `ground` | tiles | base terrain everywhere, no holes |
+| `ground-detail` | tiles | sparse decoration |
+| `props` | tiles | solid stuff (trees, fences, facades) |
+| `props-overhead` | tiles | draws above players (treetops, awnings) |
+| `collision` | objects | rectangles over solids + map border |
+| `spawns` | objects | points: `spawn`, `plot-1-door`…`plot-8-door` |
+
+Design: small road loop, ~8 house facades, park/plaza in the middle.
+Hand back: filename + tilesets used + plot count.
+
+## New-machine setup runbook
+
+1. Clone repo; `brew install node@22 railway` (node@22 is keg-only — use
+   `PATH=/opt/homebrew/opt/node@22/bin:$PATH` for ALL npm/npx, lockfile trap).
+2. `npm ci` (under Node 22).
+3. `railway login` then
+   `railway link --project strong-energy --service trivia-trainer`.
+4. **Asset packs are gitignored and must be re-downloaded** from itch.io
+   (Modern Interiors + Modern Exteriors, owned on Andrew's account) and
+   unzipped to `assets-src/modern-interiors/` + `assets-src/modern-exteriors/`
+   (win zips; same layout as before). Spike runtime files can be pulled
+   back from S3 `world/` or re-copied from the packs per the paths above.
+5. Sync assets to prod bucket after changes:
+   `PATH=/opt/homebrew/opt/node@22/bin:$PATH railway run npx tsx scripts/world-sync-assets.ts`
+6. Live spike: https://udm-plus.up.railway.app/world

@@ -54,60 +54,62 @@ model User {
   lastSeenAt    DateTime? // heartbeat from the app shell — powers the "who's online" header widget
   createdAt     DateTime  @default(now())
 
-  accounts          Account[]
-  sessions          Session[]
-  recipes           Recipe[]
-  events            Event[]
-  rsvps             Rsvp[]
-  playing           NowPlayingItem[]
-  files             FileObject[]
-  vaultEntries      VaultEntry[]
-  contactCard       ContactCard?
-  wishlistItems     WishlistItem[]
-  mapPins           MapPin[]
-  ideas             Idea[]
-  ideaVotes         IdeaVote[]
-  listings          Listing[]          @relation("listings")
-  claims            Listing[]          @relation("claims")
-  polls             Poll[]
-  pollVotes         PollVote[]
-  revealPrompts     RevealPrompt[]
-  revealSubmissions RevealSubmission[]
-  claimsCreated     Claim[]            @relation("claimsCreated")
-  claimsAgainst     Claim[]            @relation("claimsAgainst")
-  petNudges         PetNudge[]
-  pollRevealVotes   PollRevealVote[]
-  revealUnlockVotes RevealUnlockVote[]
-  feedback          Feedback[]
-  arcadeScores      ArcadeScore[]
-  countdowns        Countdown[]
-  tanksChallenges   TanksGame[]        @relation("tanksChallenger")
-  tanksDefenses     TanksGame[]        @relation("tanksOpponent")
-  tanksWins         TanksGame[]        @relation("tanksWinner")
-  tanksTurns        TanksTurn[]
-  coinTransactions  CoinTransaction[]
-  gameChatMessages  GameChatMessage[]
-  gayReadings       GayReading[]
-  photobookPhotos   PhotobookPhoto[]
-  photobookTags     PhotobookTag[]
-  blackjackHands    BlackjackHand[]
-  challenges        Challenge[]
-  challengeEntries  ChallengeEntry[]
-  challengeVotes    ChallengeVote[]
-  tierLists         TierList[]
-  tierPlacements    TierPlacement[]
-  keyCard           KeySubmission?
-  comments          Comment[]
-  treasureDigs      TreasureDig[]
-  treasureFinds     TreasureDay[]      @relation("treasureFinds")
-  canvasStrokes     CanvasStroke[]
-  smashDecks        SmashDeck[]
-  smashVotes        SmashVote[]
-  notifications      Notification[] @relation("UserNotifications")
-  notificationsActed Notification[] @relation("ActorNotifications")
+  accounts           Account[]
+  sessions           Session[]
+  recipes            Recipe[]
+  events             Event[]
+  rsvps              Rsvp[]
+  playing            NowPlayingItem[]
+  files              FileObject[]
+  vaultEntries       VaultEntry[]
+  contactCard        ContactCard?
+  wishlistItems      WishlistItem[]
+  mapPins            MapPin[]
+  ideas              Idea[]
+  ideaVotes          IdeaVote[]
+  listings           Listing[]          @relation("listings")
+  claims             Listing[]          @relation("claims")
+  polls              Poll[]
+  pollVotes          PollVote[]
+  revealPrompts      RevealPrompt[]
+  revealSubmissions  RevealSubmission[]
+  claimsCreated      Claim[]            @relation("claimsCreated")
+  claimsAgainst      Claim[]            @relation("claimsAgainst")
+  petNudges          PetNudge[]
+  pollRevealVotes    PollRevealVote[]
+  revealUnlockVotes  RevealUnlockVote[]
+  feedback           Feedback[]
+  arcadeScores       ArcadeScore[]
+  countdowns         Countdown[]
+  tanksChallenges    TanksGame[]        @relation("tanksChallenger")
+  tanksDefenses      TanksGame[]        @relation("tanksOpponent")
+  tanksWins          TanksGame[]        @relation("tanksWinner")
+  tanksTurns         TanksTurn[]
+  coinTransactions   CoinTransaction[]
+  gameChatMessages   GameChatMessage[]
+  gayReadings        GayReading[]
+  photobookPhotos    PhotobookPhoto[]
+  photobookTags      PhotobookTag[]
+  blackjackHands     BlackjackHand[]
+  challenges         Challenge[]
+  challengeEntries   ChallengeEntry[]
+  challengeVotes     ChallengeVote[]
+  tierLists          TierList[]
+  tierPlacements     TierPlacement[]
+  keyCard            KeySubmission?
+  comments           Comment[]
+  treasureDigs       TreasureDig[]
+  treasureFinds      TreasureDay[]      @relation("treasureFinds")
+  canvasStrokes      CanvasStroke[]
+  smashDecks         SmashDeck[]
+  smashVotes         SmashVote[]
+  notifications      Notification[]     @relation("UserNotifications")
+  notificationsActed Notification[]     @relation("ActorNotifications")
   arcadeRounds       ArcadeRound[]
   minesGames         MinesGame[]
   crashRounds        CrashRound[]
+  worldOwnedItems    WorldOwnedItem[]
+  worldHouse         WorldHouse?
 }
 
 // ============ Blackjack: casino hands wagering coins ============
@@ -1088,9 +1090,9 @@ model SmashVote {
 
 model Notification {
   id         String    @id @default(cuid())
-  userId     String    // recipient
-  type       String    // "comment" for now; extensible
-  actorId    String?   // who triggered it
+  userId     String // recipient
+  type       String // "comment" for now; extensible
+  actorId    String? // who triggered it
   targetType String?
   targetId   String?
   title      String
@@ -1159,4 +1161,56 @@ model CrashRound {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
+}
+
+// ============ The World: decorative game world / coin sink ============
+// Design doc: docs/world-design.md. Catalog rows are drafted in bulk by
+// scripts/world-ingest.ts from the LimeZu packs, then curated (priced,
+// published) in the /world/admin UI. Sprites live in packed atlases on S3;
+// spriteKey = "<atlasKey>#<frameName>" into world/atlas/<atlasKey>.{png,json}.
+
+model WorldItem {
+  id        String   @id @default(cuid())
+  key       String   @unique // stable slug from pack path, e.g. "mi-bathroom-bathtub-1"
+  name      String // human name, editable in admin
+  category  String // shop grouping, defaults to pack theme, editable
+  price     Int      @default(0) // 0 = unpriced draft; admin sets before publish
+  spriteKey String // "<atlasKey>#<frameName>"
+  tileW     Int      @default(1) // footprint in 16px tiles
+  tileH     Int      @default(1)
+  surface   String   @default("floor") // floor | wall
+  published Boolean  @default(false) // only published+priced items appear in the shop
+  createdAt DateTime @default(now())
+
+  ownedItems WorldOwnedItem[]
+
+  @@index([published, category])
+}
+
+// Inventory; placement lives on the row (null x/y = in storage, not placed)
+model WorldOwnedItem {
+  id        String   @id @default(cuid())
+  userId    String
+  itemId    String
+  x         Int?
+  y         Int?
+  rotation  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item WorldItem @relation(fields: [itemId], references: [id])
+
+  @@index([userId])
+}
+
+// One house per user; tier = floorplan size (the big coin sink), plot =
+// which neighborhood door is theirs (matches "plot-N-door" spawns in the map)
+model WorldHouse {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  tier      Int      @default(1)
+  plot      Int      @unique
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
