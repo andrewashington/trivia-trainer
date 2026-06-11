@@ -134,6 +134,21 @@ const config: Config = {
           "75%": { transform: "translate(-50%, -22px) scale(1)", opacity: "1" },
           "100%": { transform: "translate(-50%, -34px) scale(0.9)", opacity: "0" },
         },
+        // …little coins spray outward (each sets --bx/--by/--br/--bs).
+        "coin-burst": {
+          "0%": { transform: "translate(-50%, -50%) scale(0.3) rotate(0deg)", opacity: "0" },
+          "15%": { opacity: "1" },
+          "100%": {
+            transform:
+              "translate(calc(-50% + var(--bx)), calc(-50% + var(--by))) scale(var(--bs, 1)) rotate(var(--br, 0deg))",
+            opacity: "0",
+          },
+        },
+        // …and a brutalist shockwave ring punches out behind the badge.
+        "coin-ring": {
+          "0%": { transform: "translate(-50%, -50%) scale(0.4)", opacity: "0.9" },
+          "100%": { transform: "translate(-50%, -50%) scale(2.4)", opacity: "0" },
+        },
         // Gentle continuous bob — floating logo letters & confetti.
         float: {
           "0%, 100%": { transform: "translateY(0)" },
@@ -213,6 +228,8 @@ const config: Config = {
         float: "float 3.6s ease-in-out infinite",
         "coin-flip": "coin-flip 650ms cubic-bezier(0.3, 1.4, 0.5, 1) both",
         "coin-rise": "coin-rise 1.6s ease-out both",
+        "coin-burst": "coin-burst 950ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards",
+        "coin-ring": "coin-ring 700ms ease-out forwards",
         sparkle: "sparkle 1.3s ease-in-out infinite",
         sheen: "sheen 2.8s ease-in-out infinite",
         "drop-in": "drop-in 520ms cubic-bezier(0.2, 1.5, 0.4, 1) both",

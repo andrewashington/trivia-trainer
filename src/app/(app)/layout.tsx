@@ -14,7 +14,6 @@ import { CoinBadge } from "@/components/CoinBadge";
 import { PresenceBadge } from "@/components/PresenceBadge";
 import { CommandButton } from "@/components/command/CommandButton";
 import { FeedbackButton } from "@/components/FeedbackButton";
-import { DickKey } from "@/components/DickKey";
 
 export default async function AppLayout({
   children,
@@ -78,9 +77,6 @@ export default async function AppLayout({
 
       {/* Always-on feedback channel for testers. */}
       <FeedbackButton />
-
-      {/* The dick key. The people voted; democracy delivered. */}
-      <DickKey />
     </div>
   );
 }

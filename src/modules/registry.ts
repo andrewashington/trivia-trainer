@@ -383,7 +383,7 @@ export const modules: ModuleDef[] = [
     tips: [
       "Post a challenge — add a deadline to keep it spicy",
       "Submit your proof: words, a photo, or both",
-      "Vote for the best entry (not your own) — winner banks 25 coins",
+      "Vote for the best entry (not your own) — winner banks 60 coins",
     ],
   },
   {
