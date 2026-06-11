@@ -261,6 +261,9 @@ Hand back: filename + tilesets used + plot count.
    unzipped to `assets-src/modern-interiors/` + `assets-src/modern-exteriors/`
    (win zips; same layout as before). Spike runtime files can be pulled
    back from S3 `world/` or re-copied from the packs per the paths above.
+   Then `npx tsx scripts/world-build-tilesets.ts` regenerates the composite
+   tileset PNGs (gitignored art) that the committed Tiled project
+   (`assets-src/world.tiled-project`) and .tsx files reference.
 5. Sync assets to prod bucket after changes:
    `PATH=/opt/homebrew/opt/node@22/bin:$PATH railway run npx tsx scripts/world-sync-assets.ts`
 6. Live spike: https://udm-plus.up.railway.app/world

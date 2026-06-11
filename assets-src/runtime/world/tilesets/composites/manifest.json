@@ -1,0 +1,144 @@
+{
+  "1_Terrain_and_Water": [
+    {
+      "source": "ME_Theme_Sorter_16x16/1_Terrains_and_Fences_16x16.png",
+      "y": 0,
+      "rows": 74
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/21_Beach_16x16.png",
+      "y": 1184,
+      "rows": 125
+    },
+    {
+      "source": "water_f0.png",
+      "y": 3184,
+      "rows": 3
+    },
+    {
+      "source": "sea_f0.png",
+      "y": 3232,
+      "rows": 4
+    }
+  ],
+  "2_Nature_and_Outdoors": [
+    {
+      "source": "ME_Theme_Sorter_16x16/17_Garden_16x16.png",
+      "y": 0,
+      "rows": 196
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/11_Camping_16x16.png",
+      "y": 3136,
+      "rows": 181
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/19_Graveyard_16x16.png",
+      "y": 6032,
+      "rows": 40
+    }
+  ],
+  "3_City_and_Streets": [
+    {
+      "source": "ME_Theme_Sorter_16x16/2_City_Terrains_16x16.png",
+      "y": 0,
+      "rows": 103
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/3_City_Props_16x16.png",
+      "y": 1648,
+      "rows": 224
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/10_Vehicles_16x16.png",
+      "y": 5232,
+      "rows": 168
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/8_Worksite_16x16.png",
+      "y": 7920,
+      "rows": 20
+    }
+  ],
+  "4_Houses": [
+    {
+      "source": "ME_Theme_Sorter_16x16/4_Generic_Buildings_16x16.png",
+      "y": 0,
+      "rows": 200
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/7_Villas_16x16.png",
+      "y": 3200,
+      "rows": 57
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/24_Additional_Houses_16x16.png",
+      "y": 4112,
+      "rows": 308
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/5_Floor_Modular_Buildings_16x16.png",
+      "y": 9040,
+      "rows": 259
+    }
+  ],
+  "5_Civic_and_Shops": [
+    {
+      "source": "ME_Theme_Sorter_16x16/9_Shopping_Center_and_Markets_16x16.png",
+      "y": 0,
+      "rows": 68
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/12_Hotel_and_Hospital_16x16.png",
+      "y": 1088,
+      "rows": 62
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/13_School_16x16.png",
+      "y": 2080,
+      "rows": 116
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/15_Police_Station_16x16.png",
+      "y": 3936,
+      "rows": 69
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/16_Office_16x16.png",
+      "y": 5040,
+      "rows": 95
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/18_Fire_Station_16x16.png",
+      "y": 6560,
+      "rows": 30
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/22_Post_Office_16x16.png",
+      "y": 7040,
+      "rows": 30
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/14_Swimming_Pool_16x16.png",
+      "y": 7520,
+      "rows": 31
+    }
+  ],
+  "6_Misc_and_Fun": [
+    {
+      "source": "ME_Theme_Sorter_16x16/6_Garage_Sales_16x16.png",
+      "y": 0,
+      "rows": 38
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/20_Subway_and_Train_Station_16x16.png",
+      "y": 608,
+      "rows": 185
+    },
+    {
+      "source": "ME_Theme_Sorter_16x16/23_MIlitary_Base_16x16.png",
+      "y": 3568,
+      "rows": 286
+    }
+  ]
+}

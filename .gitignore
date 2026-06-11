@@ -30,5 +30,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
-# licensed asset packs (LimeZu) — repo is public, these must NEVER be committed
-/assets-src/
+# licensed asset packs (LimeZu) — repo is public, the ART must NEVER be
+# committed. Text-only Tiled files (project, maps, .tsx, manifest) ARE
+# committed; composite PNGs are rebuilt via scripts/world-build-tilesets.ts.
+/assets-src/*
+!/assets-src/world.tiled-project
+!/assets-src/runtime/
+/assets-src/runtime/*
+!/assets-src/runtime/world/
+/assets-src/runtime/world/*
+!/assets-src/runtime/world/maps/
+!/assets-src/runtime/world/tilesets/
+/assets-src/runtime/world/tilesets/composites/*
+!/assets-src/runtime/world/tilesets/composites/manifest.json
