@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.11.0" name="0_Working" tilewidth="16" tileheight="16" tilecount="1088" columns="32">
- <image source="composites/0_Working.png" width="512" height="544"/>
+<tileset version="1.10" tiledversion="1.11.0" name="0_Working" tilewidth="16" tileheight="16" tilecount="1504" columns="32">
+ <image source="composites/0_Working.png" width="512" height="752"/>
  <wangsets>
  <wangset name="Grass / Dirt" type="corner" tile="-1">
   <wangcolor name="grass" color="#00ff00" tile="0" probability="1"/>

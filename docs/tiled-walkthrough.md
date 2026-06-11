@@ -42,8 +42,12 @@ the neighborhood needs, one screen tall, organized top to bottom:
   (shimmer, lily pads)
 - **Rows 12–14** — grass decals, dirt patches, flower beds, fences
 - **Rows 16–20** — tree
-- **Rows 22+** — the three villa kits (drag a rectangle over a whole
+- **Rows 22–34** — the three villa kits (drag a rectangle over a whole
   villa to stamp it)
+- **Rows 36+** — rounded-curb reference (roundabout + bus pads): for a
+  curved road turn, rectangle-grab a quarter-arc corner (~4×4 tiles)
+  and stamp it over the sharp corner. Sharp turns need no pieces at
+  all — just overlap two asphalt rectangles.
 
 The six category mega-sheets stay loaded below it for the occasional
 treasure hunt; `composites/manifest.json` says what's in each. If you

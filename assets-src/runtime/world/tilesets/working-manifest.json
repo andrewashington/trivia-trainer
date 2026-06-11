@@ -1,7 +1,7 @@
 {
   "firstgid": 109511,
   "columns": 32,
-  "rows": 34,
+  "rows": 47,
   "sections": [
     {
       "name": "fill-grass",
@@ -232,6 +232,16 @@
       "h": 13,
       "dc": 20,
       "dr": 21
+    },
+    {
+      "name": "road-curves",
+      "sheet": "city",
+      "c": 12,
+      "r": 8,
+      "w": 18,
+      "h": 12,
+      "dc": 0,
+      "dr": 35
     }
   ]
 }

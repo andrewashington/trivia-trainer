@@ -20,7 +20,7 @@ const SRC = {
   city: `${TS}/composites/3_City_and_Streets.png`,
   houses: `${TS}/composites/4_Houses.png`,
 };
-const T = 16, COLS = 32, ROWS = 34;
+const T = 16, COLS = 32, ROWS = 47;
 // must equal 6_Misc firstgid (93223) + its tilecount (16288)
 const FIRSTGID = 109511;
 
@@ -55,6 +55,9 @@ const SECTIONS: Sec[] = [
   { name: "villa-brown", sheet: "houses", c: 0, r: 200, w: 8, h: 13, dc: 0, dr: 21 },
   { name: "villa-red", sheet: "houses", c: 0, r: 214, w: 8, h: 13, dc: 10, dr: 21 },
   { name: "villa-blue", sheet: "houses", c: 10, r: 214, w: 8, h: 13, dc: 20, dr: 21 },
+  // rows 35-46: rounded-curb reference (roundabout + bus pads) — grab
+  // quarter-arc corners from here as stamps for curved road turns
+  { name: "road-curves", sheet: "city", c: 12, r: 8, w: 18, h: 12, dc: 0, dr: 35 },
 ];
 
 // Wang sets (Tiled "Terrain Sets", corner type). Layout assumptions match
