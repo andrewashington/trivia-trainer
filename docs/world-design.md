@@ -231,23 +231,24 @@ Install Tiled (mapeditor.org). New Tileset → from
 New Map: orthogonal, 16×16, ~60×40. Export as **JSON .tmj** into
 `assets-src/runtime/world/maps/`.
 
-Layer contract v2 (names exact, bottom→top; Tiled project + map are
-pre-generated under `assets-src/` with these layers and 6 composite
-category tilesets — see `assets-src/runtime/world/tilesets/composites/manifest.json`):
+Layer contract v3 (names exact, bottom→top). Three tile layers map 1:1
+to the engine's three depths — solidity comes from the `collision`
+object layer, not from which tile layer something is on:
 | layer | type | contents |
 |---|---|---|
-| `terrain-base` | tiles | grass/dirt/sand/water everywhere, no holes |
-| `terrain-roads-paths` | tiles | roads, sidewalks, paths on top of base |
-| `terrain-detail` | tiles | walkable decoration: flowers, cracks, leaves |
-| `buildings` | tiles | house facades, walls, large structures |
-| `props-solid` | tiles | solid objects: trees, fences, benches, vehicles |
-| `props-walkover` | tiles | non-solid surface items: doormats, manholes |
+| `ground` | tiles | terrain, roads, paths, walkable decoration — no holes |
+| `props` | tiles | buildings, trees, fences, benches — anything standing on the ground |
 | `overhead` | tiles | draws above players: treetops, awnings, roof peaks |
 | `collision` | objects | rectangles over solids + map border |
 | `spawns` | objects | points: `spawn`, `plot-1-door`…`plot-8-door` |
 
-Engine mapping (conversion script collapses on hand-back): `terrain-*` →
-ground depth, `buildings`/`props-*` → props depth, `overhead` above player.
+Author from the **`0_Working` tileset** — a small curated sheet (fills,
+transition kits, road markings, decor, trees, house kits) built by
+`scripts/world-build-working-tileset.ts` from the category composites;
+see `assets-src/runtime/world/tilesets/working-manifest.json` for what's
+where. It carries Tiled **Terrain Sets** (grass/dirt, grass/water) so
+the Terrain Brush auto-picks transition tiles. The 6 category mega-sheets
+stay loaded for hunting anything not in the working set.
 Map is 120×80 @ 16px. Animated water painted from first-frame tiles;
 animation wired Phaser-side later.
 
@@ -268,7 +269,9 @@ Hand back: filename + tilesets used + plot count.
    back from S3 `world/` or re-copied from the packs per the paths above.
    Then `npx tsx scripts/world-build-tilesets.ts` regenerates the composite
    tileset PNGs (gitignored art) that the committed Tiled project
-   (`assets-src/world.tiled-project`) and .tsx files reference.
+   (`assets-src/world.tiled-project`) and .tsx files reference, and
+   `npx tsx scripts/world-build-working-tileset.ts` regenerates the
+   curated 0_Working sheet from those composites.
 5. Sync assets to prod bucket after changes:
    `PATH=/opt/homebrew/opt/node@22/bin:$PATH railway run npx tsx scripts/world-sync-assets.ts`
 6. Live spike: https://udm-plus.up.railway.app/world
