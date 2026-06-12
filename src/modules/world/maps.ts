@@ -16,7 +16,7 @@ export type WorldMapDef = {
 export const MAP_REGISTRY: WorldMapDef[] = [
   {
     id: "neighborhood",
-    tmx: "assets-src/runtime/world/maps/working-map.tmx",
+    tmx: "assets-src/runtime/world/maps/neighborhood.tmx",
     label: "The Neighborhood",
     kind: "exterior",
   },

@@ -156,7 +156,7 @@ Status items with visibly absurd prices (golden toilet, 25k) are the point.
 ## Done — live in prod, verified by Andrew
 
 - `/world` plays like Pokémon: Andrew's hand-painted island map
-  (`working-map.tmx`, 50×50), strict 4-direction movement (hold-priority
+  (`neighborhood.tmx`, 50×50), strict 4-direction movement (hold-priority
   keyboard; axis-aligned L-shaped tap-to-walk), loading screen w/
   two-stage progress bar + camera fade-in, feet-only collision body,
   6-frame idle + walk animations. **Still NOT in `registry.ts`** —
@@ -171,7 +171,7 @@ Status items with visibly absurd prices (golden toilet, 25k) are the point.
   belongs to the SITE avatar builder — don't touch it). Cache-busted via
   `?v=<updatedAt>`.
 - Map pipeline (repeatable, no code per iteration):
-  edit `working-map.tmx` in Tiled → `npx tsx scripts/world-export-map.ts`
+  edit `neighborhood.tmx` in Tiled → `npx tsx scripts/world-export-map.ts`
   (tmx → engine map.json + only-used tileset images; dedups + gid-remaps
   doubly-referenced tilesets; verifies zero orphan gids) →
   `railway run npx tsx scripts/world-sync-assets.ts`. Prod picks it up on
@@ -267,7 +267,7 @@ Status items with visibly absurd prices (golden toilet, 25k) are the point.
   S3 as future store inventory (`BASE_OUTFITS` in
   `world-character-parts.ts`). Accessories/Books/Smartphones categories
   not staged at all yet — store flow will need both.
-- `working-map.tmx` has stray siblings (`untitled.tmx`, `5.tsx`) in the
+- `neighborhood.tmx` has stray siblings (`untitled.tmx`, `5.tsx`) in the
   maps dir — junk from Tiled experiments, safe to delete.
 - Plot doors (`plot-1-door`…) not placed yet — needed for Phase 2/3
   houses, not for walking around.
@@ -316,7 +316,7 @@ re-running it overwrites hand edits). `scripts/world-crop-tiles.mjs`
 renders gridded tileset crops for identifying tile coordinates.
 
 Setup is pre-built — open `assets-src/world.tiled-project` in Tiled
-(mapeditor.org) and edit `maps/working-map.tmx`; rebuild the gitignored
+(mapeditor.org) and edit `maps/neighborhood.tmx`; rebuild the gitignored
 art first per the runbook below. The instructions that follow predate
 the committed project; kept for context only.
 
@@ -432,7 +432,7 @@ order below the player, except `overhead`):
    `spawn`; add a `portals` rect back to where you came from (name =
    source map id, Class = the named spawn point you added on the source
    map just outside this building's door).
-3. On the source map (e.g. `working-map.tmx`): add a `portals` rect over
+3. On the source map (e.g. `neighborhood.tmx`): add a `portals` rect over
    the doorway (name = new map id, Class = `spawn`), and a `spawns`
    point just below/outside the door for re-emerging.
 4. (Registration already happened in step 1 — `MAP_REGISTRY` in
