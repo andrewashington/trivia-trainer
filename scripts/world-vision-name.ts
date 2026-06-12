@@ -85,17 +85,19 @@ async function sheet(chunk: DraftItem[]): Promise<string> {
 
 const TIER_LIST = TIERS.map((t) => `${t.key} (${t.blurb})`).join("; ");
 
-function promptFor(n: number, theme: string): string {
+function promptFor(n: number, theme: string, sizes: string): string {
   return `You are cataloguing pixel-art props for a cozy decorative game shop. EVERY sprite on this sheet is from the pack's "${theme}" set, so it depicts something you'd find in a ${theme} setting — use that as STRONG context. A tiny ambiguous sprite that could be many things is almost certainly the specific ${theme} item it resembles (e.g. in a Fishing set, a small box is a tackle box, a rod-shaped object is a fishing rod). Name the SPECIFIC item the theme implies, not a generic look-alike.
 
 The image is a labeled contact sheet of ${n} sprites, numbered #1..#${n} at the bottom-left of each cell. Sprites that are adjacent and look like the same object in different colours/materials are colourway variants of ONE object.
 
-Reply with ONLY a JSON array of exactly ${n} objects — no prose, no markdown fences. One object per sprite:
+IMPORTANT — real-world SIZE: the sheet scales every sprite to fill its cell, so it does NOT show relative size. Use these true footprints (in 16px tiles) to disambiguate — a 1×1 is a small desktop/clutter object, 1×2 / 2×2 are mid furniture, 3×3+ are big furniture. Footprints: ${sizes}.
+
+Reply with ONLY a JSON object of the form {"items": [ ... ]} containing exactly ${n} objects — no prose, no markdown fences. One object per sprite:
 - "idx": the sprite number (1..${n}).
-- "name": a short, real, browsable item name ("Velvet Armchair", "Oak Bookshelf"). The joke goes in "tagline", NOT here. Sprites that share a "variantGroup" MUST share the EXACT same "name".
+- "name": a short, real, browsable item name ("Velvet Armchair", "Oak Bookshelf"). The joke goes in "tagline", NOT here. Sprites that share a "variantGroup" MUST share the EXACT same "name". If two sprites that are NOT variants would otherwise get the same name, differentiate them (e.g. "Tackle Box" vs "Mini Tackle Box", "Floor Lamp" vs "Table Lamp").
 - "variantGroup": a short slug shared ONLY by colourway/material variants of the SAME object on THIS sheet (e.g. "armchair-a"). Rule: if two sprites wouldn't get the identical "name", they are NOT one group — set null. null when an item has no sibling variants here.
 - "variant": for grouped items, the distinguishing colour/material label ("Oak","Birch","Sage","Crimson"); null otherwise.
-- "tags": array of 3-7 lowercase keywords for search/filtering — cover material, dominant colour, style/era, and vibe (e.g. ["wooden","oak","rustic","brown","storage"]).
+- "tags": array of 3-7 keywords for search/filtering — cover material, dominant colour, style/era, and vibe. Each tag MUST be lowercase and a single token: hyphenate multi-word tags (use "dark-wood" not "dark wood", "terracotta" not "terra cotta").
 - "tagline": ONE short, dry, ironic line of shop copy. Funny, never twee, never cutesy. e.g. "Where ambition goes to nap."
 - "category": functional group, lowercase (seating, table, bed, storage, lighting, plant, rug, wall-decor, electronics, appliance, decor, ...). If the sprite is NOT a placeable decorative object (a bare floor/wall tile, a fragment, a UI element), use "non-item" and set confidence ≤ 0.2.
 - "tier": one of: ${TIER_LIST}. Pick by how impressive/expensive it reads; reserve "statement"/"absurd" for genuine show-off pieces.
@@ -103,7 +105,21 @@ Reply with ONLY a JSON array of exactly ${n} objects — no prose, no markdown f
 - "confidence": 0..1, honest; low for ambiguous tiny sprites.`;
 }
 
-async function callModel(dataUrl: string, n: number, theme: string): Promise<Record<string, unknown>[]> {
+/** Parse the model reply into an item array — accepts {"items":[...]}, a bare
+ *  array, or either wrapped in code fences. */
+function parseItems(content: string): Record<string, unknown>[] {
+  let txt = content.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  try {
+    const j = JSON.parse(txt);
+    if (Array.isArray(j)) return j;
+    if (Array.isArray((j as { items?: unknown }).items)) return (j as { items: Record<string, unknown>[] }).items;
+  } catch { /* fall through to bracket extraction */ }
+  const s = txt.indexOf("["), e = txt.lastIndexOf("]");
+  if (s >= 0 && e > s) return JSON.parse(txt.slice(s, e + 1)) as Record<string, unknown>[];
+  throw new Error(`no JSON items in reply: ${txt.slice(0, 200)}`);
+}
+
+async function callModel(dataUrl: string, n: number, theme: string, sizes: string): Promise<Record<string, unknown>[]> {
   const res = await fetch(ENDPOINT, {
     method: "POST",
     headers: {
@@ -115,11 +131,12 @@ async function callModel(dataUrl: string, n: number, theme: string): Promise<Rec
     body: JSON.stringify({
       model: MODEL,
       usage: { include: true },
+      response_format: { type: "json_object" }, // guarantee a valid JSON object back
       messages: [
         {
           role: "user",
           content: [
-            { type: "text", text: promptFor(n, theme) },
+            { type: "text", text: promptFor(n, theme, sizes) },
             { type: "image_url", image_url: { url: dataUrl } },
           ],
         },
@@ -134,11 +151,7 @@ async function callModel(dataUrl: string, n: number, theme: string): Promise<Rec
   usageTotals.prompt += data.usage?.prompt_tokens ?? 0;
   usageTotals.completion += data.usage?.completion_tokens ?? 0;
   usageTotals.cost += data.usage?.cost ?? 0;
-  let txt = (data.choices?.[0]?.message?.content ?? "").trim();
-  txt = txt.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-  const start = txt.indexOf("["), end = txt.lastIndexOf("]");
-  if (start < 0 || end < 0) throw new Error(`no JSON array in reply: ${txt.slice(0, 200)}`);
-  return JSON.parse(txt.slice(start, end + 1)) as Record<string, unknown>[];
+  return parseItems(data.choices?.[0]?.message?.content ?? "");
 }
 
 const usageTotals = { prompt: 0, completion: 0, cost: 0 };
@@ -181,7 +194,8 @@ async function main() {
     process.stdout.write(`  montage ${c + 1}/${run.length} (${chunk.length}) … `);
     try {
       const url = await sheet(chunk);
-      const arr = await callModel(url, chunk.length, chunk[0].themeLabel);
+      const sizes = chunk.map((it, i) => `#${i + 1}=${it.tileW}×${it.tileH}`).join(", ");
+      const arr = await callModel(url, chunk.length, chunk[0].themeLabel, sizes);
       if (DRY) console.log("✓\n");
       for (const o of arr) {
         const i = Number(o.idx) - 1;
