@@ -1,18 +1,27 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { apiHandler } from "@/lib/api";
-import { ACTIVE_COIN_REWARD, rewardLedgerMeta } from "@/lib/coinRewards";
+import { z } from "zod";
+import { apiHandler, parseBody } from "@/lib/api";
+import { claimKeyFor, findReward, rewardLedgerMeta } from "@/lib/coinRewards";
 import { db } from "@/lib/db";
 import { HttpError, requireUser } from "@/lib/session";
 
-export const POST = apiHandler(async () => {
+const Body = z.object({ key: z.string().min(1) });
+
+export const POST = apiHandler(async (req: Request) => {
   const user = await requireUser();
-  const reward = ACTIVE_COIN_REWARD;
+  const { key } = await parseBody(req, Body);
+  const reward = findReward(key);
+  if (!reward) throw new HttpError(404, "No such reward.");
+
+  // Daily campaigns fold the calendar day into the claim key, so each day is a
+  // fresh row the unique index treats as un-claimed.
+  const claimKey = claimKeyFor(reward);
 
   try {
     const result = await db.$transaction(async (tx) => {
       const existing = await tx.coinRewardClaim.findUnique({
-        where: { userId_rewardKey: { userId: user.id, rewardKey: reward.key } },
+        where: { userId_rewardKey: { userId: user.id, rewardKey: claimKey } },
       });
       if (existing) {
         const fresh = await tx.user.findUniqueOrThrow({
@@ -23,11 +32,7 @@ export const POST = apiHandler(async () => {
       }
 
       await tx.coinRewardClaim.create({
-        data: {
-          userId: user.id,
-          rewardKey: reward.key,
-          amount: reward.amount,
-        },
+        data: { userId: user.id, rewardKey: claimKey, amount: reward.amount },
       });
       await tx.coinTransaction.create({
         data: {

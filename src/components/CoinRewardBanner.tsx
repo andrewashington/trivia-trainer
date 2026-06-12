@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ActiveCoinReward } from "@/lib/coinRewards";
+import type { CoinReward } from "@/lib/coinRewards";
 import { CoinGlyph } from "@/components/CoinBadge";
 
 type ClaimResponse = {
@@ -12,7 +12,7 @@ type ClaimResponse = {
   error?: string;
 };
 
-export function CoinRewardBanner({ reward }: { reward: ActiveCoinReward }) {
+export function CoinRewardBanner({ reward }: { reward: CoinReward }) {
   const [visible, setVisible] = useState(true);
   const [busy, setBusy] = useState(false);
   const [claimed, setClaimed] = useState(false);
@@ -28,6 +28,7 @@ export function CoinRewardBanner({ reward }: { reward: ActiveCoinReward }) {
       const res = await fetch("/api/coin-rewards/current/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: reward.key }),
       });
       const data = (await res.json()) as ClaimResponse;
       if (!res.ok) {

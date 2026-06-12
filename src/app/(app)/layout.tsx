@@ -4,7 +4,7 @@ import { signOut } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { unreadCounts } from "@/lib/unread";
-import { ACTIVE_COIN_REWARD } from "@/lib/coinRewards";
+import { COIN_REWARDS, claimKeyFor } from "@/lib/coinRewards";
 import { Logo } from "@/components/Logo";
 import { AppDecor } from "@/components/AppDecor";
 import { MobileNav, SideNav } from "@/components/NavTabs";
@@ -37,15 +37,15 @@ export default async function AppLayout({
   const glowKeys = user.introsSeen.includes("world") ? [] : ["world"];
   const counts = await unreadCounts(user);
   const notifUnread = await db.notification.count({ where: { userId: user.id, readAt: null } });
-  const activeRewardClaim = await db.coinRewardClaim.findUnique({
-    where: {
-      userId_rewardKey: {
-        userId: user.id,
-        rewardKey: ACTIVE_COIN_REWARD.key,
-      },
-    },
-    select: { id: true },
+  // Offer the first campaign this user can still claim in its current window
+  // (one-time rewards once ever; daily rewards once per calendar day).
+  const claimKeys = COIN_REWARDS.map((r) => claimKeyFor(r));
+  const claimedRows = await db.coinRewardClaim.findMany({
+    where: { userId: user.id, rewardKey: { in: claimKeys } },
+    select: { rewardKey: true },
   });
+  const claimedKeys = new Set(claimedRows.map((c) => c.rewardKey));
+  const openReward = COIN_REWARDS.find((r) => !claimedKeys.has(claimKeyFor(r)));
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl">
@@ -77,8 +77,8 @@ export default async function AppLayout({
 
         <main className="flex-1">
           {user.onboardedAt && <ModuleIntro introsSeen={user.introsSeen} />}
-          {user.onboardedAt && !activeRewardClaim && (
-            <CoinRewardBanner reward={ACTIVE_COIN_REWARD} />
+          {user.onboardedAt && openReward && (
+            <CoinRewardBanner reward={openReward} />
           )}
           {children}
         </main>
