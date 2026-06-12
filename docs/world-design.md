@@ -182,6 +182,20 @@ Status items with visibly absurd prices (golden toilet, 25k) are the point.
   `world-build-working-tileset.ts`), terrain sets (Wang) on BOTH
   0_Working and the 1_Terrain_and_Water mega-sheet.
 - Deps added (intentional, Node 22 lockfile-clean): `phaser`, `sharp`.
+- **Multiplayer presence v1 (polling)** — shipped 2026-06-11, pending
+  Andrew's in-browser verify. `PresenceTransport` interface +
+  `PollingTransport` (`src/modules/world/transport.ts`, 2s heartbeat,
+  skip-don't-queue on slow responses, `sendBeacon` leave on pagehide);
+  in-memory server store w/ 10s TTL sweep
+  (`src/modules/world/presenceStore.ts`, trivia-store pattern);
+  `POST /api/world/presence` does heartbeat+peers in one round-trip and
+  resolves each peer's composited avatar sheet path once per join
+  (cached in module memory). Scene renders peers as non-colliding ghost
+  sprites with their own avatar sheets, per-texture-key anims
+  (`createCharacterAnims`), eased interpolation (1.25× walk speed,
+  snap-teleport beyond 160px), and name labels. mapId is the constant
+  `"neighborhood"` for now — becomes meaningful when interiors land.
+  v2 (websocket sidecar) remains tabled per the locked decision.
 
 ### Asset facts (verified by labeled-crop measurement — never guess grids)
 - Character generator sheets (`2_Characters/Character_Generator/*/16x16`):

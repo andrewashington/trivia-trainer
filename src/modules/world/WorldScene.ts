@@ -19,7 +19,8 @@
  */
 
 import Phaser from "phaser";
-import type { FacingDirection } from "./types";
+import type { FacingDirection, PlayerState } from "./types";
+import { PollingTransport, type Peer, type PresenceTransport } from "./transport";
 
 // Asset base URL — served (and auth-gated) by our API route.
 const ASSET_BASE = "/api/world/assets";
@@ -31,6 +32,15 @@ const ARRIVE_THRESHOLD = 4;
 
 // Spritesheet frame layout constants.
 const FRAME_COLS = 56;
+
+// Presence: which map we report to, and how fast ghosts chase their
+// target position. Heartbeats arrive ~every 2s, so ghosts cover the
+// gap a touch faster than real walking to avoid endless trailing.
+const MAP_ID = "neighborhood";
+const GHOST_SPEED = PLAYER_SPEED * 1.25;
+// A peer further than this from its ghost just teleports (joined,
+// door transition, or a long network gap — don't slide across the map).
+const GHOST_SNAP_DISTANCE = 160;
 
 function frame(row: number, col: number): number {
   return row * FRAME_COLS + col;
@@ -186,82 +196,8 @@ export class WorldScene extends Phaser.Scene {
     this.physics.add.collider(this.player, colliders);
 
     // ── Animations ───────────────────────────────────────────────────────
-    this.anims.create({
-      key: "idle-down",
-      frames: this.anims.generateFrameNumbers("character", {
-        start: frame(1, 18),
-        end: frame(1, 23),
-      }),
-      frameRate: 6,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: "idle-left",
-      frames: this.anims.generateFrameNumbers("character", {
-        start: frame(1, 12),
-        end: frame(1, 17),
-      }),
-      frameRate: 6,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: "idle-right",
-      frames: this.anims.generateFrameNumbers("character", {
-        start: frame(1, 0),
-        end: frame(1, 5),
-      }),
-      frameRate: 6,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: "idle-up",
-      frames: this.anims.generateFrameNumbers("character", {
-        start: frame(1, 6),
-        end: frame(1, 11),
-      }),
-      frameRate: 6,
-      repeat: -1,
-    });
-
-    // Walk cycles — 6 frames per direction in row 2
-    this.anims.create({
-      key: "walk-down",
-      frames: this.anims.generateFrameNumbers("character", {
-        start: frame(2, 18),
-        end: frame(2, 23),
-      }),
-      frameRate: 10,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: "walk-left",
-      frames: this.anims.generateFrameNumbers("character", {
-        start: frame(2, 12),
-        end: frame(2, 17),
-      }),
-      frameRate: 10,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: "walk-right",
-      frames: this.anims.generateFrameNumbers("character", {
-        start: frame(2, 0),
-        end: frame(2, 5),
-      }),
-      frameRate: 10,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: "walk-up",
-      frames: this.anims.generateFrameNumbers("character", {
-        start: frame(2, 6),
-        end: frame(2, 11),
-      }),
-      frameRate: 10,
-      repeat: -1,
-    });
-
-    this.player.play("idle-down");
+    this.createCharacterAnims("character");
+    this.player.play("character-idle-down");
 
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard!.createCursorKeys();
@@ -285,11 +221,178 @@ export class WorldScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     // Pixel-art rendering
     this.cameras.main.setRoundPixels(true);
+
+    // ── Presence (multiplayer ghosts) ────────────────────────────────────
+    this.transport = new PollingTransport();
+    this.transport.onPeers((peers) => this.syncPeers(peers));
+    this.transport.join(MAP_ID, () => this.playerState());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.transport?.leave());
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.transport?.leave());
   }
 
-  update() {
+  // ── Multiplayer ghosts ─────────────────────────────────────────────────
+  // Other players on the same map, rendered from their own composited
+  // avatar sheets and eased toward their last-reported position. Purely
+  // visual: no physics body, no collision (they're decorative, and a
+  // solid ghost at a 2s heartbeat would shove people around).
+
+  private transport: PresenceTransport | null = null;
+  private ghosts = new Map<
+    string,
+    {
+      sprite: Phaser.GameObjects.Sprite;
+      label: Phaser.GameObjects.Text;
+      target: { x: number; y: number };
+      facing: FacingDirection;
+      moving: boolean;
+      key: string; // texture key, also the anim prefix
+      stale: boolean; // mark-and-sweep flag for syncPeers
+    }
+  >();
+  private loadingSheets = new Set<string>();
+
+  private playerState(): PlayerState {
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    return {
+      x: Math.round(this.player.x),
+      y: Math.round(this.player.y),
+      facing: this.facing,
+      moving: body.velocity.x !== 0 || body.velocity.y !== 0,
+    };
+  }
+
+  /** Create the 8 idle/walk animations for a texture, prefixed by its key. */
+  private createCharacterAnims(textureKey: string) {
+    const dirs: { dir: FacingDirection; col: number }[] = [
+      { dir: "right", col: 0 },
+      { dir: "up", col: 6 },
+      { dir: "left", col: 12 },
+      { dir: "down", col: 18 },
+    ];
+    for (const { dir, col } of dirs) {
+      this.anims.create({
+        key: `${textureKey}-idle-${dir}`,
+        frames: this.anims.generateFrameNumbers(textureKey, {
+          start: frame(1, col),
+          end: frame(1, col + 5),
+        }),
+        frameRate: 6,
+        repeat: -1,
+      });
+      this.anims.create({
+        key: `${textureKey}-walk-${dir}`,
+        frames: this.anims.generateFrameNumbers(textureKey, {
+          start: frame(2, col),
+          end: frame(2, col + 5),
+        }),
+        frameRate: 10,
+        repeat: -1,
+      });
+    }
+  }
+
+  /** Reconcile the ghost map against the latest peer list. */
+  private syncPeers(peers: Peer[]) {
+    if (!this.player) return; // world still building
+    for (const g of this.ghosts.values()) g.stale = true;
+
+    for (const peer of peers) {
+      const ghost = this.ghosts.get(peer.userId);
+      if (ghost) {
+        ghost.stale = false;
+        ghost.target = { x: peer.x, y: peer.y };
+        ghost.facing = peer.facing;
+        ghost.moving = peer.moving;
+      } else {
+        this.spawnGhost(peer);
+      }
+    }
+
+    for (const [userId, g] of this.ghosts) {
+      if (g.stale) {
+        g.sprite.destroy();
+        g.label.destroy();
+        this.ghosts.delete(userId);
+      }
+    }
+  }
+
+  /** Load the peer's avatar sheet (once), then add their sprite + label. */
+  private spawnGhost(peer: Peer) {
+    const key = `peer-${peer.userId}`;
+    if (this.textures.exists(key)) {
+      this.addGhostSprite(peer, key);
+      return;
+    }
+    if (this.loadingSheets.has(key)) return; // arrives on a later sync
+    this.loadingSheets.add(key);
+    this.load.spritesheet(key, `${ASSET_BASE}/${peer.sheetPath}`, {
+      frameWidth: 16,
+      frameHeight: 32,
+    });
+    this.load.once(`filecomplete-spritesheet-${key}`, () => {
+      this.loadingSheets.delete(key);
+      this.createCharacterAnims(key);
+      // Peer may have left while the sheet loaded
+      if (!this.ghosts.has(peer.userId)) this.addGhostSprite(peer, key);
+    });
+    this.load.start();
+  }
+
+  private addGhostSprite(peer: Peer, key: string) {
+    const sprite = this.add.sprite(peer.x, peer.y, key, 0).setDepth(4);
+    sprite.play(`${key}-idle-${peer.facing}`);
+    const label = this.add
+      .text(peer.x, peer.y - 26, peer.name, {
+        fontFamily: "monospace",
+        fontSize: "8px",
+        color: "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 2,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(11)
+      .setResolution(3); // crisp under the 3x zoom
+    this.ghosts.set(peer.userId, {
+      sprite,
+      label,
+      target: { x: peer.x, y: peer.y },
+      facing: peer.facing,
+      moving: peer.moving,
+      key,
+      stale: false,
+    });
+  }
+
+  /** Ease each ghost toward its last-reported position. */
+  private updateGhosts(deltaMs: number) {
+    const step = (GHOST_SPEED * deltaMs) / 1000;
+    for (const g of this.ghosts.values()) {
+      const dx = g.target.x - g.sprite.x;
+      const dy = g.target.y - g.sprite.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > GHOST_SNAP_DISTANCE) {
+        g.sprite.setPosition(g.target.x, g.target.y);
+      } else if (dist > 1) {
+        const t = Math.min(1, step / dist);
+        g.sprite.x += dx * t;
+        g.sprite.y += dy * t;
+        // While covering ground, face the direction of travel
+        g.facing = this.velocityToFacing(dx, dy) ?? g.facing;
+      }
+
+      const closing = dist > 1;
+      const anim = `${g.key}-${closing || g.moving ? "walk" : "idle"}-${g.facing}`;
+      if (g.sprite.anims.currentAnim?.key !== anim) g.sprite.play(anim);
+      g.label.setPosition(Math.round(g.sprite.x), Math.round(g.sprite.y - 26));
+    }
+  }
+
+  update(_time: number, delta: number) {
     // World builds asynchronously (second-stage tileset load in create())
     if (!this.player) return;
+    this.updateGhosts(delta);
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     const up =
       this.cursors.up.isDown || this.wasd.up.isDown;
@@ -318,7 +421,7 @@ export class WorldScene extends Phaser.Scene {
 
       body.setVelocity(move.vx, move.vy);
       this.facing = move.dir;
-      this.player.play(`walk-${this.facing}`, true);
+      this.player.play(`character-walk-${this.facing}`, true);
     } else if (this.clickTarget) {
       const dx = this.clickTarget.x - this.player.x;
       const dy = this.clickTarget.y - this.player.y;
@@ -339,11 +442,11 @@ export class WorldScene extends Phaser.Scene {
         // Arrived
         this.clickTarget = null;
         body.setVelocity(0, 0);
-        this.player.play(`idle-${this.facing}`, true);
+        this.player.play(`character-idle-${this.facing}`, true);
       } else {
         body.setVelocity(vx, vy);
         this.facing = this.velocityToFacing(vx, vy) ?? this.facing;
-        this.player.play(`walk-${this.facing}`, true);
+        this.player.play(`character-walk-${this.facing}`, true);
 
         // If blocked (velocity near zero while still far from target), cancel
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -356,7 +459,7 @@ export class WorldScene extends Phaser.Scene {
       }
     } else {
       body.setVelocity(0, 0);
-      this.player.play(`idle-${this.facing}`, true);
+      this.player.play(`character-idle-${this.facing}`, true);
     }
   }
 
