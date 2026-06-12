@@ -151,36 +151,84 @@ Status items with visibly absurd prices (golden toilet, 25k) are the point.
 
 ---
 
-# Status & handoff (updated 2026-06-11)
+# Status & handoff (updated 2026-06-11, end of "playable demo" phase)
 
-## Done — Phase 0 shipped (live, verified by Andrew)
+## Done — live in prod, verified by Andrew
 
-- `/world` is live and walkable in prod (commit `20a2b0b`): Phaser 3 scene,
-  Tiled-JSON map, 4-dir animated character, collision, camera follow,
-  WASD/arrows + tap-to-move. **Deliberately NOT in `registry.ts`** — URL-only
-  (`/world`) while WIP; register it when graduating.
-- Asset route `/api/world/assets/[...path]`: dev streams from
-  `assets-src/runtime/world/`, prod 302s to a presigned S3 URL. Auth-gated.
-- `scripts/world-sync-assets.ts` uploads `assets-src/runtime/world/**` to
-  s3 under `world/`. Spike assets (tileset.png, character.png, map.json)
-  are already in the prod bucket.
+- `/world` plays like Pokémon: Andrew's hand-painted island map
+  (`working-map.tmx`, 50×50), strict 4-direction movement (hold-priority
+  keyboard; axis-aligned L-shaped tap-to-walk), loading screen w/
+  two-stage progress bar + camera fade-in, feet-only collision body,
+  6-frame idle + walk animations. **Still NOT in `registry.ts`** —
+  URL-only while WIP; register it when graduating.
+- **Character creator + onboarding** at `/world/create` (full UDM+ design
+  system, DOM-only preview off the real sheets): skin(9)/eyes(7)/
+  hair(29+bald, ~7 colors)/outfit(5 starter styles, variants). First
+  `/world` visit without an avatar redirects there; "restyle" chip to
+  return. Save = zod-validate vs manifest → sharp-composite
+  body<eyes<outfit<hair → `world/avatars/<userId>.png` in S3 (local
+  runtime dir in dev) → `WorldAvatar` row (own table; `User.avatarConfig`
+  belongs to the SITE avatar builder — don't touch it). Cache-busted via
+  `?v=<updatedAt>`.
+- Map pipeline (repeatable, no code per iteration):
+  edit `working-map.tmx` in Tiled → `npx tsx scripts/world-export-map.ts`
+  (tmx → engine map.json + only-used tileset images; dedups + gid-remaps
+  doubly-referenced tilesets; verifies zero orphan gids) →
+  `railway run npx tsx scripts/world-sync-assets.ts`. Prod picks it up on
+  next page load — no deploy needed.
+- Tiled authoring setup (committed, art rebuilt per machine):
+  `assets-src/world.tiled-project`, 6 composite category tilesets +
+  curated `0_Working` (built by `world-build-tilesets.ts` +
+  `world-build-working-tileset.ts`), terrain sets (Wang) on BOTH
+  0_Working and the 1_Terrain_and_Water mega-sheet.
 - Deps added (intentional, Node 22 lockfile-clean): `phaser`, `sharp`.
 
-### Spike asset facts (verified by measurement; needed for any sprite work)
-- Tileset: `ME_Theme_Sorter_16x16/1_Terrains_and_Fences_16x16.png` —
-  512×1184 px, 32 columns, 2368 tiles.
-- Character: `0_Premade_Characters/16x16/Premade_Character_01.png` —
-  896×656 px, 16×16 frame grid → 56 columns; index = row*56+col.
-  Idle frames 0/1/2/3 = down/left/right/up. Walk cycles in row 1, 6 frames
-  each: down 56–61, left 62–67, right 68–73, up 74–79. (Row order was
-  inferred — if directions look swapped in game, remap in WorldScene.ts.)
+### Asset facts (verified by labeled-crop measurement — never guess grids)
+- Character generator sheets (`2_Characters/Character_Generator/*/16x16`):
+  **16×32 frames** (two tiles tall), 56 cols, 896×656 canvas. Row 0 =
+  4 idle stills; **row 1 = 6-frame idle anim; row 2 = 6-frame walk**;
+  direction order **right, up, left, down**. All part layers (Bodies/
+  Eyes/Hairstyles/Outfits) share this grid exactly… except **Bodies ship
+  927px wide** (palette strip) — `world-character-parts.ts` normalizes
+  every sheet to 896×656 at staging; keep that invariant.
+- `scripts/world-crop-tiles.mjs` renders gridded labeled crops — the tool
+  for verifying any sheet layout by eye. Cheap and definitive.
 
-### Known rough edges (fine for spike, fix during real content pass)
-- map.json tile indices were guessed off the unlabeled sheet — terrain may
-  look wrong. Replaced wholesale by Andrew's Tiled map.
-- Idle is a single frame per direction.
-- `props` layer renders above the player (depth 10 vs 5) — right for trees,
-  revisit per-prop later (`props-overhead` is the long-term answer).
+### Gotchas learned this phase (each cost a real debugging loop)
+- **sharp on Railway/alpine**: Next standalone tracing copies sharp's JS
+  but NOT the `@img/*` native libvips packages → runtime 500s only in
+  prod. Dockerfile explicitly COPYs `node_modules/@img` (same class of
+  fix as the .prisma engine copy next to it).
+- **Tiled can silently embed a duplicate of an external tileset** into a
+  .tmx (paste/embed click). Legal map, but naive dedup orphans gids →
+  Phaser crashes (`t.tiles[i.index]`). world-export-map.ts remaps gids
+  from dropped duplicates onto the kept copy; keep that logic.
+- **Phaser scenes with async create()**: `update()` runs before the world
+  exists — guard on `this.player`. (Black canvas + `this.player.body`
+  TypeError = this.)
+- **Terrain (Wang) sets must include every "plain" variant tile** the map
+  uses as base fill, or the Terrain Brush shows red "missing transition"
+  next to it. The map's grass-looking base fill was actually a water
+  shimmer decor tile. Variant solids are registered in
+  `world-build-tilesets.ts` (GRASS_SOLIDS / WATER_SOLIDS / DIRT_*).
+- **Tiled tileset files use the `.tsx` extension** — TypeScript tries to
+  compile them; `assets-src` is excluded in tsconfig. Don't un-exclude.
+- The `1_Terrain_and_Water` mega-sheet `.tsx` (incl. wang sets) is
+  GENERATED by `world-build-tilesets.ts`; `0_Working.tsx` by
+  `world-build-working-tileset.ts`. Hand-edits to either get overwritten
+  on rebuild — fold changes into the scripts.
+
+### Known rough edges (acceptable, revisit later)
+- Animated water tiles render static (first frame); wire Phaser-side
+  tile animation during a polish pass.
+- Outfit catalog: creator exposes 5 starter styles; all 33 are staged in
+  S3 as future store inventory (`BASE_OUTFITS` in
+  `world-character-parts.ts`). Accessories/Books/Smartphones categories
+  not staged at all yet — store flow will need both.
+- `working-map.tmx` has stray siblings (`untitled.tmx`, `5.tsx`) in the
+  maps dir — junk from Tiled experiments, safe to delete.
+- Plot doors (`plot-1-door`…) not placed yet — needed for Phase 2/3
+  houses, not for walking around.
 
 ## In flight — Phase 1 (catalog pipeline). Schema is DONE, rest is NOT.
 
@@ -225,11 +273,10 @@ baseline layout is committed (see `scripts/world-generate-baseline.ts`;
 re-running it overwrites hand edits). `scripts/world-crop-tiles.mjs`
 renders gridded tileset crops for identifying tile coordinates.
 
-Install Tiled (mapeditor.org). New Tileset → from
-`assets-src/modern-exteriors/Modern_Exteriors_16x16/Modern_Exteriors_Complete_Tileset.png`
-(or Theme_Sorter sheets if too big), tile size 16×16, **Embed in map** ✅.
-New Map: orthogonal, 16×16, ~60×40. Export as **JSON .tmj** into
-`assets-src/runtime/world/maps/`.
+Setup is pre-built — open `assets-src/world.tiled-project` in Tiled
+(mapeditor.org) and edit `maps/working-map.tmx`; rebuild the gitignored
+art first per the runbook below. The instructions that follow predate
+the committed project; kept for context only.
 
 Layer contract v3 (names exact, bottom→top). Three tile layers map 1:1
 to the engine's three depths — solidity comes from the `collision`
@@ -271,7 +318,9 @@ Hand back: filename + tilesets used + plot count.
    tileset PNGs (gitignored art) that the committed Tiled project
    (`assets-src/world.tiled-project`) and .tsx files reference, and
    `npx tsx scripts/world-build-working-tileset.ts` regenerates the
-   curated 0_Working sheet from those composites.
+   curated 0_Working sheet from those composites, and
+   `npx tsx scripts/world-character-parts.ts` re-stages the character
+   generator part sheets (normalized to the 896×656 grid) + manifest.
 5. Sync assets to prod bucket after changes:
    `PATH=/opt/homebrew/opt/node@22/bin:$PATH railway run npx tsx scripts/world-sync-assets.ts`
 6. Live spike: https://udm-plus.up.railway.app/world
