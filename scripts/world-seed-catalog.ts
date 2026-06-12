@@ -43,12 +43,16 @@ type SeedEntry = {
   tags?: string[];
   keep?: boolean;
   publish?: boolean;
+  skip?: boolean;
 };
 type Seed = { items: Record<string, SeedEntry> };
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
 const atlasOnly = args.includes("--atlas-only");
+// --publish-all: seed+publish EVERY real item (named, not skipped, not junk),
+// bypassing the per-item keep/publish flags — for a quick full in-game preview.
+const publishAll = args.includes("--publish-all");
 
 function loadDraft(): DraftItem[] {
   if (!fs.existsSync(DRAFT)) {
@@ -129,7 +133,11 @@ async function main() {
   const byKey = new Map(draft.map((d) => [d.key, d]));
 
   const keepers = Object.entries(seed.items)
-    .filter(([, e]) => e.keep)
+    .filter(([, e]) =>
+      publishAll
+        ? !!(e.name && e.name.trim()) && !e.skip && e.category !== "non-item"
+        : e.keep
+    )
     .map(([key, e]) => ({ key, entry: e, draft: byKey.get(key) }))
     .filter((k): k is { key: string; entry: SeedEntry; draft: DraftItem } => {
       if (!k.draft) console.warn(`  ⚠ ${k.key}: kept but not in draft manifest — skipped (re-scan?).`);
@@ -194,7 +202,7 @@ async function main() {
         variant: e.variant ?? null,
         tagline: (e.tagline ?? "")?.toString().trim() || null,
         tags: Array.isArray(e.tags) ? e.tags : [],
-        published: !!e.publish,
+        published: publishAll ? true : !!e.publish,
       };
       await db.worldItem.upsert({ where: { key: k.key }, create: { key: k.key, ...data }, update: data });
       if (++n % 50 === 0) console.log(`  …${n}/${keepers.length}`);
