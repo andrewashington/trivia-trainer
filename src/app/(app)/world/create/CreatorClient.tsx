@@ -105,7 +105,9 @@ export function CreatorClient({ initialConfig }: { initialConfig: AvatarConfig |
     []
   );
 
-  if (error) {
+  // Full-card error only when the wardrobe itself failed to load;
+  // save errors render inline next to the button instead.
+  if (error && (!manifest || !config)) {
     return (
       <Card>
         <p className="font-bold text-accent-red">{error}</p>

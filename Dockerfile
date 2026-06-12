@@ -36,6 +36,10 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 # standalone tracing can miss the dynamically-loaded engine binary, so
 # copy it explicitly — needed by both the app server and bootstrap-admin.
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# sharp's native libvips lives in @img/* optional deps; standalone tracing
+# copies sharp's JS but misses the .so packages — copy them explicitly
+# (needed by the world-avatar compositor).
+COPY --from=builder /app/node_modules/@img ./node_modules/@img
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 

@@ -25,6 +25,11 @@ const SHEET_H = 656;
 const GEN = "assets-src/modern-interiors/2_Characters/Character_Generator";
 const OUT = "assets-src/runtime/world/character-parts";
 
+// Outfits exposed in the v1 creator (everyday basics with color spread).
+// ALL outfit sheets are still staged/synced — the rest become store
+// inventory later; this only limits the free starter wardrobe.
+const BASE_OUTFITS = ["01", "04", "07", "12", "16"];
+
 const CATS = [
   { dir: "Bodies", out: "bodies", re: /^Body_(\d+)\.png$/ },
   { dir: "Eyes", out: "eyes", re: /^Eyes_(\d+)\.png$/ },
@@ -67,8 +72,12 @@ for (const cat of CATS) {
       (styled[m[1]] ??= []).push(m[2]);
     }
   }
-  manifest[cat.out] = flat.length ? flat : styled;
-  const n = flat.length || Object.keys(styled).length;
+  let options: string[] | Record<string, string[]> = flat.length ? flat : styled;
+  if (cat.out === "outfits") {
+    options = Object.fromEntries(BASE_OUTFITS.map((k) => [k, styled[k]]));
+  }
+  manifest[cat.out] = options;
+  const n = flat.length || Object.keys(options).length;
   console.log(`${cat.out}: ${files.length} sheet(s), ${n} option(s)`);
 }
 
