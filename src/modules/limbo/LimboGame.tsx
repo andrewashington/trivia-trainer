@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
+import { confettiBurst } from "@/lib/confetti";
 import { Button, Card, Field, Input } from "@/components/ui";
 import { HOUSE_EDGE, MIN_BET, MAX_BET, MAX_MULTIPLIER } from "@/modules/arcade/constants";
 
@@ -74,6 +75,7 @@ export function LimboGame({ initialCoins }: { initialCoins: number }) {
 
       animateRoll(data.roll, () => {
         setSettled(true);
+        if (data.win) confettiBurst();
         router.refresh();
       });
     } catch (e) {
@@ -89,10 +91,11 @@ export function LimboGame({ initialCoins }: { initialCoins: number }) {
     <div className="space-y-4">
       <Card className="space-y-5">
         {/* Roll display */}
-        <div className="flex min-h-[7rem] flex-col items-center justify-center border-3 border-ink bg-ink py-4">
+        <div className="relative flex min-h-[8rem] flex-col items-center justify-center overflow-hidden border-3 border-ink bg-ink py-4">
+          <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(90deg,#B6FF00_2px,transparent_2px),linear-gradient(#B6FF00_2px,transparent_2px)] [background-size:28px_28px]" />
           {displayRoll !== null ? (
             <span
-              className={`font-display text-6xl font-bold tabular-nums ${
+              className={`relative font-display text-6xl font-bold tabular-nums ${
                 settled && result
                   ? result.win
                     ? "text-accent-neon"
@@ -103,11 +106,11 @@ export function LimboGame({ initialCoins }: { initialCoins: number }) {
               {displayRoll.toFixed(2)}×
             </span>
           ) : (
-            <span className="font-display text-2xl font-bold text-paper/30">—.——×</span>
+            <span className="relative font-display text-2xl font-bold text-paper/30">—.——×</span>
           )}
           {settled && result && (
             <span
-              className={`mt-2 border-2 border-ink px-3 py-1 font-display text-lg font-bold uppercase tracking-widest ${
+              className={`relative mt-2 animate-stamp-in border-2 border-ink px-3 py-1 font-display text-lg font-bold uppercase tracking-widest ${
                 result.win ? "bg-accent-neon text-ink" : "bg-accent-red text-white"
               }`}
             >
@@ -152,6 +155,13 @@ export function LimboGame({ initialCoins }: { initialCoins: number }) {
             <p className="brutal-label text-[10px]">Payout if Win</p>
             <p className="font-display text-xl font-bold">{potentialPayout}</p>
           </div>
+        </div>
+
+        <div className="h-4 border-2 border-ink bg-paper">
+          <div
+            className="h-full bg-accent-neon transition-[width] duration-200"
+            style={{ width: `${Math.max(2, Math.min(100, winChance))}%` }}
+          />
         </div>
 
         {/* Play button */}

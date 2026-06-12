@@ -8,7 +8,6 @@ import type { OutboxEventType } from "@/lib/outbox";
  *
  * Social-gaming guardrails:
  *  - big, rare moments pay the most (group record > game win > posting)
- *  - repeatable actions have a per-day cap so grinding doesn't pay
  *  - everything lands in an append-only ledger (CoinTransaction) and the
  *    denormalized User.coins, updated in the same transaction as the event
  */
@@ -19,46 +18,44 @@ type CoinRule = {
   amount: number;
   /** Pull the earning user out of the event payload (field names vary). */
   userId: (p: Payload) => unknown;
-  /** Max rewarded occurrences per user per UTC day (unset = unlimited). */
-  dailyCap?: number;
   /** Human label for the ledger / future activity feed. */
   label: string;
 };
 
 export const COIN_RULES: Partial<Record<OutboxEventType, CoinRule>> = {
   // ---- Arcade: the headline earners ----
-  "arcade.highscore": { amount: 100, userId: (p) => p.userId, label: "New group record" },
-  "arcade.played": { amount: 10, userId: (p) => p.userId, dailyCap: 10, label: "Arcade run" },
-  "arcade.tanks.finished": { amount: 80, userId: (p) => p.winnerId, label: "Won a tanks duel" },
-  "challenge.won": { amount: 60, userId: (p) => p.winnerId, label: "Won a challenge" },
+  "arcade.highscore": { amount: 500, userId: (p) => p.userId, label: "New group record" },
+  "arcade.played": { amount: 50, userId: (p) => p.userId, label: "Arcade run" },
+  "arcade.tanks.finished": { amount: 400, userId: (p) => p.winnerId, label: "Won a tanks duel" },
+  "challenge.won": { amount: 300, userId: (p) => p.winnerId, label: "Won a challenge" },
   // One-time by construction: the event only fires on first filing.
-  "key.submitted": { amount: 1000, userId: (p) => p.userId, label: "Filed the secret quiz" },
+  "key.submitted": { amount: 5000, userId: (p) => p.userId, label: "Filed the secret quiz" },
 
   // ---- Posting content ----
-  "poll.created": { amount: 30, userId: (p) => p.createdBy, dailyCap: 5, label: "Posted a poll" },
-  "recipe.created": { amount: 30, userId: (p) => p.authorId, dailyCap: 5, label: "Posted a recipe" },
-  "idea.created": { amount: 30, userId: (p) => p.authorId, dailyCap: 5, label: "Posted an idea" },
-  "reveal.created": { amount: 30, userId: (p) => p.createdBy, dailyCap: 5, label: "Posted a reveal" },
-  "event.created": { amount: 30, userId: (p) => p.creatorId, dailyCap: 5, label: "Created an event" },
-  "listing.created": { amount: 30, userId: (p) => p.sellerId, dailyCap: 5, label: "Posted a listing" },
-  "claim.created": { amount: 20, userId: (p) => p.creatorId, dailyCap: 5, label: "Made a stake" },
-  "challenge.created": { amount: 30, userId: (p) => p.creatorId, dailyCap: 5, label: "Threw down a challenge" },
-  "challenge.entry.submitted": { amount: 20, userId: (p) => p.userId, dailyCap: 5, label: "Entered a challenge" },
-  "wishlist.added": { amount: 20, userId: (p) => p.userId, dailyCap: 5, label: "Added a wish" },
-  "map.pin.added": { amount: 20, userId: (p) => p.addedBy, dailyCap: 5, label: "Dropped a map pin" },
-  "countdown.created": { amount: 20, userId: (p) => p.creatorId, dailyCap: 5, label: "Started a countdown" },
-  "vault.created": { amount: 20, userId: (p) => p.createdBy, dailyCap: 5, label: "Saved a vault entry" },
-  "file.uploaded": { amount: 20, userId: (p) => p.uploaderId, dailyCap: 5, label: "Uploaded a file" },
+  "poll.created": { amount: 150, userId: (p) => p.createdBy, label: "Posted a poll" },
+  "recipe.created": { amount: 150, userId: (p) => p.authorId, label: "Posted a recipe" },
+  "idea.created": { amount: 150, userId: (p) => p.authorId, label: "Posted an idea" },
+  "reveal.created": { amount: 150, userId: (p) => p.createdBy, label: "Posted a reveal" },
+  "event.created": { amount: 150, userId: (p) => p.creatorId, label: "Created an event" },
+  "listing.created": { amount: 150, userId: (p) => p.sellerId, label: "Posted a listing" },
+  "claim.created": { amount: 100, userId: (p) => p.creatorId, label: "Made a stake" },
+  "challenge.created": { amount: 150, userId: (p) => p.creatorId, label: "Threw down a challenge" },
+  "challenge.entry.submitted": { amount: 100, userId: (p) => p.userId, label: "Entered a challenge" },
+  "wishlist.added": { amount: 100, userId: (p) => p.userId, label: "Added a wish" },
+  "map.pin.added": { amount: 100, userId: (p) => p.addedBy, label: "Dropped a map pin" },
+  "countdown.created": { amount: 100, userId: (p) => p.creatorId, label: "Started a countdown" },
+  "vault.created": { amount: 100, userId: (p) => p.createdBy, label: "Saved a vault entry" },
+  "file.uploaded": { amount: 100, userId: (p) => p.uploaderId, label: "Uploaded a file" },
 
-  // ---- Light engagement: small drips, tightly capped ----
-  "poll.voted": { amount: 5, userId: (p) => p.voterId, dailyCap: 10, label: "Voted in a poll" },
-  "reveal.submitted": { amount: 20, userId: (p) => p.userId, dailyCap: 5, label: "Answered a reveal" },
-  "event.rsvp.changed": { amount: 5, userId: (p) => p.userId, dailyCap: 5, label: "RSVPed" },
-  "pet.nudged": { amount: 5, userId: (p) => p.by, dailyCap: 5, label: "Fed the pet" },
-  "comment.created": { amount: 5, userId: (p) => p.authorId, dailyCap: 10, label: "Left a comment" },
-  "canvas.drew": { amount: 5, userId: (p) => p.userId, dailyCap: 5, label: "Doodled on the canvas" },
-  "smash.deck.created": { amount: 30, userId: (p) => p.creatorId, dailyCap: 5, label: "Dealt a smash-or-pass deck" },
-  "smash.voted": { amount: 3, userId: (p) => p.userId, dailyCap: 20, label: "Rendered a verdict" },
+  // ---- Light engagement: small drips ----
+  "poll.voted": { amount: 25, userId: (p) => p.voterId, label: "Voted in a poll" },
+  "reveal.submitted": { amount: 100, userId: (p) => p.userId, label: "Answered a reveal" },
+  "event.rsvp.changed": { amount: 25, userId: (p) => p.userId, label: "RSVPed" },
+  "pet.nudged": { amount: 25, userId: (p) => p.by, label: "Fed the pet" },
+  "comment.created": { amount: 25, userId: (p) => p.authorId, label: "Left a comment" },
+  "canvas.drew": { amount: 25, userId: (p) => p.userId, label: "Doodled on the canvas" },
+  "smash.deck.created": { amount: 150, userId: (p) => p.creatorId, label: "Dealt a smash-or-pass deck" },
+  "smash.voted": { amount: 15, userId: (p) => p.userId, label: "Rendered a verdict" },
   // treasure.found pays the (variable) pot directly in its route — no fixed rule here.
 };
 
@@ -77,15 +74,6 @@ export async function applyCoinRule(
   const p = (payload ?? {}) as Payload;
   const userId = rule.userId(p);
   if (typeof userId !== "string" || !userId) return; // e.g. anonymous poll votes
-
-  if (rule.dailyCap !== undefined) {
-    const dayStart = new Date();
-    dayStart.setUTCHours(0, 0, 0, 0);
-    const today = await tx.coinTransaction.count({
-      where: { userId, reason: type, createdAt: { gte: dayStart } },
-    });
-    if (today >= rule.dailyCap) return;
-  }
 
   await tx.coinTransaction.create({
     data: { userId, amount: rule.amount, reason: type, meta: { label: rule.label } },

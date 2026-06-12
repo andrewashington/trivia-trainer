@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
+import { confettiBurst } from "@/lib/confetti";
 import { Button, Card, Field, Input } from "@/components/ui";
 import type { MinesView } from "@/modules/mines/schema";
 
@@ -66,7 +67,9 @@ function TileGrid({
                   ? "Mine"
                   : `Tile ${i}`
             }
-            className={`flex h-12 w-full items-center justify-center border-2 text-xl transition-colors ${bgClass}`}
+            className={`brutal-press flex h-12 w-full items-center justify-center border-2 text-xl transition-colors ${bgClass} ${
+              isSafeRevealed || isMine ? "animate-pop-in" : ""
+            }`}
           >
             {content}
           </button>
@@ -108,6 +111,7 @@ export function MinesGame({ initialCoins }: { initialCoins: number }) {
       const res = await fn();
       setGame(res.game);
       if (res.coins !== undefined) setCoins(res.coins);
+      if (res.game?.status === "cashed" && res.game.revealed.length > 0) confettiBurst();
       if (res.game) router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -161,7 +165,7 @@ export function MinesGame({ initialCoins }: { initialCoins: number }) {
 
   // Current banked payout shown on the Cash Out button
   const bankedPayout = game ? Math.floor(game.stake * game.multiplier) : 0;
-  const canCashOut = isActive && (game?.revealed.length ?? 0) >= 1;
+  const canCashOut = isActive;
 
   return (
     <div className="space-y-4">
@@ -204,7 +208,7 @@ export function MinesGame({ initialCoins }: { initialCoins: number }) {
               }`}
             >
               {isCashed
-                ? `WIN +${netCoins} coins (${game.multiplier.toFixed(2)}×)`
+                ? `BANKED +${netCoins} coins (${game.multiplier.toFixed(2)}×)`
                 : `BOOM! −${game.stake} coins`}
             </div>
           )}
@@ -244,7 +248,7 @@ export function MinesGame({ initialCoins }: { initialCoins: number }) {
 
           {isActive && (game.revealed.length ?? 0) === 0 && (
             <p className="font-mono text-xs text-ink/50">
-              Reveal at least 1 tile to enable Cash Out.
+              Cash out now to take your stake back, or reveal a tile to start climbing.
             </p>
           )}
         </Card>
@@ -319,7 +323,7 @@ export function MinesGame({ initialCoins }: { initialCoins: number }) {
           <ul className="space-y-1 font-mono text-xs text-ink/60">
             <li>• Reveal tiles one at a time — each safe tile raises the multiplier.</li>
             <li>• Hit a mine and the round ends: stake is lost.</li>
-            <li>• Cash out after ≥1 safe reveal to bank stake × multiplier.</li>
+            <li>• Cash out before any reveal to refund, or after safe tiles to bank the multiplier.</li>
             <li>• Reveal every safe tile to auto-cash-out at the max multiplier.</li>
           </ul>
         </Card>

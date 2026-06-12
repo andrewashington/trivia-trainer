@@ -63,7 +63,7 @@ export default async function ChallengesPage() {
         <EmptyState
           icon="bullseye-arrow"
           title="Nobody's been dared yet"
-          hint="Throw out a challenge — photo contest, scavenger find, sneakiest pic. Winner banks 25 coins."
+          hint="Throw out a challenge — photo contest, scavenger find, sneakiest pic. Winner banks 300 coins."
         />
       ) : (
         <>

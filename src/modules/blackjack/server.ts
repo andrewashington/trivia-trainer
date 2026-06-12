@@ -27,13 +27,17 @@ export function toView(
   };
 }
 
-/** The whole table: active hand (if any), balance, recent results. */
-export async function tableView(userId: string): Promise<TableView> {
-  const [active, user, history] = await Promise.all([
-    db.blackjackHand.findFirst({
-      where: { userId, status: "active" },
-      orderBy: { createdAt: "desc" },
-    }),
+/** The whole table: active hand, or a specific just-settled hand after an action. */
+export async function tableView(userId: string, focusHandId?: string): Promise<TableView> {
+  const [hand, user, history] = await Promise.all([
+    focusHandId
+      ? db.blackjackHand.findFirst({
+          where: { id: focusHandId, userId },
+        })
+      : db.blackjackHand.findFirst({
+          where: { userId, status: "active" },
+          orderBy: { createdAt: "desc" },
+        }),
     db.user.findUniqueOrThrow({ where: { id: userId }, select: { coins: true } }),
     db.blackjackHand.findMany({
       where: { userId, status: { not: "active" } },
@@ -43,7 +47,7 @@ export async function tableView(userId: string): Promise<TableView> {
     }),
   ]);
   return {
-    hand: toView(active),
+    hand: toView(hand),
     coins: user.coins,
     history: history.map((h) => ({ ...h, createdAt: h.createdAt.toISOString() })),
   };

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { HttpError, requireUser } from "@/lib/session";
 import { withOutbox } from "@/lib/outbox";
 import { getEffectiveOutfit } from "@/modules/world/content";
+import { spendCoins } from "@/modules/arcade/bank";
 
 const purchaseInput = z.object({
   kind: z.literal("outfit"),
@@ -30,27 +31,23 @@ export const POST = apiHandler(async (req: Request) => {
       });
       if (existing) throw new HttpError(409, "You already own that. Bold of you to try paying twice.");
 
-      const me = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
-      if (me.coins < item.price) {
-        throw new HttpError(400, `${item.name} costs ${item.price} coins — you have ${me.coins}.`);
-      }
-
-      await tx.coinTransaction.create({
-        data: {
-          userId: user.id,
-          amount: -item.price,
-          reason: "world.cosmetic.purchased",
-          meta: { label: `Bought "${item.name}"`, kind, itemKey },
-        },
-      });
-      await tx.user.update({
-        where: { id: user.id },
-        data: { coins: { decrement: item.price } },
-      });
+      await spendCoins(
+        tx,
+        user.id,
+        item.price,
+        "world.cosmetic.purchased",
+        `Bought "${item.name}"`,
+        `${item.name} costs ${item.price} coins.`,
+        { kind, itemKey }
+      );
       await tx.worldOwnedCosmetic.create({
         data: { userId: user.id, kind, itemKey },
       });
-      return { coins: me.coins - item.price };
+      const me = await tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+        select: { coins: true },
+      });
+      return { coins: me.coins };
     },
     () => ({
       type: "world.cosmetic.purchased",

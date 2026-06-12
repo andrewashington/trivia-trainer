@@ -10,6 +10,7 @@ import {
   settle,
   type HandStatus,
 } from "@/modules/blackjack/engine";
+import { spendCoins, creditWinnings } from "@/modules/arcade/bank";
 import { dealInput } from "@/modules/blackjack/schema";
 import { tableView } from "@/modules/blackjack/server";
 
@@ -31,29 +32,22 @@ export const POST = apiHandler(async (req: Request) => {
   const user = await requireUser();
   const { bet } = await parseBody(req, dealInput);
 
-  await db.$transaction(async (tx) => {
+  const handId = await db.$transaction(async (tx) => {
     const existing = await tx.blackjackHand.findFirst({
       where: { userId: user.id, status: "active" },
       select: { id: true },
     });
     if (existing) throw new HttpError(409, "You already have a hand in play.");
 
-    const me = await tx.user.findUniqueOrThrow({
-      where: { id: user.id },
-      select: { coins: true },
-    });
-    if (bet > me.coins) throw new HttpError(400, "You can't bet more coins than you have.");
-
     // Stake leaves the balance the moment the cards come out.
-    await tx.coinTransaction.create({
-      data: {
-        userId: user.id,
-        amount: -bet,
-        reason: "blackjack.bet",
-        meta: { label: "Blackjack bet" },
-      },
-    });
-    await tx.user.update({ where: { id: user.id }, data: { coins: { decrement: bet } } });
+    await spendCoins(
+      tx,
+      user.id,
+      bet,
+      "blackjack.bet",
+      "Blackjack bet",
+      "You can't bet more coins than you have."
+    );
 
     const state = dealHand();
     const playerNatural = isBlackjack(state.player);
@@ -72,7 +66,7 @@ export const POST = apiHandler(async (req: Request) => {
       }
     }
 
-    await tx.blackjackHand.create({
+    const hand = await tx.blackjackHand.create({
       data: {
         userId: user.id,
         bet,
@@ -81,18 +75,17 @@ export const POST = apiHandler(async (req: Request) => {
         payout,
         resolvedAt: status === "active" ? null : new Date(),
       },
+      select: { id: true },
     });
 
     if (payout > 0) {
-      await tx.coinTransaction.create({
-        data: {
-          userId: user.id,
-          amount: payout,
-          reason: status === "push" ? "blackjack.push" : "blackjack.win",
-          meta: { label: status === "blackjack" ? "Blackjack!" : "Blackjack push" },
-        },
-      });
-      await tx.user.update({ where: { id: user.id }, data: { coins: { increment: payout } } });
+      await creditWinnings(
+        tx,
+        user.id,
+        payout,
+        status === "push" ? "blackjack.push" : "blackjack.win",
+        status === "blackjack" ? "Blackjack!" : "Blackjack push"
+      );
     }
 
     if (status === "blackjack") {
@@ -105,7 +98,8 @@ export const POST = apiHandler(async (req: Request) => {
         natural: true,
       });
     }
+    return hand.id;
   });
 
-  return NextResponse.json(await tableView(user.id));
+  return NextResponse.json(await tableView(user.id, handId));
 });

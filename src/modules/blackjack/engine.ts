@@ -4,7 +4,7 @@
  * House rules (kept deliberately simple):
  *  - 4-deck shoe, fresh shuffle every hand
  *  - dealer STANDS on all 17s, including soft 17
- *  - blackjack (natural 21) pays 3:2, rounded down
+ *  - blackjack (natural 21) pays 2:1
  *  - hit / stand / double-down (double only on the first two cards)
  *  - NO splits — intentionally out of scope to keep the state machine
  *    a single hand; pairs just play as a normal hand
@@ -95,7 +95,7 @@ export function settle(
   if (p > 21) return { status: "lost", payout: 0 };
   if (opts?.natural) {
     // player natural; dealer natural is checked by the caller (push)
-    return { status: "blackjack", payout: bet + Math.floor(bet * 1.5) };
+    return { status: "blackjack", payout: bet * 3 };
   }
   if (d > 21 || p > d) return { status: "won", payout: bet * 2 };
   if (p < d) return { status: "lost", payout: 0 };

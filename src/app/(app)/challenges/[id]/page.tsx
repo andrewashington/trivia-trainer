@@ -144,7 +144,7 @@ export default async function ChallengePage({ params }: { params: { id: string }
                 {winner.userName} takes it!
               </p>
               <p className="font-mono text-xs uppercase text-ink/70">
-                {winner.voteCount} vote{winner.voteCount === 1 ? "" : "s"} — 25 coins banked
+                {winner.voteCount} vote{winner.voteCount === 1 ? "" : "s"} — 300 coins banked
               </p>
             </div>
           ) : (

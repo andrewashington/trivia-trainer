@@ -3,7 +3,8 @@ import { z } from "zod";
 import { apiHandler, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { withOutbox } from "@/lib/outbox";
-import { HttpError, requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
+import { spendCoins } from "@/modules/arcade/bank";
 import { getPetView } from "@/modules/pet/engine";
 
 export const GET = apiHandler(async () => {
@@ -27,28 +28,14 @@ export const PATCH = apiHandler(async (req: Request) => {
       const current = await tx.petState.findUnique({ where: { id: 1 } });
       if (current && current.name === name) return current;
       if (current) {
-        const me = await tx.user.findUniqueOrThrow({
-          where: { id: user.id },
-          select: { coins: true },
-        });
-        if (me.coins < RENAME_COST) {
-          throw new HttpError(
-            400,
-            `Renaming the pet costs ${RENAME_COST} coins — you have ${me.coins}.`
-          );
-        }
-        await tx.coinTransaction.create({
-          data: {
-            userId: user.id,
-            amount: -RENAME_COST,
-            reason: "pet.renamed",
-            meta: { label: `Renamed the pet to ${name}` },
-          },
-        });
-        await tx.user.update({
-          where: { id: user.id },
-          data: { coins: { decrement: RENAME_COST } },
-        });
+        await spendCoins(
+          tx,
+          user.id,
+          RENAME_COST,
+          "pet.renamed",
+          `Renamed the pet to ${name}`,
+          `Renaming the pet costs ${RENAME_COST} coins.`
+        );
       }
       return tx.petState.upsert({
         where: { id: 1 },

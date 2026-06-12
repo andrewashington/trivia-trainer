@@ -4,6 +4,7 @@ import { apiHandler, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { emitOutbox } from "@/lib/outbox";
 import { HttpError, requireUser } from "@/lib/session";
+import { spendCoins, creditWinnings } from "@/modules/arcade/bank";
 import {
   EXTRA_DIG_COST,
   GRID_SIZE,
@@ -39,28 +40,15 @@ export const POST = apiHandler(async (req: Request) => {
     // First dig is free; every extra shovel today costs coins.
     const myDigs = await tx.treasureDig.count({ where: { day, userId: user.id } });
     if (myDigs >= 1) {
-      const me = await tx.user.findUniqueOrThrow({
-        where: { id: user.id },
-        select: { coins: true },
-      });
-      if (me.coins < EXTRA_DIG_COST) {
-        throw new HttpError(
-          400,
-          `An extra dig costs ${EXTRA_DIG_COST} coins — you have ${me.coins}.`
-        );
-      }
-      await tx.coinTransaction.create({
-        data: {
-          userId: user.id,
-          amount: -EXTRA_DIG_COST,
-          reason: "treasure.extra_dig",
-          meta: { label: "Bought an extra dig", day },
-        },
-      });
-      await tx.user.update({
-        where: { id: user.id },
-        data: { coins: { decrement: EXTRA_DIG_COST } },
-      });
+      await spendCoins(
+        tx,
+        user.id,
+        EXTRA_DIG_COST,
+        "treasure.extra_dig",
+        "Bought an extra dig",
+        `An extra dig costs ${EXTRA_DIG_COST} coins.`,
+        { day }
+      );
     }
 
     const found = x === row.x && y === row.y;
@@ -75,18 +63,14 @@ export const POST = apiHandler(async (req: Request) => {
       });
       // The pot varies (rollover), so it's paid here rather than via a
       // fixed COIN_RULES entry — same ledger, same transaction.
-      await tx.coinTransaction.create({
-        data: {
-          userId: user.id,
-          amount: row.pot,
-          reason: "treasure.found",
-          meta: { label: "Found the buried treasure", day, pot: row.pot },
-        },
-      });
-      await tx.user.update({
-        where: { id: user.id },
-        data: { coins: { increment: row.pot } },
-      });
+      await creditWinnings(
+        tx,
+        user.id,
+        row.pot,
+        "treasure.found",
+        "Found the buried treasure",
+        { day, pot: row.pot }
+      );
       await emitOutbox(tx, "treasure.found", {
         userId: user.id,
         userName: user.displayName,

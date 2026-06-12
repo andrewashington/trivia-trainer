@@ -100,11 +100,32 @@ export function payout(stake: number, multiplier: number): number {
 }
 
 /**
- * Atomically debit a stake. Uses a guarded conditional update
+ * Atomically spend coins. Uses a guarded conditional update
  * (`coins >= amount`) so two concurrent plays can never double-spend the
  * same balance — if the row no longer qualifies, count is 0 and we reject.
  * Call inside a db.$transaction.
  */
+export async function spendCoins(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  amount: number,
+  reason: string,
+  label: string,
+  errorMessage = "Not enough coins.",
+  meta: Record<string, unknown> = {}
+): Promise<void> {
+  if (amount <= 0) return;
+  const res = await tx.user.updateMany({
+    where: { id: userId, coins: { gte: amount } },
+    data: { coins: { decrement: amount } },
+  });
+  if (res.count === 0) throw new HttpError(400, errorMessage);
+  await tx.coinTransaction.create({
+    data: { userId, amount: -amount, reason, meta: { label, ...meta } },
+  });
+}
+
+/** Atomically debit a game stake. Call inside a db.$transaction. */
 export async function debitStake(
   tx: Prisma.TransactionClient,
   userId: string,
@@ -112,14 +133,7 @@ export async function debitStake(
   reason: string,
   label: string
 ): Promise<void> {
-  const res = await tx.user.updateMany({
-    where: { id: userId, coins: { gte: amount } },
-    data: { coins: { decrement: amount } },
-  });
-  if (res.count === 0) throw new HttpError(400, "Not enough coins for that bet.");
-  await tx.coinTransaction.create({
-    data: { userId, amount: -amount, reason, meta: { label } },
-  });
+  await spendCoins(tx, userId, amount, reason, label, "Not enough coins for that bet.");
 }
 
 /** Atomically credit winnings (no-op for amount ≤ 0). Call inside a tx. */
@@ -128,12 +142,13 @@ export async function creditWinnings(
   userId: string,
   amount: number,
   reason: string,
-  label: string
+  label: string,
+  meta: Record<string, unknown> = {}
 ): Promise<void> {
   if (amount <= 0) return;
   await tx.user.update({ where: { id: userId }, data: { coins: { increment: amount } } });
   await tx.coinTransaction.create({
-    data: { userId, amount, reason, meta: { label } },
+    data: { userId, amount, reason, meta: { label, ...meta } },
   });
 }
 

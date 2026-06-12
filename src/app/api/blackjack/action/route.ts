@@ -12,6 +12,7 @@ import {
   type HandState,
   type HandStatus,
 } from "@/modules/blackjack/engine";
+import { spendCoins, creditWinnings } from "@/modules/arcade/bank";
 import { actionInput } from "@/modules/blackjack/schema";
 import { tableView } from "@/modules/blackjack/server";
 
@@ -41,24 +42,14 @@ export const POST = apiHandler(async (req: Request) => {
     if (action === "double") {
       if (state.player.length !== 2)
         throw new HttpError(400, "Double down is only allowed on your first two cards.");
-      const me = await tx.user.findUniqueOrThrow({
-        where: { id: user.id },
-        select: { coins: true },
-      });
-      if (me.coins < hand.bet)
-        throw new HttpError(400, "Not enough coins to double down.");
-      await tx.coinTransaction.create({
-        data: {
-          userId: user.id,
-          amount: -hand.bet,
-          reason: "blackjack.bet",
-          meta: { label: "Blackjack double down" },
-        },
-      });
-      await tx.user.update({
-        where: { id: user.id },
-        data: { coins: { decrement: hand.bet } },
-      });
+      await spendCoins(
+        tx,
+        user.id,
+        hand.bet,
+        "blackjack.bet",
+        "Blackjack double down",
+        "Not enough coins to double down."
+      );
       bet = hand.bet * 2;
       doubled = true;
       draw(state, "player");
@@ -93,18 +84,13 @@ export const POST = apiHandler(async (req: Request) => {
     });
 
     if (payout > 0) {
-      await tx.coinTransaction.create({
-        data: {
-          userId: user.id,
-          amount: payout,
-          reason: status === "push" ? "blackjack.push" : "blackjack.win",
-          meta: { label: status === "push" ? "Blackjack push" : "Blackjack win" },
-        },
-      });
-      await tx.user.update({
-        where: { id: user.id },
-        data: { coins: { increment: payout } },
-      });
+      await creditWinnings(
+        tx,
+        user.id,
+        payout,
+        status === "push" ? "blackjack.push" : "blackjack.win",
+        status === "push" ? "Blackjack push" : "Blackjack win"
+      );
     }
 
     const net = payout - bet;
@@ -120,5 +106,5 @@ export const POST = apiHandler(async (req: Request) => {
     }
   });
 
-  return NextResponse.json(await tableView(user.id));
+  return NextResponse.json(await tableView(user.id, handId));
 });

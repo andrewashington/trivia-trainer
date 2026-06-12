@@ -62,7 +62,7 @@ export const POST = apiHandler(async (req: Request) => {
     {
       archetype: { label: archetype.label, blurb: archetype.blurb },
       keyCode: buildKeyCode(fields),
-      bounty: previous ? 0 : 500,
+      bounty: previous ? 0 : 5000,
     },
     { status: previous ? 200 : 201 }
   );

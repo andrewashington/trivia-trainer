@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/client";
+import { confettiBurst, confettiCelebrate } from "@/lib/confetti";
 import { Button, Card } from "@/components/ui";
 import type { TableView } from "@/modules/blackjack/schema";
 
@@ -96,6 +97,51 @@ function ResultBanner({ hand }: { hand: NonNullable<TableView["hand"]> }) {
       className={`animate-stamp-in border-3 border-ink px-4 py-2 text-center font-display text-xl font-bold shadow-brutal ${c.cls}`}
     >
       {c.label}
+    </div>
+  );
+}
+
+function ResolutionPanel({ hand }: { hand: NonNullable<TableView["hand"]> }) {
+  const net = hand.payout - hand.bet;
+  const won = net > 0;
+  const lost = net < 0;
+  const title =
+    hand.status === "blackjack"
+      ? "Natural blackjack"
+      : hand.status === "won"
+        ? "You beat the house"
+        : hand.status === "push"
+          ? "Nobody blinked"
+          : valueOf(hand.player) > 21
+            ? "You busted"
+            : "Dealer takes it";
+
+  return (
+    <div
+      className={`animate-pop-in border-3 border-ink p-3 shadow-brutal-sm ${
+        won ? "bg-accent-green" : lost ? "bg-accent-red text-white" : "bg-paper"
+      }`}
+    >
+      <p className="font-display text-2xl font-bold uppercase leading-none">{title}</p>
+      <div className="mt-3 grid grid-cols-3 gap-2 font-mono text-xs font-bold">
+        <div className="border-2 border-ink bg-card/90 p-2 text-ink">
+          <p className="uppercase text-ink/50">Bet</p>
+          <p className="text-lg">{hand.bet}</p>
+        </div>
+        <div className="border-2 border-ink bg-card/90 p-2 text-ink">
+          <p className="uppercase text-ink/50">Returned</p>
+          <p className="text-lg">{hand.payout}</p>
+        </div>
+        <div className="border-2 border-ink bg-card/90 p-2 text-ink">
+          <p className="uppercase text-ink/50">Net</p>
+          <p className={`text-lg ${won ? "text-accent-forest" : lost ? "text-accent-red" : ""}`}>
+            {net > 0 ? `+${net}` : net}
+          </p>
+        </div>
+      </div>
+      {hand.status === "blackjack" && (
+        <p className="mt-2 font-mono text-xs font-bold uppercase">Blackjack pays 2:1 now. Mercy era.</p>
+      )}
     </div>
   );
 }
@@ -219,6 +265,8 @@ export function BlackjackGame() {
       }
       if (!live()) return;
       setAcked(false);
+      if (hand.status === "blackjack") confettiCelebrate();
+      else if (hand.status === "won") confettiBurst();
       paint(false, true);
     },
     []
@@ -273,6 +321,12 @@ export function BlackjackGame() {
   const dealerCards = shown?.dealer ?? [];
   const dealerValue = dealerCards.length ? valueOf(dealerCards) : null;
   const playerValue = playerCards.length ? valueOf(playerCards) : null;
+  const clearResolvedHand = () => {
+    if (hand) setBet(Math.min(hand.bet, Math.max(table.coins, 1)));
+    setAcked(true);
+    setShown(null);
+    setTable((t) => (t ? { ...t, hand: null } : t));
+  };
 
   return (
     <div className="space-y-4">
@@ -336,7 +390,12 @@ export function BlackjackGame() {
           </div>
         </div>
 
-        {showBanner && <ResultBanner hand={hand!} />}
+        {showBanner && (
+          <div className="space-y-3">
+            <ResultBanner hand={hand!} />
+            <ResolutionPanel hand={hand!} />
+          </div>
+        )}
 
         {error && (
           <p className="border-3 border-ink bg-accent-red/15 px-3 py-2 font-mono text-xs">
@@ -364,7 +423,7 @@ export function BlackjackGame() {
           </div>
         ) : showBanner && !acked ? (
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={() => setAcked(true)}>Play again</Button>
+            <Button onClick={clearResolvedHand}>Play again</Button>
             <span className="ml-auto font-mono text-xs text-ink/50">
               balance {table.coins}
             </span>
@@ -425,7 +484,7 @@ export function BlackjackGame() {
         )}
 
         <p className="font-mono text-[10px] uppercase text-ink/35">
-          Dealer stands on all 17s · blackjack pays 3:2 · no splits
+          Dealer stands on all 17s · blackjack pays 2:1 · no splits
         </p>
       </Card>
 

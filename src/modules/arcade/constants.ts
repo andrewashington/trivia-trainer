@@ -5,8 +5,8 @@
  * `bank.ts` re-exports these, so server code can keep importing from either.
  */
 
-/** House cut baked into every payout. 4% — squarely in the 3–5% target. */
-export const HOUSE_EDGE = 0.04;
+/** House cut baked into every payout. Kept tiny: these are play coins, not Vegas. */
+export const HOUSE_EDGE = 0.01;
 
 /** Bet bounds, in coins. Caps how much one tap can burn or mint. */
 export const MIN_BET = 1;

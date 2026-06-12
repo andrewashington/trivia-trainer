@@ -404,7 +404,7 @@ export const modules: ModuleDef[] = [
     tips: [
       "Post a challenge — add a deadline to keep it spicy",
       "Submit your proof: words, a photo, or both",
-      "Vote for the best entry (not your own) — winner banks 60 coins",
+      "Vote for the best entry (not your own) — winner banks 300 coins",
     ],
   },
   {
@@ -431,7 +431,7 @@ export const modules: ModuleDef[] = [
     href: "/blackjack",
     accentBg: "bg-accent-felt",
     intro:
-      "House blackjack, real stakes: your coins. Dealer stands on 17, blackjack pays 3:2, splits don't exist here.",
+      "House blackjack, real stakes: your coins. Dealer stands on 17, blackjack pays 2:1, splits don't exist here.",
     tips: [
       "Min bet 1 coin, max bet everything you've got",
       "Double down on your first two cards if you're feeling it",
