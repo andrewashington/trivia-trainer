@@ -45,7 +45,8 @@ const args = process.argv.slice(2);
 const opt = (n: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : undefined; };
 const themeArg = opt("theme") ? themeSlug(opt("theme")!) : undefined;
 const MODEL = opt("model") ?? process.env.OPENROUTER_VISION_MODEL ?? "google/gemini-2.0-flash-001";
-const BATCH = Number(opt("batch") ?? 24);
+const BATCH = Number(opt("batch") ?? 36); // sprites per montage (bigger = fewer calls)
+const CONC = Number(opt("concurrency") ?? 6); // montages in flight at once
 const LIMIT = opt("limit") ? Number(opt("limit")) : Infinity;
 const DRY = args.includes("--dry"); // print results, don't touch catalog-seed.json
 const CELL = 96; // contact-sheet cell px; 16px sprite → ~5–6× upscale
@@ -119,31 +120,42 @@ function parseItems(content: string): Record<string, unknown>[] {
   throw new Error(`no JSON items in reply: ${txt.slice(0, 200)}`);
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function callModel(dataUrl: string, n: number, theme: string, sizes: string): Promise<Record<string, unknown>[]> {
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://udm-plus.up.railway.app",
-      "X-Title": "UDM+ World catalog",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      usage: { include: true },
-      response_format: { type: "json_object" }, // guarantee a valid JSON object back
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: promptFor(n, theme, sizes) },
-            { type: "image_url", image_url: { url: dataUrl } },
-          ],
-        },
-      ],
-    }),
+  const body = JSON.stringify({
+    model: MODEL,
+    usage: { include: true },
+    response_format: { type: "json_object" }, // guarantee a valid JSON object back
+    max_tokens: Math.min(16000, n * 200 + 1500), // enough headroom for big batches
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: promptFor(n, theme, sizes) },
+          { type: "image_url", image_url: { url: dataUrl } },
+        ],
+      },
+    ],
   });
-  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  // retry transient rate-limit / server errors (more likely under concurrency)
+  let res: Response | null = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://udm-plus.up.railway.app",
+        "X-Title": "UDM+ World catalog",
+      },
+      body,
+    });
+    if (res.ok) break;
+    if (res.status === 429 || res.status >= 500) { await sleep(1500 * (attempt + 1)); continue; }
+    break; // non-retryable
+  }
+  if (!res || !res.ok) throw new Error(`OpenRouter ${res?.status}: ${res ? (await res.text()).slice(0, 200) : "no response"}`);
   const data = (await res.json()) as {
     choices: { message: { content: string } }[];
     usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
@@ -188,15 +200,13 @@ async function main() {
   const run = chunks.slice(0, LIMIT);
   console.log(`Model ${MODEL} · ${items.length} sprites${decided ? ` (skipping ${decided} already decided)` : ""} · ${run.length}/${chunks.length} montage(s) of ≤${BATCH}\n`);
 
-  let named = 0, failed = 0;
-  for (let c = 0; c < run.length; c++) {
-    const chunk = run[c];
-    process.stdout.write(`  montage ${c + 1}/${run.length} (${chunk.length}) … `);
+  console.log(`Running ${CONC} montage(s) in parallel…\n`);
+  let named = 0, failed = 0, done = 0;
+  async function processMontage(chunk: DraftItem[]) {
     try {
       const url = await sheet(chunk);
       const sizes = chunk.map((it, i) => `#${i + 1}=${it.tileW}×${it.tileH}`).join(", ");
       const arr = await callModel(url, chunk.length, chunk[0].themeLabel, sizes);
-      if (DRY) console.log("✓\n");
       for (const o of arr) {
         const i = Number(o.idx) - 1;
         const it = chunk[i];
@@ -228,12 +238,18 @@ async function main() {
         };
         named++;
       }
-      if (!DRY) { saveSeed(seed); console.log(`✓ ${arr.length}`); } // checkpoint after each montage
+      if (!DRY) saveSeed(seed); // synchronous write; safe under Node's single thread
+      done++;
+      process.stdout.write(`  ✓ ${done}/${run.length}  (${named} named, $${usageTotals.cost.toFixed(2)})\n`);
     } catch (e) {
-      failed++;
-      console.log(`✖ ${(e as Error).message.slice(0, 120)}`);
+      failed++; done++;
+      process.stdout.write(`  ✖ ${done}/${run.length}  ${(e as Error).message.slice(0, 100)}\n`);
     }
   }
+  // simple worker pool: CONC montages in flight at once
+  let next = 0;
+  async function worker() { while (next < run.length) await processMontage(run[next++]); }
+  await Promise.all(Array.from({ length: Math.min(CONC, run.length) }, () => worker()));
 
   const cost = usageTotals.cost
     ? `$${usageTotals.cost.toFixed(4)}`
