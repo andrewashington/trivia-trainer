@@ -385,8 +385,10 @@ order below the player, except `overhead`):
 6. Export + verify: `npx tsx scripts/world-export-map.ts` then
    `npm run typecheck`.
 7. Ship: commit, push, and
-   `railway run npx tsx scripts/world-sync-assets.ts` (assets go to S3
-   independently of the code deploy; you need BOTH if you touched code).
+   `railway run --service trivia-trainer npx tsx scripts/world-sync-assets.ts`
+   (the repo may be railway-linked to world-ws, which has no S3 vars — the
+   `--service` flag is required). Assets go to S3 independently of the
+   code deploy; you need BOTH if you touched code.
 
 Hand back to Claude: just say which .tmx you saved, what the map id
 should be, and where the doors are — steps 3–7 are Claude's job.
