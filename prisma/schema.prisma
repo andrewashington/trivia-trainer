@@ -1215,6 +1215,7 @@ model WorldItem {
   variantGroup String? // shared slug across colorways/materials of one object — shop shows one entry
   variant   String? // this variant's distinguishing label, e.g. "Oak" / "Sage" (null = no variants)
   tagline   String? // ironic one-line shop flavor copy
+  tags      String[] @default([]) // freeform keywords (material/color/style/vibe) for search + filtering
   price     Int      @default(0) // 0 = unpriced draft; tier-derived or admin override
   spriteKey String // "<atlasKey>#<frameName>" — frameName is the stable item key
   tileW     Int      @default(1) // footprint in 16px tiles
@@ -1228,6 +1229,8 @@ model WorldItem {
 
   @@index([published, availability, category])
   @@index([theme])
+  @@index([variantGroup])
+  @@index([tags], type: Gin)
 }
 
 // Inventory; placement lives on the row (null x/y = in storage, not placed)

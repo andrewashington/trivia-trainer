@@ -38,6 +38,7 @@ type SeedEntry = {
   skip?: boolean; // explicitly decided "no" (distinct from undecided); never seeded
   availability?: string; // "shop" (default) | "unobtainable" — exists but never sells
   variantGroup?: string | null; variant?: string | null; tagline?: string | null;
+  tags?: string[]; // freeform keywords for search/filtering
   ai?: boolean; confidence?: number | null; // AI-suggested (unreviewed) + its confidence
 };
 type Seed = { items: Record<string, SeedEntry> };
@@ -633,6 +634,8 @@ function card(it){
       'onkeydown="nameKey(event)" oninput="setField(\\''+it.key+'\\',{name:this.value,ai:false})">'+
     '<input class="tag" placeholder="tagline" value="'+esc(s.tagline||"")+'" '+
       'oninput="setField(\\''+it.key+'\\',{tagline:this.value})">'+
+    '<input class="tag" placeholder="tags, comma, separated" value="'+esc((s.tags||[]).join(", "))+'" '+
+      'oninput="setField(\\''+it.key+'\\',{tags:this.value.split(\\',\\').map(function(x){return x.trim()}).filter(Boolean)})">'+
     '<div class="tiers">'+tiers+'</div>'+
     '<div class="cardrow">'+
       '<input class="price" type="number" min="0" placeholder="'+pricePh+'" value="'+(s.price!=null?s.price:"")+'" '+
@@ -712,7 +715,7 @@ function tierPriceK(k){ const z=DATA.tiers.find(function(x){return x.key===k;});
 function norm(s){ s=s||{}; return { name:(s.name||"").trim(), category:s.category, tier:s.tier||null,
   price:(s.price!=null?s.price:null), surface:s.surface||"floor", availability:s.availability||"shop",
   variantGroup:s.variantGroup||null, variant:s.variant||null, tagline:s.tagline||null,
-  ai:!!s.ai, confidence:(s.confidence!=null?s.confidence:null),
+  tags:Array.isArray(s.tags)?s.tags:[], ai:!!s.ai, confidence:(s.confidence!=null?s.confidence:null),
   keep:!!s.keep, skip:!!s.skip, publish:!!s.publish }; }
 
 function fillScope(){

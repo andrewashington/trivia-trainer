@@ -40,6 +40,7 @@ type SeedEntry = {
   variantGroup?: string | null;
   variant?: string | null;
   tagline?: string | null;
+  tags?: string[];
   keep?: boolean;
   publish?: boolean;
 };
@@ -192,6 +193,7 @@ async function main() {
         variantGroup: e.variantGroup ?? null,
         variant: e.variant ?? null,
         tagline: (e.tagline ?? "")?.toString().trim() || null,
+        tags: Array.isArray(e.tags) ? e.tags : [],
         published: !!e.publish,
       };
       await db.worldItem.upsert({ where: { key: k.key }, create: { key: k.key, ...data }, update: data });

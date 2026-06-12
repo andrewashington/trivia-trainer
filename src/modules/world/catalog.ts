@@ -40,8 +40,8 @@ export const TIERS: TierDef[] = [
 export const TIER_KEYS = TIERS.map((t) => t.key);
 const TIER_BY_KEY = new Map(TIERS.map((t) => [t.key, t]));
 
-export type Surface = "floor" | "wall" | "tabletop";
-export const SURFACES: Surface[] = ["floor", "wall", "tabletop"];
+export type Surface = "floor" | "wall" | "tabletop" | "ceiling";
+export const SURFACES: Surface[] = ["floor", "wall", "tabletop", "ceiling"];
 
 /**
  * Availability is orthogonal to price tier. "unobtainable" items exist in

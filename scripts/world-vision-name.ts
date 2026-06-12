@@ -47,6 +47,7 @@ const themeArg = opt("theme") ? themeSlug(opt("theme")!) : undefined;
 const MODEL = opt("model") ?? process.env.OPENROUTER_VISION_MODEL ?? "google/gemini-2.0-flash-001";
 const BATCH = Number(opt("batch") ?? 24);
 const LIMIT = opt("limit") ? Number(opt("limit")) : Infinity;
+const DRY = args.includes("--dry"); // print results, don't touch catalog-seed.json
 const CELL = 96; // contact-sheet cell px; 16px sprite → ~5–6× upscale
 
 const KEY = process.env.OPENROUTER_API_KEY;
@@ -85,20 +86,19 @@ async function sheet(chunk: DraftItem[]): Promise<string> {
 const TIER_LIST = TIERS.map((t) => `${t.key} (${t.blurb})`).join("; ");
 
 function promptFor(n: number): string {
-  return `You are cataloguing pixel-art furniture for a cozy decorative game shop. The image is a labeled contact sheet of ${n} furniture sprites, numbered #1..#${n} in the bottom-left of each cell.
+  return `You are cataloguing pixel-art furniture/props for a cozy decorative game shop. The image is a labeled contact sheet of ${n} sprites, numbered #1..#${n} at the bottom-left of each cell. Sprites that are adjacent and look like the same object in different colours/materials are colourway variants of ONE object.
 
-For EACH sprite return one object. Reply with ONLY a JSON array of exactly ${n} objects, no prose, no markdown fences.
-
-Fields per object:
+Reply with ONLY a JSON array of exactly ${n} objects — no prose, no markdown fences. One object per sprite:
 - "idx": the sprite number (1..${n}).
-- "name": a short, real, browsable item name (e.g. "Velvet Armchair", "Oak Bookshelf"). NOT a joke — the joke goes in "tagline".
-- "variantGroup": a short slug shared by colorways/materials of the SAME object that appear in this sheet (e.g. "armchair-a"). Adjacent sprites that are clearly the same object in different colors/materials/woods MUST share this slug. If an item has no sibling variants here, use null.
-- "variant": when in a variantGroup, this one's distinguishing label — the colour or material ("Oak", "Birch", "Sage", "Crimson"). null if not a variant.
-- "tagline": ONE short ironic, satirical, over-the-top line of shop copy. Dry and funny, never twee, never cutesy. e.g. "Where ambition goes to nap."
-- "category": functional group, lowercase (seating, table, bed, storage, lighting, plant, rug, wall-decor, appliance, electronics, decor, ...).
-- "tier": one of: ${TIER_LIST}. Pick by how impressive/expensive the piece reads.
-- "surface": one of ${SURFACES.join(", ")} — "wall" for things that hang (paintings, mirrors, wall shelves), "tabletop" for small things that sit ON furniture (mugs, lamps, books, figurines), else "floor".
-- "confidence": 0..1, your confidence in the name/variant. Be honest; low for ambiguous tiny sprites.`;
+- "name": a short, real, browsable item name ("Velvet Armchair", "Oak Bookshelf"). The joke goes in "tagline", NOT here. Sprites that share a "variantGroup" MUST share the EXACT same "name".
+- "variantGroup": a short slug shared ONLY by colourway/material variants of the SAME object on THIS sheet (e.g. "armchair-a"). Rule: if two sprites wouldn't get the identical "name", they are NOT one group — set null. null when an item has no sibling variants here.
+- "variant": for grouped items, the distinguishing colour/material label ("Oak","Birch","Sage","Crimson"); null otherwise.
+- "tags": array of 3-7 lowercase keywords for search/filtering — cover material, dominant colour, style/era, and vibe (e.g. ["wooden","oak","rustic","brown","storage"]).
+- "tagline": ONE short, dry, ironic line of shop copy. Funny, never twee, never cutesy. e.g. "Where ambition goes to nap."
+- "category": functional group, lowercase (seating, table, bed, storage, lighting, plant, rug, wall-decor, electronics, appliance, decor, ...). If the sprite is NOT a placeable decorative object (a bare floor/wall tile, a fragment, a UI element), use "non-item" and set confidence ≤ 0.2.
+- "tier": one of: ${TIER_LIST}. Pick by how impressive/expensive it reads; reserve "statement"/"absurd" for genuine show-off pieces.
+- "surface": one of ${SURFACES.join(", ")}. "wall"=hangs on a wall (paintings, mirrors, wall shelves); "ceiling"=hangs from above (chandeliers, hanging lamps/plants); "tabletop"=small things that sit ON furniture (mugs, lamps, books, figurines); else "floor".
+- "confidence": 0..1, honest; low for ambiguous tiny sprites.`;
 }
 
 async function callModel(dataUrl: string, n: number): Promise<Record<string, unknown>[]> {
@@ -144,16 +144,21 @@ const usageTotals = { prompt: 0, completion: 0, cost: 0 };
 async function main() {
   if (!fs.existsSync(DRAFT)) { console.error("✖ run world-scan-furniture first."); process.exit(1); }
   const draft = (JSON.parse(fs.readFileSync(DRAFT, "utf8")).items ?? []) as DraftItem[];
+  const seed = loadSeed();
   let items = themeArg ? draft.filter((d) => d.theme === themeArg) : draft;
+  // never clobber a human decision: skip anything already kept/skipped (unless --force)
+  const FORCE = args.includes("--force");
+  const before = items.length;
+  if (!FORCE) items = items.filter((d) => { const e = seed.items[d.key]; return !(e && (e.keep || e.skip)); });
+  const decided = before - items.length;
   items = items.sort((a, b) => a.theme.localeCompare(b.theme) || numOf(a.key) - numOf(b.key));
-  if (items.length === 0) { console.error(`✖ no sprites${themeArg ? ` for theme "${themeArg}"` : ""}.`); process.exit(1); }
+  if (items.length === 0) { console.error(`✖ no sprites to name${themeArg ? ` for theme "${themeArg}"` : ""}${decided ? ` (${decided} already decided — use --force to redo)` : ""}.`); process.exit(1); }
 
   const chunks: DraftItem[][] = [];
   for (let i = 0; i < items.length; i += BATCH) chunks.push(items.slice(i, i + BATCH));
   const run = chunks.slice(0, LIMIT);
-  console.log(`Model ${MODEL} · ${items.length} sprites · ${run.length}/${chunks.length} montage(s) of ≤${BATCH}\n`);
+  console.log(`Model ${MODEL} · ${items.length} sprites${decided ? ` (skipping ${decided} already decided)` : ""} · ${run.length}/${chunks.length} montage(s) of ≤${BATCH}\n`);
 
-  const seed = loadSeed();
   let named = 0, failed = 0;
   for (let c = 0; c < run.length; c++) {
     const chunk = run[c];
@@ -161,10 +166,22 @@ async function main() {
     try {
       const url = await sheet(chunk);
       const arr = await callModel(url, chunk.length);
+      if (DRY) console.log("✓\n");
       for (const o of arr) {
         const i = Number(o.idx) - 1;
         const it = chunk[i];
         if (!it) continue;
+        const tags = Array.isArray(o.tags) ? o.tags.map(String).slice(0, 8) : [];
+        if (DRY) {
+          const grp = o.variantGroup ? `  [${o.variantGroup}${o.variant ? `:${o.variant}` : ""}]` : "";
+          console.log(
+            `  #${String(o.idx).padEnd(2)} ${it.tileW}×${it.tileH}  ${String(o.name ?? "?").padEnd(24)} ` +
+              `${String(o.tier ?? "-").padEnd(9)} ${String(o.surface ?? "-").padEnd(8)} ` +
+              `c=${o.confidence ?? "?"}${grp}\n        “${o.tagline ?? ""}”   {${tags.join(", ")}}`
+          );
+          named++;
+          continue;
+        }
         const ex = seed.items[it.key] ?? {};
         seed.items[it.key] = {
           ...ex,
@@ -172,6 +189,7 @@ async function main() {
           variantGroup: o.variantGroup ? String(o.variantGroup) : null,
           variant: o.variant ? String(o.variant) : null,
           tagline: o.tagline ? String(o.tagline) : null,
+          tags,
           category: o.category ? String(o.category) : ex.category,
           tier: TIERS.some((t) => t.key === o.tier) ? String(o.tier) : ex.tier,
           surface: SURFACES.includes(String(o.surface) as never) ? String(o.surface) : ex.surface,
@@ -180,8 +198,7 @@ async function main() {
         };
         named++;
       }
-      saveSeed(seed); // checkpoint after each montage — safe to ctrl-c
-      console.log(`✓ ${arr.length}`);
+      if (!DRY) { saveSeed(seed); console.log(`✓ ${arr.length}`); } // checkpoint after each montage
     } catch (e) {
       failed++;
       console.log(`✖ ${(e as Error).message.slice(0, 120)}`);
