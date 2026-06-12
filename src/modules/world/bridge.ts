@@ -15,6 +15,8 @@
  * forms, money, or persistence is React + API routes.
  */
 
+import type { FurniturePlacePayload } from "./furniture";
+
 export type WorldBridgeEvents = {
   /** Scene asks React to open a UI panel (player input freezes). */
   "open-panel": { panel: "shop" | "arcade"; npc?: string };
@@ -43,6 +45,45 @@ export type WorldBridgeEvents = {
   };
   /** Scene reports whether websocket chat is currently available. */
   "chat-status": { available: boolean };
+
+  // ── Furniture & decorate mode ─────────────────────────────────────────
+  /**
+   * Scene → React: where the player is, emitted on every map build. React
+   * uses `mine` to show the Decorate button and `homeValue` for the plaque.
+   */
+  "house-context": {
+    inHouse: boolean;
+    plot: number | null;
+    mine: boolean;
+    ownerName: string | null;
+    homeValue: number;
+  };
+  /** React → scene: enter decorate mode (own house only). */
+  "decorate-enter": void;
+  /** React → scene: leave decorate mode, saving (Done) or discarding (Cancel). */
+  "decorate-exit": { save: boolean };
+  /** Scene → React: confirms decorate mode toggled (drives the tray UI). */
+  "decorate-state": { active: boolean };
+  /** React → scene: start placing this owned item (a grid-snapped ghost). */
+  "place-item": FurniturePlacePayload;
+  /** Scene → React: a placed piece was clicked (show its action bar). */
+  "furniture-selected": { ownedId: string; name: string };
+  /** Scene → React: selection cleared. */
+  "furniture-deselected": void;
+  /** React → scene: clear the current selection. */
+  "furniture-deselect": void;
+  /** React → scene: mirror the selected piece (2D sprites flip, not spin). */
+  "furniture-flip": void;
+  /** React → scene: return the selected piece to storage (keeps ownership). */
+  "furniture-store": void;
+  /** React → scene: remove a piece from the room after it was sold. */
+  "remove-furniture": { ownedId: string };
+  /** Scene → React: a stored item was committed to the room. */
+  "furniture-placed": { ownedId: string };
+  /** Scene → React: a placed item was returned to storage. */
+  "furniture-stored": { ownedId: string };
+  /** Scene → React: live placement totals for the home-value plaque. */
+  "decorate-stats": { placedCount: number; placedValue: number };
 };
 
 type Handler<T> = (payload: T) => void;

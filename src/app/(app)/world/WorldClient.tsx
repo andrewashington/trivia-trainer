@@ -13,6 +13,7 @@ import { worldBridge } from "@/modules/world/bridge";
 import { ShopModal } from "@/modules/world/ShopModal";
 import { HouseSaleModal } from "@/modules/world/HouseSaleModal";
 import { ArcadeOverlay } from "@/modules/world/ArcadeOverlay";
+import { DecorateTray } from "@/modules/world/DecorateTray";
 
 const WorldGame = dynamic(
   () => import("@/modules/world/WorldGame").then((m) => m.WorldGame),
@@ -31,6 +32,9 @@ export function WorldClient({ characterPath }: { characterPath: string }) {
   const [sale, setSale] = useState<{ plot: number; price: number; coins: number } | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set by the scene on every map build; gates the Decorate button.
+  const [house, setHouse] = useState<{ mine: boolean; homeValue: number } | null>(null);
+  const [decorating, setDecorating] = useState(false);
 
   const close = useCallback(() => {
     setPanel(null);
@@ -46,6 +50,20 @@ export function WorldClient({ characterPath }: { characterPath: string }) {
 
   useEffect(
     () => worldBridge.on("open-panel", ({ panel }) => setPanel(panel)),
+    []
+  );
+
+  // Scene tells us where we are (for the Decorate button + plaque) and when
+  // decorate mode toggles (mount/unmount the tray).
+  useEffect(
+    () =>
+      worldBridge.on("house-context", ({ inHouse, mine, homeValue }) =>
+        setHouse(inHouse ? { mine, homeValue } : null)
+      ),
+    []
+  );
+  useEffect(
+    () => worldBridge.on("decorate-state", ({ active }) => setDecorating(active)),
     []
   );
 
@@ -98,6 +116,17 @@ export function WorldClient({ characterPath }: { characterPath: string }) {
           {banner}
         </div>
       )}
+      {/* Your house, not decorating yet → invite to decorate. */}
+      {house?.mine && !decorating && !panel && !sale && (
+        <button
+          type="button"
+          onClick={() => worldBridge.emit("decorate-enter", undefined)}
+          className="absolute bottom-3 right-3 z-10 border-3 border-ink bg-accent-yellow px-3 py-2 font-mono text-xs font-black uppercase text-ink shadow-brutal transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-yellow/50"
+        >
+          🛋️ Decorate{house.homeValue > 0 ? ` · 🪙${house.homeValue.toLocaleString()}` : ""}
+        </button>
+      )}
+      {decorating && <DecorateTray />}
       {panel === "shop" && <ShopModal onClose={close} />}
       {panel === "arcade" && <ArcadeOverlay onClose={close} />}
       {sale && (

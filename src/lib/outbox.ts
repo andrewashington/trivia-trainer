@@ -74,6 +74,8 @@ export type OutboxEventType =
   | "smash.deck.deleted"
   | "world.cosmetic.purchased"
   | "world.house.purchased"
+  | "world.furniture.purchased"
+  | "world.furniture.sold"
   | "poker.table.created"
   | "poker.hand.finished"
   | "twentyq.created"

@@ -28,14 +28,45 @@ import {
 } from "./transport";
 import { worldBridge } from "./bridge";
 import { houseRoomKey, parsePlotPortal } from "./houses";
+import { parseSpriteKey, type FurniturePlacePayload, type ScenePlacedItem } from "./furniture";
 
 // Context while inside (or entering) a plot's house instance. Carried
 // across the scene restart so the interior knows whose door to exit to
 // and which presence room to join.
 type HouseCtx = { plot: number; ownerId: string; ownerName: string; mine: boolean };
 
+// A furniture piece currently rendered in the room. `x`/`y` are the
+// sprite's floor-contact point (origin is bottom-center). `rotation` is
+// 0 (as-drawn) or 1 (mirrored) — 2D sprites flip, they don't spin.
+type PlacedFurniture = {
+  sprite: Phaser.GameObjects.Sprite;
+  data: FurniturePlacePayload;
+  x: number;
+  y: number;
+  rotation: number;
+};
+
 // Asset base URL — served (and auth-gated) by our API route.
 const ASSET_BASE = "/api/world/assets";
+
+const TILE = 16;
+
+/**
+ * Depth bands. The world is y-sorted: characters and furniture share an
+ * "entity" band where depth tracks the floor-contact Y, so you walk behind
+ * a tall bookshelf and in front of a rug. Bands are kept far apart so a
+ * piece near the bottom of the room (y≈250) never crosses into the layer
+ * above it (tiles < decals < entities < overhead < names/ghosts < bubbles).
+ */
+const DEPTH_TILE_CLAMP = 8; // non-overhead tile layers clamp here
+const DEPTH_DECAL = 100; // rugs/flat floor items: DEPTH_DECAL + y
+const DEPTH_ENTITY = 1000; // player, ghosts, npcs, furniture: DEPTH_ENTITY + floorY
+const DEPTH_OVERHEAD = 9000; // roof/treetops/tall furniture tops
+const DEPTH_NAME = 9500; // name tags float above the décor
+const DEPTH_PLACING = 9700; // the ghost being placed sits on top
+const DEPTH_BUBBLE = 9800; // chat bubbles win
+const DEPTH_GRID = 90; // decorate grid overlay (above tiles, under décor)
+const DEPTH_LOADING = 1_000_000;
 const WORLD_MUSIC_KEY = "world-pixel-jackpot";
 const WORLD_MUSIC_SRC = "/music/pixel-jackpot.mp3";
 const WORLD_MUSIC_VOLUME = 0.28;
@@ -151,6 +182,26 @@ export class WorldScene extends Phaser.Scene {
   private music: WorldMusicSound | null = null;
   private musicMuted = false;
 
+  // ── Furniture & decorate mode ──────────────────────────────────────────
+  private colliders!: Phaser.Physics.Arcade.StaticGroup; // map walls
+  private furnitureColliders!: Phaser.Physics.Arcade.StaticGroup; // solid décor
+  private wallRects: Phaser.Geom.Rectangle[] = []; // map collision, for placement validity
+  private placed = new Map<string, PlacedFurniture>(); // ownedId → rendered piece
+  private storedThisSession = new Set<string>(); // pieces picked up this session
+  private atlasPromises = new Map<string, Promise<void>>(); // de-duped atlas loads
+  private mapWidthPx = 0;
+  private mapHeightPx = 0;
+  private buildGen = 0; // bumps each buildWorld; guards async furniture loads
+
+  private decorating = false;
+  private placingGhost:
+    | { sprite: Phaser.GameObjects.Sprite; data: FurniturePlacePayload; valid: boolean }
+    | null = null;
+  private selectedId: string | null = null;
+  private selectHighlight: Phaser.GameObjects.Graphics | null = null;
+  private gridOverlay: Phaser.GameObjects.Graphics | null = null;
+  private dragOrigin: { x: number; y: number } | null = null;
+
   constructor() {
     super({ key: "WorldScene" });
   }
@@ -188,6 +239,18 @@ export class WorldScene extends Phaser.Scene {
     this.uiOpen = false;
     this.chatFocused = false;
     this.music = null;
+    // Furniture/decorate state is per-map — the scene restarts on every
+    // door, so wipe what referenced the previous room's objects.
+    this.placed = new Map();
+    this.storedThisSession = new Set();
+    this.atlasPromises = new Map();
+    this.wallRects = [];
+    this.decorating = false;
+    this.placingGhost = null;
+    this.selectedId = null;
+    this.selectHighlight = null;
+    this.gridOverlay = null;
+    this.dragOrigin = null;
     for (const u of this.bridgeUnsubs) u();
     this.bridgeUnsubs = [];
     this.bridgeUnsubs.push(
@@ -254,7 +317,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.loadingUi = [bg, title, hint, frame, this.loadingBar];
     for (const o of this.loadingUi) {
-      (o as Phaser.GameObjects.Rectangle).setScrollFactor(0).setDepth(1000);
+      (o as Phaser.GameObjects.Rectangle).setScrollFactor(0).setDepth(DEPTH_LOADING);
     }
 
     // First stage fills 0→50%, second stage (tileset images) 50→100%.
@@ -288,6 +351,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private buildWorld() {
+    this.buildGen++;
     this.hideLoadingScreen();
     this.ensureWorldMusic();
     // ── Tilemap ─────────────────────────────────────────────────────────
@@ -295,31 +359,38 @@ export class WorldScene extends Phaser.Scene {
     const tiles = map.tilesets.map(
       (ts) => map.addTilesetImage(ts.name, ts.name)!
     );
+    this.mapWidthPx = map.widthInPixels;
+    this.mapHeightPx = map.heightInPixels;
 
     // Layer contract v4: tile layers render in authoring order below the
-    // player (depth 0..4), except "overhead" which draws above (10).
-    // Works for exteriors (ground/props) and interiors (subfloor/floor/props).
+    // entities (clamped under the y-sort band), except "overhead" which
+    // draws above everyone. Works for exteriors (ground/props) and
+    // interiors (subfloor/floor/props).
     let depth = 0;
     for (const layerData of map.layers) {
       const isOverhead = layerData.name === "overhead";
       map
         .createLayer(layerData.name, tiles, 0, 0)
-        ?.setDepth(isOverhead ? 10 : Math.min(depth++, 4));
+        ?.setDepth(isOverhead ? DEPTH_OVERHEAD : Math.min(depth++, DEPTH_TILE_CLAMP));
     }
 
     // ── Collision rectangles from "collision" object layer ───────────────
     const collisionLayer = map.getObjectLayer("collision");
     const colliders = this.physics.add.staticGroup();
+    this.colliders = colliders;
+    this.furnitureColliders = this.physics.add.staticGroup();
+    this.wallRects = [];
 
     if (collisionLayer) {
       for (const obj of collisionLayer.objects) {
-        const x = (obj.x ?? 0) + (obj.width ?? 0) / 2;
-        const y = (obj.y ?? 0) + (obj.height ?? 0) / 2;
-        const w = obj.width ?? 16;
-        const h = obj.height ?? 16;
-        const rect = this.add.rectangle(x, y, w, h);
+        const ox = obj.x ?? 0;
+        const oy = obj.y ?? 0;
+        const w = obj.width ?? TILE;
+        const h = obj.height ?? TILE;
+        const rect = this.add.rectangle(ox + w / 2, oy + h / 2, w, h);
         this.physics.add.existing(rect, true); // true = static
         colliders.add(rect);
+        this.wallRects.push(new Phaser.Geom.Rectangle(ox, oy, w, h));
       }
     }
 
@@ -332,15 +403,20 @@ export class WorldScene extends Phaser.Scene {
     const spawnY = spawnObj?.y ?? map.heightInPixels / 2;
 
     this.player = this.physics.add.sprite(spawnX, spawnY, this.playerKey, 0);
-    this.player.setDepth(5);
     this.player.setCollideWorldBounds(false);
     // Collide with the feet only (sprite is 16×32; head may overlap props)
     (this.player.body as Phaser.Physics.Arcade.Body)
       .setSize(12, 10)
       .setOffset(2, 22);
+    // Depth tracks the feet so the y-sort composites the player against
+    // furniture; update() keeps it current as they walk.
+    this.player.setDepth(DEPTH_ENTITY + (this.player.body as Phaser.Physics.Arcade.Body).bottom);
 
-    // Collide player with the static rectangles
+    // Collide player with the static rectangles (map walls + solid décor).
+    // Group colliders pick up members added later, so loading furniture
+    // after this still blocks movement.
     this.physics.add.collider(this.player, colliders);
+    this.physics.add.collider(this.player, this.furnitureColliders);
 
     // ── Portals ("portals" object layer) ─────────────────────────────────
     // Rect name = target map id, type/class = arrival spawn name there.
@@ -380,7 +456,7 @@ export class WorldScene extends Phaser.Scene {
     this.createCharacterAnims("npc-sheet");
     for (const obj of map.getObjectLayer("npcs")?.objects ?? []) {
       const npc = this.physics.add.sprite(obj.x ?? 0, obj.y ?? 0, "npc-sheet", 0);
-      npc.setDepth(4);
+      npc.setDepth(DEPTH_ENTITY + npc.y + TILE); // y-sort with the player
       (npc.body as Phaser.Physics.Arcade.Body)
         .setSize(12, 10)
         .setOffset(2, 22)
@@ -397,7 +473,7 @@ export class WorldScene extends Phaser.Scene {
           strokeThickness: 2,
         })
         .setOrigin(0.5, 1)
-        .setDepth(11)
+        .setDepth(DEPTH_NAME)
         .setResolution(3);
       this.npcs.push({ sprite: npc, name: obj.name ?? "", lineIdx: 0 });
     }
@@ -417,27 +493,96 @@ export class WorldScene extends Phaser.Scene {
 
     this.talkKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
 
-    // Tap / click to walk — or talk, if the tap lands on a nearby NPC
-    this.input.on("pointerdown", (ptr: Phaser.Input.Pointer) => {
-      // Convert screen coords to world coords
-      const worldPoint = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
-      const tappedNpc = this.npcs.find(
-        (n) => n.sprite.getBounds().contains(worldPoint.x, worldPoint.y)
-      );
-      if (
-        tappedNpc &&
-        Phaser.Math.Distance.Between(
-          this.player.x,
-          this.player.y,
-          tappedNpc.sprite.x,
-          tappedNpc.sprite.y
-        ) <= NPC_TALK_RANGE
-      ) {
-        this.talkTo(tappedNpc);
-        return;
+    // Right-click cancels furniture placement without popping a menu.
+    this.input.mouse?.disableContextMenu();
+
+    // Tap / click to walk — or talk, if the tap lands on a nearby NPC.
+    // In decorate mode the canvas is a placement surface instead: a click
+    // commits the ghost, or clicking empty space clears the selection.
+    this.input.on(
+      "pointerdown",
+      (ptr: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
+        if (this.decorating) {
+          if (ptr.rightButtonDown()) return void this.cancelPlacing();
+          if (this.placingGhost) return void this.commitGhost();
+          if (!currentlyOver || currentlyOver.length === 0) this.deselect();
+          return;
+        }
+        // Convert screen coords to world coords
+        const worldPoint = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+        const tappedNpc = this.npcs.find(
+          (n) => n.sprite.getBounds().contains(worldPoint.x, worldPoint.y)
+        );
+        if (
+          tappedNpc &&
+          Phaser.Math.Distance.Between(
+            this.player.x,
+            this.player.y,
+            tappedNpc.sprite.x,
+            tappedNpc.sprite.y
+          ) <= NPC_TALK_RANGE
+        ) {
+          this.talkTo(tappedNpc);
+          return;
+        }
+        this.clickTarget = new Phaser.Math.Vector2(worldPoint.x, worldPoint.y);
       }
-      this.clickTarget = new Phaser.Math.Vector2(worldPoint.x, worldPoint.y);
+    );
+
+    // ── Decorate-mode pointer handling ───────────────────────────────────
+    // A ghost follows the pointer while placing; placed pieces are
+    // selectable + draggable (grid-snapped). All inert outside decorate mode.
+    this.input.on("pointermove", (ptr: Phaser.Input.Pointer) => {
+      if (!this.decorating || !this.placingGhost) return;
+      const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+      this.updateGhostAt(wp.x, wp.y);
     });
+    this.input.on("gameobjectdown", (_ptr: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject) => {
+      if (!this.decorating || this.placingGhost) return;
+      const id = obj.getData("ownedId") as string | undefined;
+      if (id) this.select(id);
+    });
+    this.input.on(
+      "dragstart",
+      (_ptr: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject) => {
+        if (!this.decorating) return;
+        const id = obj.getData("ownedId") as string | undefined;
+        if (!id) return;
+        const p = this.placed.get(id);
+        if (!p) return;
+        this.dragOrigin = { x: p.x, y: p.y };
+        this.select(id);
+      }
+    );
+    this.input.on(
+      "drag",
+      (
+        _ptr: Phaser.Input.Pointer,
+        obj: Phaser.GameObjects.GameObject,
+        dragX: number,
+        dragY: number
+      ) => {
+        if (!this.decorating) return;
+        const id = obj.getData("ownedId") as string | undefined;
+        if (id) this.movePlaced(id, dragX, dragY);
+      }
+    );
+    this.input.on(
+      "dragend",
+      (_ptr: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject) => {
+        if (!this.decorating) return;
+        const id = obj.getData("ownedId") as string | undefined;
+        const p = id ? this.placed.get(id) : undefined;
+        if (id && p) {
+          // Snapped onto a wall? Bounce back to where the drag began.
+          if (!this.isValidPlacement(p.x, p.y, p.data) && this.dragOrigin) {
+            this.movePlaced(id, this.dragOrigin.x, this.dragOrigin.y);
+          }
+          p.sprite.clearTint();
+        }
+        this.dragOrigin = null;
+      }
+    );
 
     // ── Camera ───────────────────────────────────────────────────────────
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
@@ -478,7 +623,14 @@ export class WorldScene extends Phaser.Scene {
       }),
       worldBridge.on("avatar-updated", ({ sheetPath }) => this.swapPlayerSheet(sheetPath)),
       worldBridge.on("chat-focus", ({ focused }) => this.setChatFocused(focused)),
-      worldBridge.on("chat-send", ({ text }) => this.sendChatMessage(text))
+      worldBridge.on("chat-send", ({ text }) => this.sendChatMessage(text)),
+      worldBridge.on("decorate-enter", () => this.enterDecorate()),
+      worldBridge.on("decorate-exit", ({ save }) => void this.exitDecorate(save)),
+      worldBridge.on("place-item", (payload) => void this.beginPlacing(payload)),
+      worldBridge.on("furniture-flip", () => this.flipSelected()),
+      worldBridge.on("furniture-store", () => this.storeSelected()),
+      worldBridge.on("furniture-deselect", () => this.deselect()),
+      worldBridge.on("remove-furniture", ({ ownedId }) => this.removeFurniture(ownedId))
     );
     const unsubAll = () => {
       for (const u of this.bridgeUnsubs) u();
@@ -490,6 +642,364 @@ export class WorldScene extends Phaser.Scene {
     this.input.once("pointerdown", () => {
       this.playWorldMusic();
     });
+
+    // Tell React where we are (drives the Decorate button), then stream in
+    // the room's furniture. house-context re-fires with the real home value
+    // once the pieces have loaded.
+    this.emitHouseContext(0);
+    void this.loadHouseFurniture();
+  }
+
+  // ── Furniture: load & render ───────────────────────────────────────────
+
+  /** Push the current house context (for the Decorate button + plaque). */
+  private emitHouseContext(homeValue: number) {
+    worldBridge.emit("house-context", {
+      inHouse: !!this.houseCtx,
+      plot: this.houseCtx?.plot ?? null,
+      mine: this.houseCtx?.mine ?? false,
+      ownerName: this.houseCtx?.ownerName ?? null,
+      homeValue,
+    });
+  }
+
+  /** Fetch and render the placed furniture for the house we just entered. */
+  private async loadHouseFurniture() {
+    if (!this.houseCtx) return;
+    const gen = this.buildGen;
+    try {
+      const res = await fetch(`/api/world/house/items?plot=${this.houseCtx.plot}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { items: ScenePlacedItem[] };
+      if (gen !== this.buildGen || !this.player) return; // map changed mid-fetch
+      for (const it of data.items) {
+        await this.ensureAtlas(it.spriteKey);
+        if (gen !== this.buildGen || !this.player) return;
+        this.addFurniture(it, it.x, it.y, it.rotation);
+      }
+      this.rebuildFurnitureColliders();
+      this.emitHouseContext(this.homeValue());
+      this.emitDecorateStats();
+    } catch {
+      // No décor or a flaky fetch — the empty room is fine.
+    }
+  }
+
+  /** Load a furniture atlas once (de-duped); resolves even if it 404s. */
+  private ensureAtlas(spriteKey: string): Promise<void> {
+    const parsed = parseSpriteKey(spriteKey);
+    if (!parsed) return Promise.resolve();
+    const atlasKey = parsed.atlasKey;
+    if (this.textures.exists(atlasKey)) return Promise.resolve();
+    const existing = this.atlasPromises.get(atlasKey);
+    if (existing) return existing;
+    const promise = new Promise<void>((resolve) => {
+      const done = () => {
+        this.load.off(`filecomplete-atlas-${atlasKey}`, done);
+        this.load.off("loaderror", onErr);
+        resolve();
+      };
+      const onErr = (file: { key?: string }) => {
+        if (file?.key === atlasKey) done();
+      };
+      this.load.once(`filecomplete-atlas-${atlasKey}`, done);
+      this.load.on("loaderror", onErr);
+      this.load.atlas(
+        atlasKey,
+        `${ASSET_BASE}/atlas/${atlasKey}.png`,
+        `${ASSET_BASE}/atlas/${atlasKey}.json`
+      );
+      this.load.start();
+    });
+    this.atlasPromises.set(atlasKey, promise);
+    return promise;
+  }
+
+  /** Create a furniture sprite (origin bottom-center) and track it. */
+  private addFurniture(
+    data: FurniturePlacePayload,
+    x: number,
+    y: number,
+    rotation: number
+  ): PlacedFurniture | null {
+    const parsed = parseSpriteKey(data.spriteKey);
+    if (!parsed || !this.textures.exists(parsed.atlasKey)) return null;
+    const sprite = this.add.sprite(x, y, parsed.atlasKey, parsed.frame);
+    sprite.setOrigin(0.5, 1);
+    sprite.setFlipX(rotation === 1);
+    sprite.setData("ownedId", data.ownedId);
+    const piece: PlacedFurniture = { sprite, data, x, y, rotation };
+    this.placed.set(data.ownedId, piece);
+    this.applyFurnitureDepth(piece);
+    if (this.decorating) {
+      sprite.setInteractive({ useHandCursor: true });
+      this.input.setDraggable(sprite);
+    }
+    return piece;
+  }
+
+  /** Depth = floor-contact Y within the right band (rugs under furniture). */
+  private applyFurnitureDepth(piece: PlacedFurniture) {
+    const base = piece.data.flat ? DEPTH_DECAL : DEPTH_ENTITY;
+    piece.sprite.setDepth(base + piece.sprite.y);
+  }
+
+  /** Rebuild static collision bodies for the solid pieces (walls block, rugs don't). */
+  private rebuildFurnitureColliders() {
+    this.furnitureColliders.clear(true, true);
+    for (const piece of this.placed.values()) {
+      if (!piece.data.solid) continue;
+      const fw = piece.data.tileW * TILE;
+      const fh = piece.data.tileH * TILE;
+      const rect = this.add.rectangle(piece.sprite.x, piece.sprite.y - fh / 2, fw, fh);
+      this.physics.add.existing(rect, true);
+      this.furnitureColliders.add(rect);
+    }
+  }
+
+  /** Total catalog value of everything currently placed (the plaque number). */
+  private homeValue(): number {
+    let value = 0;
+    for (const piece of this.placed.values()) value += piece.data.price;
+    return value;
+  }
+
+  private emitDecorateStats() {
+    worldBridge.emit("decorate-stats", {
+      placedCount: this.placed.size,
+      placedValue: this.homeValue(),
+    });
+  }
+
+  // ── Decorate mode ──────────────────────────────────────────────────────
+
+  private enterDecorate() {
+    if (!this.houseCtx?.mine || this.decorating || !this.player) return;
+    this.decorating = true;
+    this.clickTarget = null;
+    (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    this.drawGrid();
+    for (const piece of this.placed.values()) {
+      piece.sprite.setInteractive({ useHandCursor: true });
+      this.input.setDraggable(piece.sprite);
+    }
+    worldBridge.emit("decorate-state", { active: true });
+    this.emitDecorateStats();
+  }
+
+  private async exitDecorate(save: boolean) {
+    if (!this.decorating) return;
+    this.cancelPlacing();
+    this.deselect();
+    for (const piece of this.placed.values()) {
+      this.input.setDraggable(piece.sprite, false);
+      piece.sprite.disableInteractive();
+      piece.sprite.clearTint();
+    }
+    this.gridOverlay?.destroy();
+    this.gridOverlay = null;
+    this.decorating = false;
+    worldBridge.emit("decorate-state", { active: false });
+
+    if (save) {
+      await this.saveLayout();
+    } else {
+      // Discard: throw away the in-memory changes and reload from the DB.
+      for (const piece of this.placed.values()) piece.sprite.destroy();
+      this.placed.clear();
+      this.storedThisSession.clear();
+      await this.loadHouseFurniture();
+    }
+    this.rebuildFurnitureColliders();
+    this.emitHouseContext(this.homeValue());
+  }
+
+  private drawGrid() {
+    this.gridOverlay?.destroy();
+    const g = this.add.graphics();
+    g.lineStyle(0.5, 0xffffff, 0.12);
+    for (let x = 0; x <= this.mapWidthPx; x += TILE) g.lineBetween(x, 0, x, this.mapHeightPx);
+    for (let y = 0; y <= this.mapHeightPx; y += TILE) g.lineBetween(0, y, this.mapWidthPx, y);
+    g.setDepth(DEPTH_GRID);
+    this.gridOverlay = g;
+  }
+
+  // ── Placement controller ───────────────────────────────────────────────
+
+  /** Snap a desired bottom-center point to the tile grid for this footprint. */
+  private snapBottomCenter(bx: number, by: number, tileW: number, tileH: number) {
+    const fw = tileW * TILE;
+    const fh = tileH * TILE;
+    const col = Math.round((bx - fw / 2) / TILE);
+    const row = Math.round((by - fh) / TILE);
+    return { x: col * TILE + fw / 2, y: row * TILE + fh };
+  }
+
+  /** Footprint can't leave the room; solid pieces also can't overlap walls. */
+  private isValidPlacement(x: number, y: number, data: FurniturePlacePayload): boolean {
+    const fw = data.tileW * TILE;
+    const fh = data.tileH * TILE;
+    const rect = new Phaser.Geom.Rectangle(x - fw / 2, y - fh, fw, fh);
+    if (rect.x < 0 || rect.y < 0 || rect.right > this.mapWidthPx || rect.bottom > this.mapHeightPx) {
+      return false;
+    }
+    if (data.solid) {
+      for (const wall of this.wallRects) {
+        if (Phaser.Geom.Rectangle.Overlaps(rect, wall)) return false;
+      }
+    }
+    return true;
+  }
+
+  private async beginPlacing(data: FurniturePlacePayload) {
+    if (!this.decorating) return;
+    this.cancelPlacing();
+    const parsed = parseSpriteKey(data.spriteKey);
+    if (!parsed) return;
+    await this.ensureAtlas(data.spriteKey);
+    if (!this.decorating || !this.textures.exists(parsed.atlasKey)) return;
+    const sprite = this.add
+      .sprite(0, 0, parsed.atlasKey, parsed.frame)
+      .setOrigin(0.5, 1)
+      .setAlpha(0.75)
+      .setDepth(DEPTH_PLACING);
+    this.placingGhost = { sprite, data, valid: false };
+    const cam = this.cameras.main;
+    this.updateGhostAt(cam.worldView.centerX, cam.worldView.centerY);
+  }
+
+  private updateGhostAt(bx: number, by: number) {
+    const ghost = this.placingGhost;
+    if (!ghost) return;
+    const { x, y } = this.snapBottomCenter(bx, by, ghost.data.tileW, ghost.data.tileH);
+    ghost.sprite.setPosition(x, y);
+    ghost.valid = this.isValidPlacement(x, y, ghost.data);
+    if (ghost.valid) ghost.sprite.clearTint();
+    else ghost.sprite.setTint(0xff6b6b);
+  }
+
+  private cancelPlacing() {
+    this.placingGhost?.sprite.destroy();
+    this.placingGhost = null;
+  }
+
+  private commitGhost() {
+    const ghost = this.placingGhost;
+    if (!ghost || !ghost.valid) return;
+    const ownedId = ghost.data.ownedId;
+    const x = ghost.sprite.x;
+    const y = ghost.sprite.y;
+    ghost.sprite.destroy();
+    this.placingGhost = null;
+    // Re-placing a piece that was already in the room: drop the old sprite.
+    this.placed.get(ownedId)?.sprite.destroy();
+    this.addFurniture(ghost.data, x, y, 0);
+    this.storedThisSession.delete(ownedId);
+    this.rebuildFurnitureColliders();
+    worldBridge.emit("furniture-placed", { ownedId });
+    this.emitDecorateStats();
+    this.select(ownedId); // ready to flip/nudge immediately
+  }
+
+  private movePlaced(ownedId: string, bx: number, by: number) {
+    const piece = this.placed.get(ownedId);
+    if (!piece) return;
+    const { x, y } = this.snapBottomCenter(bx, by, piece.data.tileW, piece.data.tileH);
+    piece.sprite.setPosition(x, y);
+    piece.x = x;
+    piece.y = y;
+    this.applyFurnitureDepth(piece);
+    if (this.isValidPlacement(x, y, piece.data)) piece.sprite.clearTint();
+    else piece.sprite.setTint(0xff6b6b);
+    if (this.selectedId === ownedId) this.drawSelectHighlight(piece);
+  }
+
+  // ── Selection ──────────────────────────────────────────────────────────
+
+  private select(ownedId: string) {
+    const piece = this.placed.get(ownedId);
+    if (!piece) return;
+    this.selectedId = ownedId;
+    this.drawSelectHighlight(piece);
+    worldBridge.emit("furniture-selected", { ownedId, name: piece.data.name });
+  }
+
+  private deselect() {
+    if (!this.selectedId && !this.selectHighlight) return;
+    this.selectedId = null;
+    this.selectHighlight?.destroy();
+    this.selectHighlight = null;
+    worldBridge.emit("furniture-deselected", undefined);
+  }
+
+  private drawSelectHighlight(piece: PlacedFurniture) {
+    this.selectHighlight?.destroy();
+    const b = piece.sprite.getBounds();
+    const g = this.add.graphics();
+    g.lineStyle(1, 0xfde047, 1);
+    g.strokeRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2);
+    g.setDepth(DEPTH_PLACING - 1);
+    this.selectHighlight = g;
+  }
+
+  private flipSelected() {
+    if (!this.selectedId) return;
+    const piece = this.placed.get(this.selectedId);
+    if (!piece) return;
+    piece.rotation = piece.rotation === 1 ? 0 : 1;
+    piece.sprite.setFlipX(piece.rotation === 1);
+  }
+
+  private storeSelected() {
+    const id = this.selectedId;
+    if (!id) return;
+    const piece = this.placed.get(id);
+    if (!piece) return;
+    piece.sprite.destroy();
+    this.placed.delete(id);
+    this.storedThisSession.add(id);
+    this.deselect();
+    this.rebuildFurnitureColliders();
+    worldBridge.emit("furniture-stored", { ownedId: id });
+    this.emitDecorateStats();
+  }
+
+  /** Remove a piece entirely (after it was sold via the React tray). */
+  private removeFurniture(ownedId: string) {
+    this.placed.get(ownedId)?.sprite.destroy();
+    this.placed.delete(ownedId);
+    this.storedThisSession.delete(ownedId);
+    if (this.selectedId === ownedId) this.deselect();
+    this.rebuildFurnitureColliders();
+    this.emitDecorateStats();
+  }
+
+  /** Batch the session's placements (placed + stored) to the API. */
+  private async saveLayout() {
+    const placements: { ownedId: string; x: number | null; y: number | null; rotation: number }[] = [];
+    for (const piece of this.placed.values()) {
+      placements.push({
+        ownedId: piece.data.ownedId,
+        x: Math.round(piece.x),
+        y: Math.round(piece.y),
+        rotation: piece.rotation,
+      });
+    }
+    for (const id of this.storedThisSession) {
+      placements.push({ ownedId: id, x: null, y: null, rotation: 0 });
+    }
+    this.storedThisSession.clear();
+    if (placements.length === 0) return;
+    try {
+      await fetch("/api/world/house/layout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ placements }),
+      });
+    } catch {
+      // Best-effort autosave; a failed write just means the room reverts
+      // to its last saved state on the next visit.
+    }
   }
 
   // ── Room chat ─────────────────────────────────────────────────────────
@@ -612,7 +1122,7 @@ export class WorldScene extends Phaser.Scene {
 
     const bubble = this.add
       .container(target.x, target.y - 34, [g, txt])
-      .setDepth(30);
+      .setDepth(DEPTH_BUBBLE);
 
     bubble.setScale(0.3).setAlpha(0);
     this.tweens.add({
@@ -773,7 +1283,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private addGhostSprite(peer: Peer, key: string) {
-    const sprite = this.add.sprite(peer.x, peer.y, key, 0).setDepth(4);
+    const sprite = this.add.sprite(peer.x, peer.y, key, 0).setDepth(DEPTH_ENTITY + peer.y + TILE);
     sprite.play(`${key}-idle-${peer.facing}`);
     const label = this.add
       .text(peer.x, peer.y - 26, peer.name, {
@@ -784,7 +1294,7 @@ export class WorldScene extends Phaser.Scene {
         strokeThickness: 2,
       })
       .setOrigin(0.5, 1)
-      .setDepth(11)
+      .setDepth(DEPTH_NAME)
       .setResolution(3); // crisp under the 3x zoom
     this.ghosts.set(peer.userId, {
       sprite,
@@ -818,6 +1328,7 @@ export class WorldScene extends Phaser.Scene {
       const closing = dist > 1;
       const anim = `${g.key}-${closing || g.moving ? "walk" : "idle"}-${g.facing}`;
       if (g.sprite.anims.currentAnim?.key !== anim) g.sprite.play(anim);
+      g.sprite.setDepth(DEPTH_ENTITY + g.sprite.y + TILE); // y-sort with furniture
       g.label.setPosition(Math.round(g.sprite.x), Math.round(g.sprite.y - 26));
       if (g.bubble) {
         if (g.bubble.active) {
@@ -885,7 +1396,7 @@ export class WorldScene extends Phaser.Scene {
         align: "center",
       })
       .setOrigin(0.5, 1)
-      .setDepth(20)
+      .setDepth(DEPTH_BUBBLE)
       .setResolution(3);
     this.bubbleTimer = this.time.delayedCall(3500, () => {
       this.bubble?.destroy();
@@ -968,11 +1479,18 @@ export class WorldScene extends Phaser.Scene {
     // World builds asynchronously (second-stage tileset load in create())
     if (!this.player || this.switchingMap) return;
     this.updateGhosts(delta);
+    // Keep the player y-sorted against furniture as they move.
+    this.player.setDepth(DEPTH_ENTITY + (this.player.body as Phaser.Physics.Arcade.Body).bottom);
     if (this.playerChatBubble?.active) {
       this.playerChatBubble.setPosition(
         Math.round(this.player.x),
         Math.round(this.player.y - 34)
       );
+    }
+    if (this.decorating) {
+      // Decorate mode: the avatar holds still; the canvas is for placing.
+      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      return;
     }
     if (this.uiOpen || this.chatFocused) {
       // React UI is active — freeze gameplay input (ghosts still move)
