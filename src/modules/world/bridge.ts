@@ -17,7 +17,7 @@
 
 export type WorldBridgeEvents = {
   /** Scene asks React to open a UI panel (player input freezes). */
-  "open-panel": { panel: "shop"; npc: string };
+  "open-panel": { panel: "shop" | "arcade"; npc?: string };
   /** React closed whatever panel was open (input unfreezes). */
   "panel-closed": void;
   /** Player stepped onto a neighborhood plot door; React decides what happens. */

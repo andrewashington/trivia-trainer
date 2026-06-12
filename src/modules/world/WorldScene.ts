@@ -63,6 +63,13 @@ const NPC_PANELS: Record<string, "shop"> = {
   shopkeep: "shop",
 };
 
+// Walk-on interaction spots: object name on a map's "interaction" layer →
+// which React panel stepping on it opens. Unlisted/unnamed objects are
+// inert (safe to sketch future spots in Tiled before wiring them here).
+const INTERACTION_PANELS: Record<string, "shop" | "arcade"> = {
+  "game-interaction-spot": "arcade",
+};
+
 // NPC dialog, keyed by the object name on the map's "npcs" layer.
 // Each interaction advances to the next line. (NPCs in NPC_PANELS skip
 // dialog and open their panel instead — their voice lives in the modal.)
@@ -115,6 +122,12 @@ export class WorldScene extends Phaser.Scene {
   private switchingMap = false;
   private houseCtx: HouseCtx | null = null;
 
+  // Walk-on spots from the map's "interaction" object layer. Same
+  // arm/disarm dance as portals so a closed panel doesn't instantly
+  // re-open while the player is still standing on the spot.
+  private interactions: { rect: Phaser.Geom.Rectangle; panel: "shop" | "arcade" }[] = [];
+  private interactionsArmed = false;
+
   // NPCs from the map's "npcs" object layer.
   private npcs: {
     sprite: Phaser.GameObjects.Sprite;
@@ -164,6 +177,8 @@ export class WorldScene extends Phaser.Scene {
     this.loadingSheets = new Set();
     this.portals = [];
     this.portalsArmed = false;
+    this.interactions = [];
+    this.interactionsArmed = false;
     this.switchingMap = false;
     this.npcs = [];
     this.bubble = null;
@@ -344,6 +359,23 @@ export class WorldScene extends Phaser.Scene {
       });
     }
 
+    // ── Interaction spots ("interaction" object layer) ───────────────────
+    // Rect name picks a React panel via INTERACTION_PANELS; walking onto
+    // the rect opens it (same feel as plot doors).
+    for (const obj of map.getObjectLayer("interaction")?.objects ?? []) {
+      const panel = obj.name ? INTERACTION_PANELS[obj.name] : undefined;
+      if (!panel) continue;
+      this.interactions.push({
+        rect: new Phaser.Geom.Rectangle(
+          obj.x ?? 0,
+          obj.y ?? 0,
+          obj.width || 16,
+          obj.height || 16
+        ),
+        panel,
+      });
+    }
+
     // ── NPCs ("npcs" object layer, points) ───────────────────────────────
     this.createCharacterAnims("npc-sheet");
     for (const obj of map.getObjectLayer("npcs")?.objects ?? []) {
@@ -434,9 +466,10 @@ export class WorldScene extends Phaser.Scene {
       worldBridge.on("panel-closed", () => {
         this.uiOpen = false;
         this.applyKeyboardCapture();
-        // The player may still be standing on the door that opened the
-        // panel — disarm portals so it only re-fires after stepping off.
+        // The player may still be standing on the door/spot that opened
+        // the panel — disarm so it only re-fires after stepping off.
         this.portalsArmed = false;
+        this.interactionsArmed = false;
       }),
       worldBridge.on("enter-house", (ctx) => {
         this.uiOpen = false;
@@ -814,16 +847,21 @@ export class WorldScene extends Phaser.Scene {
     this.load.start();
   }
 
+  /** Stop the player and hand input to React while a panel is open. */
+  private freezeForPanel() {
+    this.uiOpen = true;
+    this.applyKeyboardCapture();
+    this.clickTarget = null;
+    (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    this.player.play(`${this.playerKey}-idle-${this.facing}`, true);
+  }
+
   // ── NPC dialog ─────────────────────────────────────────────────────────
   private talkTo(npc: { sprite: Phaser.GameObjects.Sprite; name: string; lineIdx: number }) {
     // Interactive NPCs open their React panel instead of chatting
     const panel = NPC_PANELS[npc.name];
     if (panel) {
-      this.uiOpen = true;
-      this.applyKeyboardCapture();
-      this.clickTarget = null;
-      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-      this.player.play(`${this.playerKey}-idle-${this.facing}`, true);
+      this.freezeForPanel();
       worldBridge.emit("open-panel", { panel, npc: npc.name });
       return;
     }
@@ -894,11 +932,7 @@ export class WorldScene extends Phaser.Scene {
     // and that lives in React (sale panel, or an enter-house event back).
     const plot = parsePlotPortal(inside.target);
     if (plot !== null) {
-      this.uiOpen = true;
-      this.applyKeyboardCapture();
-      this.clickTarget = null;
-      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-      this.player.play(`${this.playerKey}-idle-${this.facing}`, true);
+      this.freezeForPanel();
       worldBridge.emit("plot-door", { plot });
       return;
     }
@@ -911,6 +945,23 @@ export class WorldScene extends Phaser.Scene {
     }
 
     this.switchMap(inside.target, inside.spawn);
+  }
+
+  /** Walk-on interaction spots — open their panel when the feet overlap. */
+  private checkInteractions() {
+    if (this.interactions.length === 0) return;
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    const feet = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
+    const inside = this.interactions.find((s) =>
+      Phaser.Geom.Rectangle.Overlaps(s.rect, feet)
+    );
+    if (!this.interactionsArmed) {
+      if (!inside) this.interactionsArmed = true;
+      return;
+    }
+    if (!inside) return;
+    this.freezeForPanel();
+    worldBridge.emit("open-panel", { panel: inside.panel });
   }
 
   update(_time: number, delta: number) {
@@ -929,6 +980,8 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     this.checkPortals();
+    this.checkInteractions();
+    if (this.uiOpen) return; // an interaction spot just opened a panel
 
     // E talks to the nearest NPC in range
     if (this.talkKey && Phaser.Input.Keyboard.JustDown(this.talkKey)) {

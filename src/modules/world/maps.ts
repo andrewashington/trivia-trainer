@@ -38,4 +38,34 @@ export const MAP_REGISTRY: WorldMapDef[] = [
     label: "Home (buyable house interior)",
     kind: "interior",
   },
+  {
+    id: "casino",
+    tmx: "assets-src/runtime/world/maps/casino.tmx",
+    label: "casino",
+    kind: "interior",
+  },
+  {
+    id: "casino-entry",
+    tmx: "assets-src/runtime/world/maps/casino-entry.tmx",
+    label: "Casino Entrance",
+    kind: "interior",
+  },
+  {
+    id: "casino-2",
+    tmx: "assets-src/runtime/world/maps/casino-2.tmx",
+    label: "Casino 2",
+    kind: "interior",
+  },
+  {
+    id: "casino-3",
+    tmx: "assets-src/runtime/world/maps/casino-3.tmx",
+    label: "Casino 3",
+    kind: "interior",
+  },
+  {
+    id: "casino-4",
+    tmx: "assets-src/runtime/world/maps/casino-4.tmx",
+    label: "Casino 3",
+    kind: "interior",
+  },
 ];

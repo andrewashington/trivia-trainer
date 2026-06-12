@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { worldBridge } from "@/modules/world/bridge";
 import { ShopModal } from "@/modules/world/ShopModal";
 import { HouseSaleModal } from "@/modules/world/HouseSaleModal";
+import { ArcadeOverlay } from "@/modules/world/ArcadeOverlay";
 
 const WorldGame = dynamic(
   () => import("@/modules/world/WorldGame").then((m) => m.WorldGame),
@@ -26,7 +27,7 @@ type HouseState = {
 };
 
 export function WorldClient({ characterPath }: { characterPath: string }) {
-  const [panel, setPanel] = useState<"shop" | null>(null);
+  const [panel, setPanel] = useState<"shop" | "arcade" | null>(null);
   const [sale, setSale] = useState<{ plot: number; price: number; coins: number } | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -98,6 +99,7 @@ export function WorldClient({ characterPath }: { characterPath: string }) {
         </div>
       )}
       {panel === "shop" && <ShopModal onClose={close} />}
+      {panel === "arcade" && <ArcadeOverlay onClose={close} />}
       {sale && (
         <HouseSaleModal
           plot={sale.plot}
