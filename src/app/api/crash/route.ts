@@ -26,8 +26,20 @@ export const GET = apiHandler(async () => {
     select: { id: true, stake: true, startedAt: true, crashPoint: true },
   });
 
+  // Recent settled rounds — crash points are no longer secret once settled.
+  const recent = await db.crashRound.findMany({
+    where: { userId: user.id, status: { in: ["busted", "cashed"] } },
+    orderBy: { settledAt: "desc" },
+    take: 12,
+    select: { crashPoint: true, status: true, cashoutMultiplier: true },
+  });
+  const history = recent.map((r) => ({
+    crashPoint: r.crashPoint,
+    cashedAt: r.status === "cashed" ? r.cashoutMultiplier : null,
+  }));
+
   if (!round) {
-    return NextResponse.json({ round: null });
+    return NextResponse.json({ round: null, history });
   }
 
   const elapsedMs = Date.now() - round.startedAt.getTime();
@@ -54,6 +66,7 @@ export const GET = apiHandler(async () => {
     return NextResponse.json({
       round: null,
       justBusted: { crashPoint: round.crashPoint },
+      history: [{ crashPoint: round.crashPoint, cashedAt: null }, ...history],
     });
   }
 
@@ -62,6 +75,7 @@ export const GET = apiHandler(async () => {
   return NextResponse.json({
     round: { id: round.id, stake: round.stake, startedAt: round.startedAt },
     serverNow: Date.now(),
+    history,
   });
 });
 

@@ -56,7 +56,10 @@ export function rollLimbo(): number {
 export function rollCrashPoint(): number {
   const u = uniform();
   if (u >= 1 - HOUSE_EDGE) return 1.0; // instant bust, probability = edge
-  return clampMultiplier((1 - HOUSE_EDGE) / u);
+  // Forgiveness floor: a non-instant round never crashes below 1.12×, so a
+  // player watching always has a real window to react. (~9% of raw rolls
+  // land in (1.00, 1.12) — those get bumped up; a small player-EV gift.)
+  return Math.max(1.12, clampMultiplier((1 - HOUSE_EDGE) / u));
 }
 
 /**

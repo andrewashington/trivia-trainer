@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 import { confettiBurst } from "@/lib/confetti";
 import { Button, Card } from "@/components/ui";
-import { MIN_BET } from "@/modules/arcade/constants";
+import { MIN_BET, MAX_MULTIPLIER } from "@/modules/arcade/constants";
 import { multiplierAt } from "@/modules/crash/curve";
 
 type ActiveRound = {
@@ -14,13 +14,22 @@ type ActiveRound = {
   startedAt: string;
 };
 
+type HistoryEntry = { crashPoint: number; cashedAt: number | null };
+
 type GetResponse =
-  | { round: ActiveRound; serverNow: number; justBusted?: never }
-  | { round: null; serverNow?: number; justBusted?: { crashPoint: number } };
+  | { round: ActiveRound; serverNow: number; justBusted?: never; history?: HistoryEntry[] }
+  | { round: null; serverNow?: number; justBusted?: { crashPoint: number }; history?: HistoryEntry[] };
 
 type StartResponse = { id: string; stake: number; startedAt: string; serverNow: number };
 type CashoutBusted = { busted: true; crashPoint: number; coins: number };
-type CashoutWin = { busted: false; multiplier: number; winnings: number; net: number; coins: number };
+type CashoutWin = {
+  busted: false;
+  multiplier: number;
+  winnings: number;
+  net: number;
+  coins: number;
+  crashPoint?: number;
+};
 type CashoutResponse = CashoutBusted | CashoutWin;
 type Phase =
   | { tag: "idle" }
@@ -32,19 +41,90 @@ type ChartPoint = { x: number; y: number };
 const BET_PRESETS = [10, 25, 50, 100, 250];
 const SERVER_CHECK_MS = 650;
 
+/**
+ * Hype tiers — visuals escalate as the multiplier climbs.
+ * 0: <2  calm · 1: ≥2 warm · 2: ≥5 hot · 3: ≥10 shaking
+ * 4: ≥25 on fire · 5: ≥50 reality wobbles · 6: ≥100 NYAN MODE
+ */
+function tierFor(m: number): number {
+  if (m >= 100) return 6;
+  if (m >= 50) return 5;
+  if (m >= 25) return 4;
+  if (m >= 10) return 3;
+  if (m >= 5) return 2;
+  if (m >= 2) return 1;
+  return 0;
+}
+
+const TIER_LABELS = ["", "warming up", "heating up", "🔥 ON FIRE", "🔥🔥 INFERNO", "⚡ UNREAL ⚡", "🌈 NYAN MODE 🌈"];
+
 function valueClass(multiplier: number): string {
+  if (multiplier >= 100) return "crash-rainbow-text";
   if (multiplier >= 10) return "text-accent-yellow";
   if (multiplier >= 5) return "text-accent-neon";
   if (multiplier >= 2) return "text-accent-green";
   return "text-accent-rocket";
 }
 
+function historyChipClass(h: HistoryEntry): string {
+  if (h.crashPoint >= 10) return "bg-accent-yellow text-ink";
+  if (h.crashPoint >= 2) return "bg-accent-green/80 text-ink";
+  return "bg-accent-red/80 text-white";
+}
+
+function HistoryStrip({ history }: { history: HistoryEntry[] }) {
+  if (history.length === 0) return null;
+  return (
+    <div>
+      <p className="brutal-label mb-1.5 text-[10px]">Previous crashes</p>
+      <div className="flex flex-wrap gap-1.5">
+        {history.map((h, i) => (
+          <span
+            key={i}
+            title={h.cashedAt !== null ? `you cashed at ${h.cashedAt.toFixed(2)}x` : "busted"}
+            className={`relative border-2 border-ink px-2 py-0.5 font-mono text-xs font-bold shadow-brutal-sm ${historyChipClass(h)} ${i === 0 ? "animate-pop-in" : ""}`}
+          >
+            {h.crashPoint.toFixed(2)}x
+            {h.cashedAt !== null && (
+              <span className="absolute -right-1.5 -top-1.5 text-[10px]" aria-label="cashed out">
+                💰
+              </span>
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NyanOverlay() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden" aria-hidden>
+      <div className="crash-nyan-cat">
+        <span className="crash-nyan-trail" />
+        <span className="text-3xl">🐱</span>
+      </div>
+      <div className="crash-nyan-cat crash-nyan-cat-2">
+        <span className="crash-nyan-trail" />
+        <span className="text-2xl">🚀</span>
+      </div>
+      {["✦", "✧", "✦", "✧", "✦", "✧"].map((s, i) => (
+        <span key={i} className={`crash-star crash-star-${i + 1}`}>
+          {s}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function CrashChart({
   points,
   phase,
+  tier,
 }: {
   points: ChartPoint[];
   phase: "idle" | "live" | "win" | "bust";
+  tier: number;
 }) {
   const { path, dot, maxY } = useMemo(() => {
     const w = 320;
@@ -67,23 +147,39 @@ function CrashChart({
   }, [points]);
 
   const live = phase === "live";
+  const nyan = live && tier >= 6;
+  const stroke = phase === "bust" ? "#FF4D2E" : nyan ? "url(#crash-rainbow)" : "#FFD60A";
 
   return (
-    <div className="relative overflow-hidden border-3 border-ink bg-ink shadow-brutal-sm">
+    <div
+      className={`relative overflow-hidden border-3 border-ink bg-ink shadow-brutal-sm ${
+        live && tier >= 3 ? (tier >= 5 ? "crash-shake-hard" : "crash-shake") : ""
+      } ${live && tier >= 4 ? "crash-fire-glow" : ""}`}
+    >
       <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(#ffffff22_1px,transparent_1px),linear-gradient(90deg,#ffffff22_1px,transparent_1px)] [background-size:32px_32px]" />
+      {nyan && <NyanOverlay />}
       <svg viewBox="0 0 320 128" className="relative block h-36 w-full" aria-hidden>
+        <defs>
+          <linearGradient id="crash-rainbow" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#FF4D2E" />
+            <stop offset="25%" stopColor="#FFD60A" />
+            <stop offset="50%" stopColor="#B6FF00" />
+            <stop offset="75%" stopColor="#39C0FF" />
+            <stop offset="100%" stopColor="#C77DFF" />
+          </linearGradient>
+        </defs>
         <path d="M 0 120 L 320 120" stroke="#F4F1EA" strokeOpacity="0.35" strokeWidth="2" />
         {path && (
           <>
             <path
               d={`${path} L 320 128 L 0 128 Z`}
-              fill={phase === "bust" ? "#FF4D2E44" : "#FFD60A33"}
+              fill={phase === "bust" ? "#FF4D2E44" : nyan ? "#C77DFF33" : "#FFD60A33"}
             />
             <path
               d={path}
               fill="none"
-              stroke={phase === "bust" ? "#FF4D2E" : "#FFD60A"}
-              strokeWidth="5"
+              stroke={stroke}
+              strokeWidth={nyan ? 7 : 5}
               strokeLinecap="square"
               strokeLinejoin="round"
             />
@@ -106,9 +202,27 @@ function CrashChart({
       <div className="absolute left-2 top-2 border-2 border-paper bg-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-paper">
         live curve
       </div>
+      <div className="absolute bottom-2 left-2 border-2 border-paper bg-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-paper/70">
+        ceiling {MAX_MULTIPLIER.toLocaleString()}x
+      </div>
       <div className="absolute bottom-2 right-2 border-2 border-paper bg-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-paper">
         top {maxY.toFixed(2)}x
       </div>
+      {live && tier >= 1 && (
+        <div
+          className={`absolute right-2 top-2 border-2 border-paper px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
+            tier >= 6
+              ? "crash-rainbow-bg text-ink"
+              : tier >= 4
+                ? "bg-accent-red text-white"
+                : tier >= 2
+                  ? "bg-accent-yellow text-ink"
+                  : "bg-ink text-paper"
+          } ${tier >= 3 ? "animate-pulse" : ""}`}
+        >
+          {TIER_LABELS[tier]}
+        </div>
+      )}
     </div>
   );
 }
@@ -120,6 +234,7 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
   const [coins, setCoins] = useState(initialCoins);
   const [liveMultiplier, setLiveMultiplier] = useState(1);
   const [chartPoints, setChartPoints] = useState<ChartPoint[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -144,15 +259,20 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
     }
   }, []);
 
+  const recordRound = useCallback((entry: HistoryEntry) => {
+    setHistory((h) => [entry, ...h].slice(0, 12));
+  }, []);
+
   const settleBust = useCallback(
-    (crashPoint: number, stake: number) => {
+    (crashPoint: number, stake: number, record = true) => {
       stopLoop();
       setLiveMultiplier(crashPoint);
       setChartPoints((pts) => [...pts, { x: Date.now(), y: crashPoint }].slice(-80));
       setPhase({ tag: "bust", crashPoint, stake });
+      if (record) recordRound({ crashPoint, cashedAt: null });
       router.refresh();
     },
-    [router, stopLoop]
+    [recordRound, router, stopLoop]
   );
 
   const checkServer = useCallback(async () => {
@@ -212,8 +332,10 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
   useEffect(() => {
     api<GetResponse>("/api/crash")
       .then((data) => {
+        if (data.history) setHistory(data.history);
         if (data.justBusted) {
-          settleBust(data.justBusted.crashPoint, 0);
+          // Server history already includes this round — don't re-record.
+          settleBust(data.justBusted.crashPoint, 0, false);
         } else if (data.round) {
           beginLiveRound(data.round, data.serverNow);
         }
@@ -264,6 +386,10 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
           net: res.net,
           stake: current.stake,
         });
+        recordRound({
+          crashPoint: res.crashPoint ?? res.multiplier,
+          cashedAt: res.multiplier,
+        });
         confettiBurst();
         router.refresh();
       }
@@ -273,7 +399,7 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
     } finally {
       setBusy(false);
     }
-  }, [router, settleBust, shownMultiplierAt, startLoop, stopLoop]);
+  }, [recordRound, router, settleBust, shownMultiplierAt, startLoop, stopLoop]);
 
   const playAgain = useCallback(() => {
     stopLoop();
@@ -289,11 +415,17 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
   const liveValue = Math.floor(liveStake * liveMultiplier);
   const liveProfit = liveValue - liveStake;
   const phaseKind = phase.tag === "live" || phase.tag === "win" || phase.tag === "bust" ? phase.tag : "idle";
+  const tier = isLive ? tierFor(liveMultiplier) : 0;
 
   return (
     <div className="space-y-4">
-      <Card className="space-y-5 overflow-hidden bg-accent-rocket/10">
-        <CrashChart points={chartPoints} phase={phaseKind} />
+      <style>{crashFx}</style>
+      <Card
+        className={`space-y-5 overflow-hidden bg-accent-rocket/10 ${
+          isLive && tier >= 6 ? "crash-nyan-card" : ""
+        }`}
+      >
+        <CrashChart points={chartPoints} phase={phaseKind} tier={tier} />
 
         <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
           <div className="min-h-28">
@@ -309,7 +441,9 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
             {phase.tag === "live" && (
               <div>
                 <div
-                  className={`font-display text-7xl font-bold tabular-nums leading-none drop-shadow-sm ${valueClass(liveMultiplier)}`}
+                  className={`font-display text-7xl font-bold tabular-nums leading-none drop-shadow-sm ${valueClass(liveMultiplier)} ${
+                    tier >= 5 ? "crash-shake-hard" : tier >= 2 ? "crash-throb" : ""
+                  }`}
                 >
                   {liveMultiplier.toFixed(2)}x
                 </div>
@@ -329,7 +463,11 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
 
             {phase.tag === "win" && (
               <div className="animate-pop-in">
-                <div className="font-display text-6xl font-bold text-accent-green">
+                <div
+                  className={`font-display text-6xl font-bold ${
+                    phase.multiplier >= 100 ? "crash-rainbow-text" : "text-accent-green"
+                  }`}
+                >
                   {phase.multiplier.toFixed(2)}x
                 </div>
                 <div className="mt-2 inline-block border-3 border-ink bg-accent-green px-4 py-2 font-display text-xl font-bold shadow-brutal">
@@ -360,7 +498,9 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
             <Button
               onClick={cashout}
               disabled={busy}
-              className="w-full bg-accent-yellow py-5 text-2xl text-ink sm:w-40"
+              className={`w-full py-5 text-2xl text-ink sm:w-40 ${
+                tier >= 6 ? "crash-rainbow-bg" : "bg-accent-yellow"
+              }`}
             >
               Cash Out
             </Button>
@@ -432,10 +572,94 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
           </div>
         ) : null}
 
+        <HistoryStrip history={history} />
+
         <p className="font-mono text-[10px] uppercase text-ink/35">
-          Cash out before the crash · tiny house edge · live server-checked curve
+          Cash out before the crash · tiny house edge · never crashes under 1.12x · ceiling{" "}
+          {MAX_MULTIPLIER.toLocaleString()}x
         </p>
       </Card>
     </div>
   );
 }
+
+/** Scoped keyframes/effects for Crash's escalation tiers + nyan mode. */
+const crashFx = `
+@keyframes crash-shake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-1px, 1px); }
+  50% { transform: translate(1px, -1px); }
+  75% { transform: translate(-1px, -1px); }
+}
+@keyframes crash-shake-hard {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-2px, 2px) rotate(-0.4deg); }
+  40% { transform: translate(2px, -2px) rotate(0.4deg); }
+  60% { transform: translate(-2px, -1px) rotate(-0.3deg); }
+  80% { transform: translate(2px, 1px) rotate(0.3deg); }
+}
+@keyframes crash-throb {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+@keyframes crash-rainbow-shift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@keyframes crash-nyan-fly {
+  0% { left: -15%; top: 70%; }
+  100% { left: 110%; top: 8%; }
+}
+@keyframes crash-star-twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
+.crash-shake { animation: crash-shake 0.18s linear infinite; }
+.crash-shake-hard { animation: crash-shake-hard 0.14s linear infinite; }
+.crash-throb { animation: crash-throb 0.5s ease-in-out infinite; }
+.crash-fire-glow { box-shadow: 0 0 24px 4px rgba(255, 77, 46, 0.55); }
+.crash-rainbow-text {
+  background: linear-gradient(90deg, #ff4d2e, #ffd60a, #b6ff00, #39c0ff, #c77dff, #ff4d2e);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: crash-rainbow-shift 1.2s linear infinite;
+}
+.crash-rainbow-bg {
+  background: linear-gradient(90deg, #ff4d2e, #ffd60a, #b6ff00, #39c0ff, #c77dff, #ff4d2e);
+  background-size: 200% 100%;
+  animation: crash-rainbow-shift 1.2s linear infinite;
+}
+.crash-nyan-card { box-shadow: 0 0 32px 6px rgba(199, 125, 255, 0.6); }
+.crash-nyan-cat {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  animation: crash-nyan-fly 2.6s linear infinite;
+}
+.crash-nyan-cat-2 { animation-duration: 3.4s; animation-delay: 1.1s; }
+.crash-nyan-trail {
+  width: 64px;
+  height: 10px;
+  margin-right: -4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    #ff4d2e 0 20%, #ffd60a 20% 40%, #b6ff00 40% 60%, #39c0ff 60% 80%, #c77dff 80% 100%
+  );
+  opacity: 0.9;
+}
+.crash-star {
+  position: absolute;
+  color: #f4f1ea;
+  font-size: 12px;
+  animation: crash-star-twinkle 1.4s ease-in-out infinite;
+}
+.crash-star-1 { left: 12%; top: 22%; }
+.crash-star-2 { left: 32%; top: 64%; animation-delay: 0.3s; }
+.crash-star-3 { left: 52%; top: 18%; animation-delay: 0.6s; }
+.crash-star-4 { left: 68%; top: 55%; animation-delay: 0.2s; }
+.crash-star-5 { left: 84%; top: 30%; animation-delay: 0.8s; }
+.crash-star-6 { left: 22%; top: 42%; animation-delay: 1s; }
+`;

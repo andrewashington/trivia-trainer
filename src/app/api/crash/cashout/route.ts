@@ -125,6 +125,9 @@ export const POST = apiHandler(async (req: Request) => {
       winnings,
       net,
       coins: me.coins,
+      // Settled now, so the crash point is safe to reveal — feeds the
+      // client's "previous crashes" history strip.
+      crashPoint: round.crashPoint,
     };
   });
 
