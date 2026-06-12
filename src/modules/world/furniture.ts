@@ -107,6 +107,7 @@ export type ShopEntry = {
   surface: string;
   tileW: number;
   tileH: number;
+  tags: string[];
   variants: ShopVariant[];
 };
 

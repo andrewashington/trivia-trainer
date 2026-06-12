@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui";
 import { worldBridge } from "./bridge";
 import {
@@ -436,6 +436,41 @@ function StuffTab({
   );
 }
 
+// ── Shop filters ────────────────────────────────────────────────────────
+// The catalog is ~thousands of items with rich tags; one flat list is
+// useless. Filter client-side: search (name/tagline/tags), theme + tier
+// chips, and a "top tags" facet row recomputed from whatever the other
+// filters leave standing.
+
+const TIER_ORDER = ["trinket", "decor", "furniture", "statement", "absurd"];
+const TOP_TAG_COUNT = 14;
+const PAGE_SIZE = 60; // sprite cards are cheap but not free — page the grid
+
+const titleCase = (slug: string) =>
+  slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+function Chip({
+  on,
+  onClick,
+  children,
+}: {
+  on: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`shrink-0 whitespace-nowrap border-2 border-ink px-1.5 py-0 font-mono text-[10px] font-bold uppercase ${
+        on ? "bg-ink text-white" : "bg-card hover:bg-accent-yellow/40"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 function ShopTab({
   catalog,
   coins,
@@ -451,6 +486,72 @@ function ShopTab({
   onCycle: (g: ShopEntry) => void;
   onBuy: (g: ShopEntry, v: ShopVariant) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [theme, setTheme] = useState<string | null>(null);
+  const [tier, setTier] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+  const [sort, setSort] = useState<"default" | "asc" | "desc">("default");
+  const [limit, setLimit] = useState(PAGE_SIZE);
+
+  // any filter change snaps pagination back to page one
+  useEffect(() => {
+    setLimit(PAGE_SIZE);
+  }, [query, theme, tier, tags, sort]);
+
+  const themes = useMemo(() => {
+    const set = new Set<string>();
+    for (const g of catalog) if (g.theme) set.add(g.theme);
+    return [...set].sort();
+  }, [catalog]);
+
+  const tiers = useMemo(() => {
+    const present = new Set(catalog.map((g) => g.tier ?? ""));
+    return TIER_ORDER.filter((t) => present.has(t));
+  }, [catalog]);
+
+  // Everything that passes search + theme + tier (tags applied after, so
+  // the facet row can show counts within this set).
+  const preTag = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return catalog.filter((g) => {
+      if (theme && g.theme !== theme) return false;
+      if (tier && g.tier !== tier) return false;
+      if (!q) return true;
+      return (
+        g.name.toLowerCase().includes(q) ||
+        (g.tagline?.toLowerCase().includes(q) ?? false) ||
+        g.tags.some((t) => t.includes(q)) ||
+        g.variants.some((v) => v.variant?.toLowerCase().includes(q))
+      );
+    });
+  }, [catalog, query, theme, tier]);
+
+  const filtered = useMemo(() => {
+    const out = tags.length
+      ? preTag.filter((g) => tags.every((t) => g.tags.includes(t)))
+      : preTag;
+    if (sort === "default") return out;
+    const minPrice = (g: ShopEntry) => Math.min(...g.variants.map((v) => v.price));
+    return [...out].sort((a, b) =>
+      sort === "asc" ? minPrice(a) - minPrice(b) : minPrice(b) - minPrice(a)
+    );
+  }, [preTag, tags, sort]);
+
+  // Top tags within the current view — active ones pinned first.
+  const topTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const g of preTag)
+      for (const t of g.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+    const ranked = [...counts.entries()]
+      .filter(([t]) => !tags.includes(t))
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, Math.max(0, TOP_TAG_COUNT - tags.length))
+      .map(([t]) => t);
+    return [...tags, ...ranked];
+  }, [preTag, tags]);
+
+  const anyFilter = query !== "" || theme !== null || tier !== null || tags.length > 0;
+
   if (catalog.length === 0) {
     return (
       <p className="border-2 border-dashed border-ink/30 p-4 text-center font-mono text-xs text-ink/55">
@@ -459,9 +560,140 @@ function ShopTab({
       </p>
     );
   }
+
+  return (
+    <div className="space-y-2">
+      {/* search + sort + count */}
+      <div className="flex items-center gap-2">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="search the showroom…"
+          className="min-w-0 flex-1 border-2 border-ink bg-card px-2 py-1 font-mono text-[11px] outline-none placeholder:text-ink/35 focus:bg-accent-yellow/20"
+        />
+        <button
+          type="button"
+          onClick={() =>
+            setSort((s) => (s === "default" ? "asc" : s === "asc" ? "desc" : "default"))
+          }
+          className="shrink-0 border-2 border-ink bg-card px-1.5 py-1 font-mono text-[10px] font-bold uppercase hover:bg-accent-yellow/40"
+          title="cycle sort"
+        >
+          {sort === "default" ? "sort: aisle" : sort === "asc" ? "🪙 cheap first" : "🪙 flex first"}
+        </button>
+        <span className="shrink-0 font-mono text-[10px] text-ink/50">
+          {filtered.length}/{catalog.length}
+        </span>
+        {anyFilter && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setTheme(null);
+              setTier(null);
+              setTags([]);
+            }}
+            className="shrink-0 border-2 border-ink bg-card px-1.5 py-1 font-mono text-[10px] font-bold uppercase text-accent-red hover:bg-accent-red/10"
+          >
+            ✕ clear
+          </button>
+        )}
+      </div>
+
+      {/* theme aisles */}
+      {themes.length > 1 && (
+        <div className="flex gap-1 overflow-x-auto pb-0.5">
+          <Chip on={theme === null} onClick={() => setTheme(null)}>
+            all aisles
+          </Chip>
+          {themes.map((t) => (
+            <Chip key={t} on={theme === t} onClick={() => setTheme(theme === t ? null : t)}>
+              {titleCase(t)}
+            </Chip>
+          ))}
+        </div>
+      )}
+
+      {/* price tiers */}
+      {tiers.length > 1 && (
+        <div className="flex gap-1 overflow-x-auto pb-0.5">
+          {tiers.map((t) => (
+            <Chip key={t} on={tier === t} onClick={() => setTier(tier === t ? null : t)}>
+              {t}
+            </Chip>
+          ))}
+        </div>
+      )}
+
+      {/* tag facets, recomputed per view */}
+      {topTags.length > 0 && (
+        <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+          <span className="shrink-0 font-mono text-[9px] uppercase text-ink/40">vibes:</span>
+          {topTags.map((t) => (
+            <Chip
+              key={t}
+              on={tags.includes(t)}
+              onClick={() =>
+                setTags((cur) =>
+                  cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]
+                )
+              }
+            >
+              {t}
+            </Chip>
+          ))}
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <p className="border-2 border-dashed border-ink/30 p-4 text-center font-mono text-xs text-ink/55">
+          Nothing matches that combination of demands. Lower your standards or clear a filter.
+        </p>
+      ) : (
+        <>
+          <ShopGrid
+            entries={filtered.slice(0, limit)}
+            coins={coins}
+            busy={busy}
+            variantIdx={variantIdx}
+            onCycle={onCycle}
+            onBuy={onBuy}
+          />
+          {filtered.length > limit && (
+            <button
+              type="button"
+              onClick={() => setLimit((n) => n + PAGE_SIZE)}
+              className="w-full border-2 border-ink bg-card py-1 font-mono text-[11px] font-bold uppercase hover:bg-accent-yellow/40"
+            >
+              show {Math.min(PAGE_SIZE, filtered.length - limit)} more ·{" "}
+              {filtered.length - limit} hiding in the back
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ShopGrid({
+  entries,
+  coins,
+  busy,
+  variantIdx,
+  onCycle,
+  onBuy,
+}: {
+  entries: ShopEntry[];
+  coins: number;
+  busy: string | null;
+  variantIdx: Record<string, number>;
+  onCycle: (g: ShopEntry) => void;
+  onBuy: (g: ShopEntry, v: ShopVariant) => void;
+}) {
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
-      {catalog.map((g) => {
+      {entries.map((g) => {
         const idx = (variantIdx[g.groupKey] ?? 0) % g.variants.length;
         const v = g.variants[idx];
         const canAfford = coins >= v.price;

@@ -45,9 +45,14 @@ export async function getFurnitureCatalog(userId: string): Promise<ShopEntry[]> 
         surface: it.surface,
         tileW: it.tileW,
         tileH: it.tileH,
+        tags: it.tags,
         variants: [],
       };
       groups.set(groupKey, group);
+    } else {
+      // colorways can carry slightly different tags — union them so facet
+      // filters match the whole group
+      for (const t of it.tags) if (!group.tags.includes(t)) group.tags.push(t);
     }
     group.variants.push({
       itemId: it.id,
