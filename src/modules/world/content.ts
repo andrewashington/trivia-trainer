@@ -1,6 +1,7 @@
 // server-side only (imports db) — keep out of client components
 import { db } from "@/lib/db";
 import { SHOP_OUTFITS, type ShopOutfit } from "./cosmetics";
+import { DEFAULT_HOUSE_PRICE } from "./houses";
 
 /**
  * World game-data: code ships the defaults, the WorldConfig table holds
@@ -58,6 +59,14 @@ export async function getEffectiveCatalog(): Promise<ShopOutfit[]> {
 
 export async function getEffectiveOutfit(style: string): Promise<ShopOutfit | undefined> {
   return (await getEffectiveCatalog()).find((o) => o.style === style);
+}
+
+/** House sticker price — code default, admin override via key "houses". */
+export async function getHousePrice(): Promise<number> {
+  const cfg = await configValue<{ price?: number }>("houses");
+  return typeof cfg?.price === "number" && cfg.price >= 0
+    ? Math.floor(cfg.price)
+    : DEFAULT_HOUSE_PRICE;
 }
 
 export async function setConfig(key: string, value: unknown): Promise<void> {

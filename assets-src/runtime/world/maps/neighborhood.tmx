@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.11" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="50" height="50" tilewidth="16" tileheight="16" infinite="0" nextlayerid="8" nextobjectid="63">
+<map version="1.11" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="50" height="50" tilewidth="16" tileheight="16" infinite="0" nextlayerid="8" nextobjectid="88">
  <tileset firstgid="1" source="../tilesets/1_Terrain_and_Water.tsx"/>
  <tileset firstgid="6593" source="../tilesets/4_Houses.tsx"/>
  <tileset firstgid="32961" source="../tilesets/0_Working.tsx"/>
@@ -228,12 +228,36 @@
  </objectgroup>
  <objectgroup id="7" name="portals">
   <object id="25" name="market-interior" type="spawn" x="448" y="400" width="16" height="32"/>
+  <object id="76" name="plot-1" x="112" y="176" width="32" height="24"/>
+  <object id="77" name="plot-2" x="352" y="176" width="32" height="24"/>
+  <object id="78" name="plot-3" x="592" y="176" width="32" height="24"/>
+  <object id="79" name="plot-4" x="608" y="448" width="32" height="24"/>
+  <object id="80" name="plot-5" x="144" y="656" width="32" height="24"/>
+  <object id="81" name="plot-6" x="320" y="704" width="32" height="24"/>
  </objectgroup>
  <objectgroup id="6" name="spawns">
   <object id="1" name="spawn" x="144" y="496">
    <point/>
   </object>
   <object id="26" name="market-exit" x="456" y="444">
+   <point/>
+  </object>
+  <object id="82" name="plot-1-exit" x="128" y="220">
+   <point/>
+  </object>
+  <object id="83" name="plot-2-exit" x="368" y="220">
+   <point/>
+  </object>
+  <object id="84" name="plot-3-exit" x="608" y="220">
+   <point/>
+  </object>
+  <object id="85" name="plot-4-exit" x="624" y="492">
+   <point/>
+  </object>
+  <object id="86" name="plot-5-exit" x="160" y="684">
+   <point/>
+  </object>
+  <object id="87" name="plot-6-exit" x="336" y="732">
    <point/>
   </object>
  </objectgroup>

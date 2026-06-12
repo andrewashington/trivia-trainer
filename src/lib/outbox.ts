@@ -73,6 +73,7 @@ export type OutboxEventType =
   | "smash.voted"
   | "smash.deck.deleted"
   | "world.cosmetic.purchased"
+  | "world.house.purchased"
   | "poker.table.created"
   | "poker.hand.finished"
   | "twentyq.created"

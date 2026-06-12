@@ -50,7 +50,10 @@ function Inline({ text }: { text: string }) {
   );
 }
 
-async function putConfig(key: "cosmetics" | "dialog", value: unknown): Promise<string | null> {
+async function putConfig(
+  key: "cosmetics" | "dialog" | "houses",
+  value: unknown
+): Promise<string | null> {
   const res = await fetch("/api/world/admin/config", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -68,6 +71,9 @@ export function WorldAdminClient({
   defaultDialog,
   maps,
   runbooks,
+  housePrice,
+  defaultHousePrice,
+  houseOwners,
 }: {
   catalog: CatalogRow[];
   starters: string[];
@@ -75,6 +81,9 @@ export function WorldAdminClient({
   defaultDialog: Record<string, string[]>;
   maps: WorldMapDef[];
   runbooks: Runbook[];
+  housePrice: number;
+  defaultHousePrice: number;
+  houseOwners: { plot: number; name: string }[];
 }) {
   const [tab, setTab] = useState<Tab>("shop");
   const [rows, setRows] = useState(catalog);
@@ -85,6 +94,16 @@ export function WorldAdminClient({
   const [openBook, setOpenBook] = useState(runbooks[0]?.id ?? "");
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [house, setHouse] = useState(housePrice);
+
+  async function saveHousePrice() {
+    setSaving(true);
+    setStatus(null);
+    // default = no override document (clearing back reverts to code)
+    const err = await putConfig("houses", house === defaultHousePrice ? {} : { price: house });
+    setStatus(err ?? "Saved. The housing market reacts instantly.");
+    setSaving(false);
+  }
 
   async function saveShop() {
     setSaving(true);
@@ -199,6 +218,33 @@ export function WorldAdminClient({
           <Button type="button" variant="yellow" disabled={saving} onClick={saveShop}>
             {saving ? "Saving…" : "Save prices"}
           </Button>
+
+          <div className="border-t-2 border-ink pt-3">
+            <p className="brutal-label">housing market</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                className="w-28 border-2 border-ink bg-card px-1 py-0.5 text-xs"
+                value={house}
+                onChange={(e) => setHouse(Number(e.target.value))}
+              />
+              {house !== defaultHousePrice && (
+                <span className="font-mono text-[10px] text-ink/40">
+                  (default {defaultHousePrice})
+                </span>
+              )}
+              <Button type="button" variant="yellow" disabled={saving} onClick={saveHousePrice}>
+                {saving ? "Saving…" : "Save house price"}
+              </Button>
+            </div>
+            <p className="mt-2 font-mono text-[10px] text-ink/50">
+              sold:{" "}
+              {houseOwners.length
+                ? houseOwners.map((h) => `plot ${h.plot} → ${h.name}`).join(" · ")
+                : "none yet — the whole street is for sale"}
+            </p>
+          </div>
         </Card>
       )}
 

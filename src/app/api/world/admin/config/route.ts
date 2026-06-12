@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/session";
 import { setConfig } from "@/modules/world/content";
 
 const putInput = z.object({
-  key: z.enum(["cosmetics", "dialog"]),
+  key: z.enum(["cosmetics", "dialog", "houses"]),
   value: z.unknown(),
 });
 

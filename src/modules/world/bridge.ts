@@ -20,6 +20,10 @@ export type WorldBridgeEvents = {
   "open-panel": { panel: "shop"; npc: string };
   /** React closed whatever panel was open (input unfreezes). */
   "panel-closed": void;
+  /** Player stepped onto a neighborhood plot door; React decides what happens. */
+  "plot-door": { plot: number };
+  /** React resolved a plot door into "go inside" (own it, visiting, or just bought). */
+  "enter-house": { plot: number; ownerId: string; ownerName: string; mine: boolean };
   /** The player's composited sheet changed (e.g. equipped an outfit). */
   "avatar-updated": { sheetPath: string };
   /** React toggled the world music mute state. */

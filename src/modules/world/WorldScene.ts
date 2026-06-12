@@ -27,6 +27,12 @@ import {
   type PresenceTransport,
 } from "./transport";
 import { worldBridge } from "./bridge";
+import { houseRoomKey, parsePlotPortal } from "./houses";
+
+// Context while inside (or entering) a plot's house instance. Carried
+// across the scene restart so the interior knows whose door to exit to
+// and which presence room to join.
+type HouseCtx = { plot: number; ownerId: string; ownerName: string; mine: boolean };
 
 // Asset base URL — served (and auth-gated) by our API route.
 const ASSET_BASE = "/api/world/assets";
@@ -107,6 +113,7 @@ export class WorldScene extends Phaser.Scene {
   }[] = [];
   private portalsArmed = false;
   private switchingMap = false;
+  private houseCtx: HouseCtx | null = null;
 
   // NPCs from the map's "npcs" object layer.
   private npcs: {
@@ -140,10 +147,12 @@ export class WorldScene extends Phaser.Scene {
     mapId?: string;
     spawnName?: string;
     musicMuted?: boolean;
+    houseCtx?: HouseCtx | null;
   }) {
     if (data?.characterPath) this.characterPath = data.characterPath;
     this.mapId = data?.mapId ?? "neighborhood";
     this.spawnName = data?.spawnName ?? "spawn";
+    this.houseCtx = data?.houseCtx ?? null;
     this.musicMuted = data?.musicMuted ?? this.musicMuted;
     // Scene restarts (map transitions) reuse this instance — reset
     // everything that referenced the previous map's objects.
@@ -412,7 +421,11 @@ export class WorldScene extends Phaser.Scene {
     this.transport.onChatStatus((available) => {
       worldBridge.emit("chat-status", { available });
     });
-    this.transport.join(this.mapId, () => this.playerState());
+    // Houses are instanced per plot: same map JSON, separate presence room.
+    this.transport.join(
+      this.houseCtx ? houseRoomKey(this.houseCtx.plot) : this.mapId,
+      () => this.playerState()
+    );
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.transport?.leave());
     this.events.once(Phaser.Scenes.Events.DESTROY, () => this.transport?.leave());
 
@@ -421,6 +434,14 @@ export class WorldScene extends Phaser.Scene {
       worldBridge.on("panel-closed", () => {
         this.uiOpen = false;
         this.applyKeyboardCapture();
+        // The player may still be standing on the door that opened the
+        // panel — disarm portals so it only re-fires after stepping off.
+        this.portalsArmed = false;
+      }),
+      worldBridge.on("enter-house", (ctx) => {
+        this.uiOpen = false;
+        this.applyKeyboardCapture();
+        this.switchMap("home-generic", "spawn", ctx);
       }),
       worldBridge.on("avatar-updated", ({ sheetPath }) => this.swapPlayerSheet(sheetPath)),
       worldBridge.on("chat-focus", ({ focused }) => this.setChatFocused(focused)),
@@ -835,7 +856,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   // ── Map transitions ────────────────────────────────────────────────────
-  private switchMap(target: string, spawn: string) {
+  private switchMap(target: string, spawn: string, houseCtx: HouseCtx | null = null) {
     if (this.switchingMap) return;
     this.switchingMap = true;
     this.cameras.main.fadeOut(250, 26, 26, 26);
@@ -847,6 +868,7 @@ export class WorldScene extends Phaser.Scene {
         mapId: target,
         spawnName: spawn,
         musicMuted: this.musicMuted,
+        houseCtx,
       });
     });
   }
@@ -866,7 +888,29 @@ export class WorldScene extends Phaser.Scene {
       if (!inside) this.portalsArmed = true;
       return;
     }
-    if (inside) this.switchMap(inside.target, inside.spawn);
+    if (!inside) return;
+
+    // Plot doors don't teleport directly — ownership decides what happens,
+    // and that lives in React (sale panel, or an enter-house event back).
+    const plot = parsePlotPortal(inside.target);
+    if (plot !== null) {
+      this.uiOpen = true;
+      this.applyKeyboardCapture();
+      this.clickTarget = null;
+      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      this.player.play(`${this.playerKey}-idle-${this.facing}`, true);
+      worldBridge.emit("plot-door", { plot });
+      return;
+    }
+
+    // Leaving a house: arrive back at that plot's own front door, not
+    // the map's default spawn.
+    if (this.houseCtx && inside.target === "neighborhood") {
+      this.switchMap("neighborhood", `plot-${this.houseCtx.plot}-exit`);
+      return;
+    }
+
+    this.switchMap(inside.target, inside.spawn);
   }
 
   update(_time: number, delta: number) {

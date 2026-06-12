@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { SHOP_OUTFITS, STARTER_OUTFITS } from "@/modules/world/cosmetics";
-import { getDialog, getEffectiveCatalog, DEFAULT_DIALOG } from "@/modules/world/content";
+import { getDialog, getEffectiveCatalog, getHousePrice, DEFAULT_DIALOG } from "@/modules/world/content";
+import { DEFAULT_HOUSE_PRICE } from "@/modules/world/houses";
 import { MAP_REGISTRY } from "@/modules/world/maps";
 import { RUNBOOKS } from "@/modules/world/admin/runbooks";
 import { WorldAdminClient } from "./WorldAdminClient";
@@ -20,7 +21,7 @@ export default async function WorldAdminPage() {
   if (!user) redirect("/signin");
   if (user.role !== "admin") redirect("/world");
 
-  const [catalog, dialog, ownedCounts, spend] = await Promise.all([
+  const [catalog, dialog, ownedCounts, spend, housePrice, houses] = await Promise.all([
     getEffectiveCatalog(),
     getDialog(),
     db.worldOwnedCosmetic.groupBy({
@@ -31,6 +32,11 @@ export default async function WorldAdminPage() {
     db.coinTransaction.aggregate({
       where: { reason: "world.cosmetic.purchased" },
       _sum: { amount: true },
+    }),
+    getHousePrice(),
+    db.worldHouse.findMany({
+      include: { user: { select: { displayName: true } } },
+      orderBy: { plot: "asc" },
     }),
   ]);
   const ownedByStyle = Object.fromEntries(ownedCounts.map((o) => [o.itemKey, o._count]));
@@ -61,6 +67,9 @@ export default async function WorldAdminPage() {
         defaultDialog={DEFAULT_DIALOG}
         maps={MAP_REGISTRY}
         runbooks={RUNBOOKS}
+        housePrice={housePrice}
+        defaultHousePrice={DEFAULT_HOUSE_PRICE}
+        houseOwners={houses.map((h) => ({ plot: h.plot, name: h.user.displayName || "?" }))}
       />
     </div>
   );

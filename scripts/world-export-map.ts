@@ -120,7 +120,10 @@ function exportMap(mapId: string, mapSrc: string): MapSummary {
     });
   }
 
-  for (const m of xml.matchAll(/<objectgroup [^>]*name="([^"]+)"[^>]*(?:\/>|>([\s\S]*?)<\/objectgroup>)/g)) {
+  // NB: the post-name attribute match must be LAZY — a greedy [^>]* eats
+  // the "/" of a self-closing <objectgroup ... />, which then mis-parses
+  // as an open tag and swallows every group up to the next </objectgroup>.
+  for (const m of xml.matchAll(/<objectgroup [^>]*name="([^"]+)"[^>]*?(?:\/>|>([\s\S]*?)<\/objectgroup>)/g)) {
     const objects: AnyLayer[] = [];
     for (const o of [...(m[2] ?? "").matchAll(/<object ([^>]*?)(?:\/>|>([\s\S]*?)<\/object>)/g)]) {
       objects.push({
@@ -276,6 +279,16 @@ for (const s of summaries) {
   for (const p of s.portals) {
     if (!p.target) {
       errors.push(`${s.id}: a portal rect has no name (name must be the target map id)`);
+      continue;
+    }
+    // "plot-N" doors are resolved in-engine (house ownership decides the
+    // destination); the contract instead requires the return spawn the
+    // exit teleport targets, plus the shared interior map.
+    if (/^plot-\d+$/.test(p.target)) {
+      if (!s.spawns.includes(`${p.target}-exit`))
+        errors.push(`${s.id}: plot door "${p.target}" has no matching "${p.target}-exit" spawn point`);
+      if (!byId.has("home-generic"))
+        errors.push(`${s.id}: plot door "${p.target}" needs the "home-generic" interior in MAP_REGISTRY`);
       continue;
     }
     const target = byId.get(p.target);

@@ -26,4 +26,16 @@ export const MAP_REGISTRY: WorldMapDef[] = [
     label: "Threads & Such (market)",
     kind: "interior",
   },
+  {
+    id: "house-interior-1",
+    tmx: "assets-src/runtime/world/maps/house-interior-1.tmx",
+    label: "House Interior",
+    kind: "interior",
+  },
+  {
+    id: "home-generic",
+    tmx: "assets-src/runtime/world/maps/home-generic.tmx",
+    label: "Home (buyable house interior)",
+    kind: "interior",
+  },
 ];
