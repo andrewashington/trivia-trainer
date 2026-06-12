@@ -87,6 +87,42 @@ async function actNewMap(res: http.ServerResponse, b: Record<string, string>) {
   return code;
 }
 
+async function actImportDesign(res: http.ServerResponse, b: Record<string, string>) {
+  const id = (b.id ?? "").trim();
+  if (!/^[a-z0-9-]+$/.test(id)) {
+    res.write("✖ map id must be kebab-case (letters/numbers/dashes), e.g. my-gym\n");
+    return 1;
+  }
+  if (!b.design?.trim()) {
+    res.write("✖ pick a design first\n");
+    return 1;
+  }
+  const args = ["tsx", "scripts/world-import-design.ts", id, "--design", b.design.trim()];
+  if (b.label?.trim()) args.push("--label", b.label.trim());
+  const code = await run(res, "npx", args);
+  if (code === 0) {
+    res.write("\nOpening it in Tiled…\n");
+    await run(res, "open", [`${MAPS_DIR}/${id}.tmx`]);
+  }
+  return code;
+}
+
+function listDesigns(): Promise<{ key: string; name: string; folder: string; layers: number }[]> {
+  return new Promise((resolve) => {
+    const p = spawn("npx", ["tsx", "scripts/world-import-design.ts", "--list", "--json"]);
+    let out = "";
+    p.stdout.on("data", (d) => (out += d));
+    p.on("close", () => {
+      try {
+        resolve(JSON.parse(out).designs);
+      } catch {
+        resolve([]);
+      }
+    });
+    p.on("error", () => resolve([]));
+  });
+}
+
 async function actShip(res: http.ServerResponse) {
   res.write("── 1/5 export + validate ──\n");
   if ((await run(res, "npx", ["tsx", "scripts/world-export-map.ts"])) !== 0) {
@@ -135,6 +171,7 @@ const ACTIONS: Record<
   (res: http.ServerResponse, body: Record<string, string>) => Promise<number>
 > = {
   "new-map": actNewMap,
+  "import-design": actImportDesign,
   validate: (res) => run(res, "npx", ["tsx", "scripts/world-export-map.ts"]),
   ship: (res) => actShip(res),
   "open-tiled": (res) => run(res, "open", ["assets-src/world.tiled-project"]),
@@ -199,6 +236,17 @@ const PAGE = /* html */ `<!doctype html>
 </div>
 
 <div class="card">
+  <h2>Start from a pre-made design</h2>
+  <div class="row">
+    <select id="id-design"><option value="">loading designs…</option></select>
+    <input id="id-id" placeholder="map-id (e.g. my-gym)" size="20">
+    <input id="id-label" placeholder='label (blank = design name)' size="18">
+    <button onclick="importDesign()">Import + open in Tiled</button>
+  </div>
+  <p class="hint">converts a LimeZu Home Design (16x16) into real editable tile layers — floor/props/overhead pre-painted, you add collision, spawn position, and portals in Tiled.</p>
+</div>
+
+<div class="card">
   <h2>Actions</h2>
   <div class="row">
     <button class="ghost" onclick="act('open-tiled')">Open Tiled project</button>
@@ -251,6 +299,20 @@ async function act(action, body) {
 }
 
 function openMap(id) { act("open-map", { id }); }
+async function refreshDesigns() {
+  const r = await fetch("/api/designs");
+  const { designs } = await r.json();
+  document.getElementById("id-design").innerHTML =
+    '<option value="">— pick a design —</option>' +
+    designs.map(d => '<option value="' + d.key + '">' + d.name + ' (' + d.folder.replace(/_/g, " ") + ')</option>').join("");
+}
+function importDesign() {
+  act("import-design", {
+    id: document.getElementById("id-id").value,
+    design: document.getElementById("id-design").value,
+    label: document.getElementById("id-label").value,
+  });
+}
 function newMap() {
   act("new-map", {
     id: document.getElementById("nm-id").value,
@@ -260,6 +322,7 @@ function newMap() {
   });
 }
 refreshMaps();
+refreshDesigns();
 </script>
 </body></html>`;
 
@@ -280,6 +343,12 @@ const server = http.createServer(async (req, res) => {
     }));
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ maps }));
+    return;
+  }
+  if (req.method === "GET" && url.pathname === "/api/designs") {
+    const designs = await listDesigns();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ designs }));
     return;
   }
   if (req.method === "POST" && url.pathname === "/api/run") {

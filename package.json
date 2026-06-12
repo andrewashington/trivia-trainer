@@ -17,6 +17,7 @@
     "db:demo:remove": "tsx prisma/seed-demo-remove.ts",
     "world:studio": "tsx scripts/world-studio.ts",
     "world:new-map": "tsx scripts/world-new-map.ts",
+    "world:import-design": "tsx scripts/world-import-design.ts",
     "world:export": "tsx scripts/world-export-map.ts",
     "triage:export": "tsx scripts/export-triage.ts",
     "discord:register": "tsx scripts/register-discord-commands.ts",
