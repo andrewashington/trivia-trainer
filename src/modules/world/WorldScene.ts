@@ -33,11 +33,23 @@ const ARRIVE_THRESHOLD = 4;
 // Spritesheet frame layout constants.
 const FRAME_COLS = 56;
 
-// Presence: which map we report to, and how fast ghosts chase their
-// target position. Heartbeats arrive ~every 2s, so ghosts cover the
-// gap a touch faster than real walking to avoid endless trailing.
-const MAP_ID = "neighborhood";
+// Presence: how fast ghosts chase their target position. Heartbeats
+// arrive ~every 2s, so ghosts cover the gap a touch faster than real
+// walking to avoid endless trailing.
 const GHOST_SPEED = PLAYER_SPEED * 1.25;
+// How close (px) the player must be to an NPC to talk to it.
+const NPC_TALK_RANGE = 36;
+
+// NPC dialog, keyed by the object name on the map's "npcs" layer.
+// Each interaction advances to the next line.
+const NPC_LINES: Record<string, string[]> = {
+  shopkeep: [
+    "Welcome to the market. Everything is for sale except, legally, anything.",
+    "Browse all you want. The inventory system ships Soon™.",
+    "You're my favorite customer. Statistically unavoidable — you're the only one.",
+    "No refunds. Mostly because there are no purchases.",
+  ],
+};
 // A peer further than this from its ghost just teleports (joined,
 // door transition, or a long network gap — don't slide across the map).
 const GHOST_SNAP_DISTANCE = 160;
@@ -62,20 +74,68 @@ export class WorldScene extends Phaser.Scene {
   // avatar, e.g. "avatars/<userId>.png"); falls back to the premade sheet.
   private characterPath = "character.png";
 
+  // Which map we're on and which spawn point to appear at. Portals
+  // restart the scene with new values (textures/anims survive restarts).
+  private mapId = "neighborhood";
+  private spawnName = "spawn";
+
+  // Portal rectangles from the map's "portals" object layer. Disarmed
+  // until the player has fully stepped off them once, so an arrival
+  // spawn placed on/near a doorway doesn't instantly bounce you back.
+  private portals: {
+    rect: Phaser.Geom.Rectangle;
+    target: string;
+    spawn: string;
+  }[] = [];
+  private portalsArmed = false;
+  private switchingMap = false;
+
+  // NPCs from the map's "npcs" object layer.
+  private npcs: {
+    sprite: Phaser.GameObjects.Sprite;
+    name: string;
+    lineIdx: number;
+  }[] = [];
+  private talkKey: Phaser.Input.Keyboard.Key | null = null;
+  private bubble: Phaser.GameObjects.Text | null = null;
+  private bubbleTimer: Phaser.Time.TimerEvent | null = null;
+
   constructor() {
     super({ key: "WorldScene" });
   }
 
-  init(data: { characterPath?: string }) {
+  init(data: { characterPath?: string; mapId?: string; spawnName?: string }) {
     if (data?.characterPath) this.characterPath = data.characterPath;
+    this.mapId = data?.mapId ?? "neighborhood";
+    this.spawnName = data?.spawnName ?? "spawn";
+    // Scene restarts (map transitions) reuse this instance — reset
+    // everything that referenced the previous map's objects.
+    this.player = undefined as unknown as Phaser.Physics.Arcade.Sprite;
+    this.clickTarget = null;
+    this.stage2 = false;
+    this.transport = null;
+    this.ghosts = new Map();
+    this.loadingSheets = new Set();
+    this.portals = [];
+    this.portalsArmed = false;
+    this.switchingMap = false;
+    this.npcs = [];
+    this.bubble = null;
+    this.bubbleTimer = null;
   }
 
   preload() {
     this.showLoadingScreen();
-    this.load.tilemapTiledJSON("map", `${ASSET_BASE}/map.json`);
+    this.load.tilemapTiledJSON(`map-${this.mapId}`, `${ASSET_BASE}/maps-json/${this.mapId}.json`);
     // raw copy of the same JSON so create() can discover tileset images
-    this.load.json("mapdata", `${ASSET_BASE}/map.json`);
+    this.load.json(`mapdata-${this.mapId}`, `${ASSET_BASE}/maps-json/${this.mapId}.json`);
     this.load.spritesheet("character", `${ASSET_BASE}/${this.characterPath}`, {
+      frameWidth: 16,
+      frameHeight: 32,
+    });
+    // NPCs always wear the premade sheet (the player's "character" key
+    // may be their personal composited avatar).
+    this.load.spritesheet("npc-sheet", `${ASSET_BASE}/character.png`, {
       frameWidth: 16,
       frameHeight: 32,
     });
@@ -139,7 +199,7 @@ export class WorldScene extends Phaser.Scene {
     this.stage2 = true;
     // Second-stage load: the map names its tileset images (exported by
     // scripts/world-export-map.ts), so fetch whatever it declares.
-    const mapdata = this.cache.json.get("mapdata") as {
+    const mapdata = this.cache.json.get(`mapdata-${this.mapId}`) as {
       tilesets: { name: string; image: string }[];
     };
     for (const ts of mapdata.tilesets) {
@@ -152,15 +212,21 @@ export class WorldScene extends Phaser.Scene {
   private buildWorld() {
     this.hideLoadingScreen();
     // ── Tilemap ─────────────────────────────────────────────────────────
-    const map = this.make.tilemap({ key: "map" });
+    const map = this.make.tilemap({ key: `map-${this.mapId}` });
     const tiles = map.tilesets.map(
       (ts) => map.addTilesetImage(ts.name, ts.name)!
     );
 
-    // Layer contract v3: ground < props < player < overhead
-    map.createLayer("ground", tiles, 0, 0)?.setDepth(0);
-    map.createLayer("props", tiles, 0, 0)?.setDepth(2);
-    map.createLayer("overhead", tiles, 0, 0)?.setDepth(10);
+    // Layer contract v4: tile layers render in authoring order below the
+    // player (depth 0..4), except "overhead" which draws above (10).
+    // Works for exteriors (ground/props) and interiors (subfloor/floor/props).
+    let depth = 0;
+    for (const layerData of map.layers) {
+      const isOverhead = layerData.name === "overhead";
+      map
+        .createLayer(layerData.name, tiles, 0, 0)
+        ?.setDepth(isOverhead ? 10 : Math.min(depth++, 4));
+    }
 
     // ── Collision rectangles from "collision" object layer ───────────────
     const collisionLayer = map.getObjectLayer("collision");
@@ -180,7 +246,9 @@ export class WorldScene extends Phaser.Scene {
 
     // ── Player spawn ─────────────────────────────────────────────────────
     const spawnsLayer = map.getObjectLayer("spawns");
-    const spawnObj = spawnsLayer?.objects.find((o) => o.name === "spawn");
+    const spawnObj =
+      spawnsLayer?.objects.find((o) => o.name === this.spawnName) ??
+      spawnsLayer?.objects.find((o) => o.name === "spawn");
     const spawnX = spawnObj?.x ?? map.widthInPixels / 2;
     const spawnY = spawnObj?.y ?? map.heightInPixels / 2;
 
@@ -195,6 +263,49 @@ export class WorldScene extends Phaser.Scene {
     // Collide player with the static rectangles
     this.physics.add.collider(this.player, colliders);
 
+    // ── Portals ("portals" object layer) ─────────────────────────────────
+    // Rect name = target map id, type/class = arrival spawn name there.
+    const portalLayer = map.getObjectLayer("portals");
+    for (const obj of portalLayer?.objects ?? []) {
+      if (!obj.name) continue;
+      this.portals.push({
+        rect: new Phaser.Geom.Rectangle(
+          obj.x ?? 0,
+          obj.y ?? 0,
+          obj.width || 16,
+          obj.height || 16
+        ),
+        target: obj.name,
+        spawn: (obj.type as string) || "spawn",
+      });
+    }
+
+    // ── NPCs ("npcs" object layer, points) ───────────────────────────────
+    this.createCharacterAnims("npc-sheet");
+    for (const obj of map.getObjectLayer("npcs")?.objects ?? []) {
+      const npc = this.physics.add.sprite(obj.x ?? 0, obj.y ?? 0, "npc-sheet", 0);
+      npc.setDepth(4);
+      (npc.body as Phaser.Physics.Arcade.Body)
+        .setSize(12, 10)
+        .setOffset(2, 22)
+        .setImmovable(true);
+      npc.play("npc-sheet-idle-down");
+      this.physics.add.collider(this.player, npc);
+      const displayName = (obj.type as string) || obj.name || "???";
+      this.add
+        .text(npc.x, npc.y - 26, displayName, {
+          fontFamily: "monospace",
+          fontSize: "8px",
+          color: "#fde047",
+          stroke: "#000000",
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(11)
+        .setResolution(3);
+      this.npcs.push({ sprite: npc, name: obj.name ?? "", lineIdx: 0 });
+    }
+
     // ── Animations ───────────────────────────────────────────────────────
     this.createCharacterAnims("character");
     this.player.play("character-idle-down");
@@ -208,10 +319,27 @@ export class WorldScene extends Phaser.Scene {
       right: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D),
     };
 
-    // Tap / click to walk
+    this.talkKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+
+    // Tap / click to walk — or talk, if the tap lands on a nearby NPC
     this.input.on("pointerdown", (ptr: Phaser.Input.Pointer) => {
       // Convert screen coords to world coords
       const worldPoint = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+      const tappedNpc = this.npcs.find(
+        (n) => n.sprite.getBounds().contains(worldPoint.x, worldPoint.y)
+      );
+      if (
+        tappedNpc &&
+        Phaser.Math.Distance.Between(
+          this.player.x,
+          this.player.y,
+          tappedNpc.sprite.x,
+          tappedNpc.sprite.y
+        ) <= NPC_TALK_RANGE
+      ) {
+        this.talkTo(tappedNpc);
+        return;
+      }
       this.clickTarget = new Phaser.Math.Vector2(worldPoint.x, worldPoint.y);
     });
 
@@ -225,7 +353,7 @@ export class WorldScene extends Phaser.Scene {
     // ── Presence (multiplayer ghosts) ────────────────────────────────────
     this.transport = new SocketTransport();
     this.transport.onPeers((peers) => this.syncPeers(peers));
-    this.transport.join(MAP_ID, () => this.playerState());
+    this.transport.join(this.mapId, () => this.playerState());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.transport?.leave());
     this.events.once(Phaser.Scenes.Events.DESTROY, () => this.transport?.leave());
   }
@@ -389,10 +517,86 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  // ── NPC dialog ─────────────────────────────────────────────────────────
+  private talkTo(npc: { sprite: Phaser.GameObjects.Sprite; name: string; lineIdx: number }) {
+    const lines = NPC_LINES[npc.name] ?? ["…"];
+    const line = lines[npc.lineIdx % lines.length];
+    npc.lineIdx++;
+
+    this.bubble?.destroy();
+    this.bubbleTimer?.remove();
+    this.bubble = this.add
+      .text(npc.sprite.x, npc.sprite.y - 36, line, {
+        fontFamily: "monospace",
+        fontSize: "8px",
+        color: "#111111",
+        backgroundColor: "#ffffff",
+        padding: { x: 4, y: 3 },
+        wordWrap: { width: 120 },
+        align: "center",
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(20)
+      .setResolution(3);
+    this.bubbleTimer = this.time.delayedCall(3500, () => {
+      this.bubble?.destroy();
+      this.bubble = null;
+    });
+  }
+
+  // ── Map transitions ────────────────────────────────────────────────────
+  private switchMap(target: string, spawn: string) {
+    if (this.switchingMap) return;
+    this.switchingMap = true;
+    this.cameras.main.fadeOut(250, 26, 26, 26);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      // restart() re-runs init/preload/create; textures, anims, and json
+      // already loaded persist at the game level, so revisits are fast.
+      this.scene.restart({
+        characterPath: this.characterPath,
+        mapId: target,
+        spawnName: spawn,
+      });
+    });
+  }
+
+  /** Portal check on the player's feet (the physics body, not the sprite). */
+  private checkPortals() {
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    const inside = this.portals.find((p) =>
+      Phaser.Geom.Rectangle.Overlaps(
+        p.rect,
+        new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height)
+      )
+    );
+    // Arm portals only once the player has been clear of all of them —
+    // arrival spawns may legitimately sit inside the return portal.
+    if (!this.portalsArmed) {
+      if (!inside) this.portalsArmed = true;
+      return;
+    }
+    if (inside) this.switchMap(inside.target, inside.spawn);
+  }
+
   update(_time: number, delta: number) {
     // World builds asynchronously (second-stage tileset load in create())
-    if (!this.player) return;
+    if (!this.player || this.switchingMap) return;
     this.updateGhosts(delta);
+    this.checkPortals();
+
+    // E talks to the nearest NPC in range
+    if (this.talkKey && Phaser.Input.Keyboard.JustDown(this.talkKey)) {
+      const near = this.npcs.find(
+        (n) =>
+          Phaser.Math.Distance.Between(
+            this.player.x,
+            this.player.y,
+            n.sprite.x,
+            n.sprite.y
+          ) <= NPC_TALK_RANGE
+      );
+      if (near) this.talkTo(near);
+    }
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     const up =
       this.cursors.up.isDown || this.wasd.up.isDown;

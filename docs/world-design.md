@@ -320,7 +320,9 @@ Setup is pre-built — open `assets-src/world.tiled-project` in Tiled
 art first per the runbook below. The instructions that follow predate
 the committed project; kept for context only.
 
-Layer contract v3 (names exact, bottom→top). Three tile layers map 1:1
+Layer contract v3 (superseded by v4 — see "Adding a new map" runbook
+below, which adds `portals` + `npcs` layers and generic tile-layer
+ordering). Three tile layers map 1:1
 to the engine's three depths — solidity comes from the `collision`
 object layer, not from which tile layer something is on:
 | layer | type | contents |
@@ -343,6 +345,51 @@ animation wired Phaser-side later.
 
 Design: small road loop, ~8 house facades, park/plaza in the middle.
 Hand back: filename + tilesets used + plot count.
+
+## Adding a new map (runbook — follow this every time)
+
+The engine is multi-map (since 2026-06-12): each map is its own presence
+room, portals teleport between maps, and NPCs are placed per-map. The
+contract below is what the engine actually reads — anything else in the
+.tmx is ignored.
+
+**Layer contract v4** (names exact; tile layers render in authoring
+order below the player, except `overhead`):
+
+| layer | type | contents |
+|---|---|---|
+| any tile layers, e.g. `ground`+`props` (exterior) or `subfloor`+`floor`+`props` (interior) | tiles | drawn bottom→top in authoring order, under the player |
+| `overhead` | tiles | draws above players: treetops, awnings, tall furniture tops |
+| `collision` | objects | rectangles over solids + map border |
+| `spawns` | objects | named points: `spawn` (default arrival) + one named point per door you can arrive FROM (e.g. `market-exit` just outside the shop door) |
+| `portals` | objects | rectangles; **name = target map id**, **Class/type = spawn-point name to arrive at** (defaults to `spawn`). Player's feet touching the rect triggers the transition. Portals are disarmed until you step off them once, so an arrival spawn overlapping the return portal is fine. |
+| `npcs` | objects | named points; **name = dialog key** (see `NPC_LINES` in `WorldScene.ts`), **Class/type = display name**. NPC renders from the premade `character.png` sheet, is solid, and talks when clicked or via `E` in range. |
+
+**Steps:**
+
+1. In Tiled: File → New Map (16×16 tiles), or copy
+   `maps/interior-template.tmx` for interiors (I1–I6 tilesets pre-loaded).
+   **Save As a new file in `assets-src/runtime/world/maps/` — never build
+   inside the template itself.**
+2. Paint tile layers; add `collision` rects; add a `spawns` point named
+   `spawn`; add a `portals` rect back to where you came from (name =
+   source map id, Class = the named spawn point you added on the source
+   map just outside this building's door).
+3. On the source map (e.g. `working-map.tmx`): add a `portals` rect over
+   the doorway (name = new map id, Class = `spawn`), and a `spawns`
+   point just below/outside the door for re-emerging.
+4. Register the map id → .tmx path in `MAPS` at the top of
+   `scripts/world-export-map.ts`.
+5. (If the map has NPCs) add their dialog lines under the same key in
+   `NPC_LINES` in `src/modules/world/WorldScene.ts`.
+6. Export + verify: `npx tsx scripts/world-export-map.ts` then
+   `npm run typecheck`.
+7. Ship: commit, push, and
+   `railway run npx tsx scripts/world-sync-assets.ts` (assets go to S3
+   independently of the code deploy; you need BOTH if you touched code).
+
+Hand back to Claude: just say which .tmx you saved, what the map id
+should be, and where the doors are — steps 3–7 are Claude's job.
 
 ## New-machine setup runbook
 
