@@ -60,6 +60,7 @@ function ModuleLink({
   label,
   active,
   count,
+  glow = false,
   className = "",
 }: {
   href: string;
@@ -67,20 +68,27 @@ function ModuleLink({
   label: string;
   active: boolean;
   count: number;
+  /** Beta-launch come-hither: pulses until the user accepts/visits. */
+  glow?: boolean;
   className?: string;
 }) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`flex items-center gap-2.5 border-2 border-transparent px-3 py-1.5 font-mono text-xs uppercase tracking-wide no-underline transition-[color,transform] duration-150 ${
+      className={`flex items-center gap-2.5 border-2 px-3 py-1.5 font-mono text-xs uppercase tracking-wide no-underline transition-[color,transform] duration-150 ${
         active
-          ? "font-bold text-ink"
-          : "font-normal text-ink/60 hover:translate-x-0.5 hover:text-ink"
+          ? "border-transparent font-bold text-ink"
+          : glow
+            ? "animate-beta-glow border-ink bg-accent-meadow font-bold text-ink"
+            : "border-transparent font-normal text-ink/60 hover:translate-x-0.5 hover:text-ink"
       } ${className}`}
     >
       <PixelIcon name={active ? solidIcon(icon) : icon} size={16} />
       {label}
+      {glow && !active && (
+        <span className="animate-sparkle font-mono text-[9px] font-bold">✦ BETA</span>
+      )}
       <NavBadge count={count} className="ml-auto" />
     </Link>
   );
@@ -95,7 +103,7 @@ function ModuleLink({
 // Everything starts collapsed; the section you're inside opens itself.
 const EXPANDED_KEY = "udm.nav.expanded";
 
-export function SideNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts }) {
+export function SideNav({ isAdmin, counts, glowKeys = [] }: { isAdmin: boolean; counts: Counts; glowKeys?: string[] }) {
   const pathname = usePathname();
   const [expanded, setExpanded] = useState<CategoryKey[]>([]);
 
@@ -166,6 +174,12 @@ export function SideNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts 
                 )}
                 <span className="ml-auto flex items-center gap-1.5">
                   {/* Collapsed sections surface their modules' unread total. */}
+                  {!isExpanded &&
+                    modulesByCategory(cat.key).some((m) => glowKeys.includes(m.key)) && (
+                      <span className="animate-sparkle border border-ink bg-accent-meadow px-1 font-mono text-[9px] font-bold">
+                        ✦ NEW
+                      </span>
+                    )}
                   {!isExpanded && <NavBadge count={categoryTotal(counts, cat.key)} />}
                   <PixelIcon
                     name="chevron-down"
@@ -194,6 +208,7 @@ export function SideNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts 
                         label={m.label}
                         active={pathname.startsWith(m.href)}
                         count={counts[m.key] ?? 0}
+                        glow={glowKeys.includes(m.key)}
                       />
                     ))}
                   </div>
@@ -233,7 +248,7 @@ export function SideNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts 
  * tabs, no horizontal scrolling. Tapping a category opens a sheet
  * with its modules.
  */
-export function MobileNav({ isAdmin, counts }: { isAdmin: boolean; counts: Counts }) {
+export function MobileNav({ isAdmin, counts, glowKeys = [] }: { isAdmin: boolean; counts: Counts; glowKeys?: string[] }) {
   const pathname = usePathname();
   const [openCat, setOpenCat] = useState<CategoryKey | null>(null);
 
@@ -280,11 +295,16 @@ export function MobileNav({ isAdmin, counts }: { isAdmin: boolean; counts: Count
                     className={`flex items-center gap-2.5 border-2 border-ink px-3 py-2.5 font-mono text-xs uppercase tracking-wide no-underline ${
                       active
                         ? "bg-card font-bold text-ink shadow-brutal-sm"
-                        : "bg-paper font-normal text-ink/70"
+                        : glowKeys.includes(m.key)
+                          ? "animate-beta-glow bg-accent-meadow font-bold text-ink"
+                          : "bg-paper font-normal text-ink/70"
                     }`}
                   >
                     <PixelIcon name={active ? solidIcon(m.icon) : m.icon} size={18} />
                     {m.label}
+                    {glowKeys.includes(m.key) && !active && (
+                      <span className="animate-sparkle font-mono text-[9px] font-bold">✦</span>
+                    )}
                     <NavBadge count={counts[m.key] ?? 0} className="ml-auto" />
                   </Link>
                 );
@@ -343,6 +363,9 @@ export function MobileNav({ isAdmin, counts }: { isAdmin: boolean; counts: Count
                 </span>
                 {total > 0 && (
                   <NavBadge count={total} className="absolute right-1.5 top-1" />
+                )}
+                {modulesByCategory(cat.key).some((m) => glowKeys.includes(m.key)) && (
+                  <span className="absolute left-1.5 top-0.5 animate-sparkle text-[10px]">✦</span>
                 )}
               </button>
             );

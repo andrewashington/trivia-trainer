@@ -45,6 +45,7 @@ const config: Config = {
           neon: "#B6FF00", // limbo
           frost: "#3AD6FF", // mines
           rocket: "#FF2E63", // crash
+          meadow: "#2FBF71", // the world
 
         },
       },
@@ -119,6 +120,11 @@ const config: Config = {
         "pulse-ring": {
           "0%, 100%": { boxShadow: "4px 4px 0 0 #101010" },
           "50%": { boxShadow: "7px 7px 0 0 #101010" },
+        },
+        // the come-hither glow on un-accepted beta nav items
+        "beta-glow": {
+          "0%, 100%": { boxShadow: "0 0 0 0 #2FBF71", transform: "scale(1)" },
+          "50%": { boxShadow: "0 0 0 5px #2FBF7155, 3px 3px 0 0 #101010", transform: "scale(1.02)" },
         },
         flash: {
           "0%, 100%": { outline: "0 solid transparent", outlineOffset: "3px" },
@@ -227,6 +233,7 @@ const config: Config = {
         "card-out": "card-out 420ms ease-in 650ms both",
         marquee: "marquee 22s linear infinite",
         "pulse-ring": "pulse-ring 1.6s ease-in-out infinite",
+        "beta-glow": "beta-glow 1.8s ease-in-out infinite",
         flash: "flash 1.4s ease-out 1",
         float: "float 3.6s ease-in-out infinite",
         "coin-flip": "coin-flip 650ms cubic-bezier(0.3, 1.4, 0.5, 1) both",

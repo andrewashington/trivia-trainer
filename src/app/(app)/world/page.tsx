@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/session";
 import { db } from "@/lib/db";
 import { WorldClient } from "./WorldClient";
+import { WorldBetaTerms } from "@/modules/world/WorldBetaTerms";
 
 export const metadata = { title: "World" };
 export const dynamic = "force-dynamic";
@@ -17,6 +18,12 @@ export const dynamic = "force-dynamic";
 export default async function WorldPage() {
   const user = await currentUser();
   if (!user) redirect("/signin");
+
+  // Launch gate: accept the beta terms before anything else (also
+  // stops the nav glow — acceptance is introsSeen "world").
+  if (!user.introsSeen.includes("world")) {
+    return <WorldBetaTerms />;
+  }
 
   const avatar = await db.worldAvatar.findUnique({ where: { userId: user.id } });
   if (!avatar) redirect("/world/create");

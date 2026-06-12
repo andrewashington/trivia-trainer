@@ -6,6 +6,9 @@ import { requireUser } from "@/lib/session";
 import { avatarUrlFromConfig, parseAvatarConfig } from "@/lib/avatar";
 import { modules } from "@/modules/registry";
 
+// One-off announcement keys that ride introsSeen but aren't modules.
+const EXTRA_SEEN_KEYS = ["world-banner"];
+
 const onboardingInput = z.discriminatedUnion("action", [
   // Finish the first-login wizard (optionally setting a name + avatar).
   z.object({
@@ -14,12 +17,16 @@ const onboardingInput = z.discriminatedUnion("action", [
     // Structured Open Peeps config; URL rebuilt server-side (see /api/me).
     avatarConfig: z.unknown().optional(),
   }),
-  // Dismiss one module's first-visit intro card.
+  // Dismiss one module's first-visit intro card (or a one-off
+  // announcement key like the world-beta home banner).
   z.object({
     action: z.literal("intro-seen"),
     module: z
       .string()
-      .refine((k) => modules.some((m) => m.key === k), "Unknown module."),
+      .refine(
+        (k) => modules.some((m) => m.key === k) || EXTRA_SEEN_KEYS.includes(k),
+        "Unknown module."
+      ),
   }),
 ]);
 

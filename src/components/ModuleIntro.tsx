@@ -35,7 +35,7 @@ export function ModuleIntro({ introsSeen }: { introsSeen: string[] }) {
     setReplayOpen(false);
   }, [mod?.key]);
 
-  if (!mod) return null;
+  if (!mod || mod.customIntro) return null;
 
   const seen = introsSeen.includes(mod.key) || dismissed.includes(mod.key);
   const open = replayOpen || !seen;

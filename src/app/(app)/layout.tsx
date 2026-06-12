@@ -31,6 +31,8 @@ export default async function AppLayout({
   }
 
   const isAdmin = user.role === "admin";
+  // Launch-event glow: nav invites until the world beta terms are accepted.
+  const glowKeys = user.introsSeen.includes("world") ? [] : ["world"];
   const counts = await unreadCounts(user);
   const notifUnread = await db.notification.count({ where: { userId: user.id, readAt: null } });
 
@@ -41,7 +43,7 @@ export default async function AppLayout({
       <AppDecor />
 
       {/* Desktop: persistent sidebar owns the nav (and the logo). */}
-      <SideNav isAdmin={isAdmin} counts={counts} />
+      <SideNav isAdmin={isAdmin} counts={counts} glowKeys={glowKeys} />
 
       <div className="flex min-w-0 flex-1 flex-col px-3 pb-24 pt-4 sm:px-6 md:pb-8">
         <header className="mb-6 flex items-center justify-between md:justify-end">
@@ -74,7 +76,7 @@ export default async function AppLayout({
       )}
 
       {/* Mobile: Home + four category tabs, thumb-reachable. */}
-      <MobileNav isAdmin={isAdmin} counts={counts} />
+      <MobileNav isAdmin={isAdmin} counts={counts} glowKeys={glowKeys} />
 
       {/* Marks a module seen on arrival, clearing its unread badge. */}
       <SeenTracker />

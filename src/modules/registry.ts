@@ -81,9 +81,30 @@ export type ModuleDef = {
    * still work once you're there.
    */
   hidden?: boolean;
+  /**
+   * Module runs its own onboarding (e.g. /world's beta-terms gate) —
+   * ModuleIntro skips it so two modals never stack.
+   */
+  customIntro?: boolean;
 };
 
 export const modules: ModuleDef[] = [
+  {
+    key: "world",
+    label: "The World",
+    icon: "earth",
+    category: "arcade",
+    navOrder: 0,
+    href: "/world",
+    accentBg: "bg-accent-meadow",
+    intro: "A tiny walkable world. Your avatar, your friends, a shop that takes your coins.",
+    tips: [
+      "Make your avatar, then go touch grass (pixelated)",
+      "Find the market and talk to the shopkeep",
+      "Outfits cost coins. The economy is real and it is silly",
+    ],
+    customIntro: true,
+  },
   {
     key: "cookbook",
     label: "Cookbook",

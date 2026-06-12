@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
+import { WorldBetaBanner } from "@/modules/world/WorldBetaBanner";
 import { recentActivity, type Activity } from "@/lib/activity";
 import { Spoiler } from "@/components/Spoiler";
 import { onThisDayFact } from "@/lib/numbersFact";
@@ -347,6 +348,9 @@ export default async function HomePage() {
         </div>
         <OpenLauncherButton />
       </div>
+
+      {/* Launch event: The World beta announcement (dismissable). */}
+      {user && !user.introsSeen.includes("world-banner") && <WorldBetaBanner />}
 
       {/* Needs you: only rendered when something is actually waiting. */}
       {needsYou.length > 0 && (
