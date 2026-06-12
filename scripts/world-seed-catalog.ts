@@ -37,6 +37,9 @@ type SeedEntry = {
   price?: number | null; // raw override; null/absent = derive from tier
   surface?: string;
   availability?: string; // "shop" (default) | "unobtainable"
+  variantGroup?: string | null;
+  variant?: string | null;
+  tagline?: string | null;
   keep?: boolean;
   publish?: boolean;
 };
@@ -186,6 +189,9 @@ async function main() {
         tileH: d.tileH,
         surface: e.surface ?? "floor",
         availability: unobtainable ? "unobtainable" : "shop",
+        variantGroup: e.variantGroup ?? null,
+        variant: e.variant ?? null,
+        tagline: (e.tagline ?? "")?.toString().trim() || null,
         published: !!e.publish,
       };
       await db.worldItem.upsert({ where: { key: k.key }, create: { key: k.key, ...data }, update: data });

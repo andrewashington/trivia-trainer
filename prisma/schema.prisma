@@ -1212,6 +1212,9 @@ model WorldItem {
   category  String // functional shop grouping, defaults to theme, editable
   theme     String? // pack theme folder slug, e.g. "living-room" — automatic, stable
   tier      String? // price tier (trinket|decor|furniture|statement|absurd); drives default price
+  variantGroup String? // shared slug across colorways/materials of one object — shop shows one entry
+  variant   String? // this variant's distinguishing label, e.g. "Oak" / "Sage" (null = no variants)
+  tagline   String? // ironic one-line shop flavor copy
   price     Int      @default(0) // 0 = unpriced draft; tier-derived or admin override
   spriteKey String // "<atlasKey>#<frameName>" — frameName is the stable item key
   tileW     Int      @default(1) // footprint in 16px tiles

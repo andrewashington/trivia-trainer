@@ -37,6 +37,8 @@ type SeedEntry = {
   price?: number | null; surface?: string; keep?: boolean; publish?: boolean;
   skip?: boolean; // explicitly decided "no" (distinct from undecided); never seeded
   availability?: string; // "shop" (default) | "unobtainable" — exists but never sells
+  variantGroup?: string | null; variant?: string | null; tagline?: string | null;
+  ai?: boolean; confidence?: number | null; // AI-suggested (unreviewed) + its confidence
 };
 type Seed = { items: Record<string, SeedEntry> };
 
@@ -218,6 +220,13 @@ const ACTIONS: Record<
   "new-map": actNewMap,
   "import-design": actImportDesign,
   "scan-furniture": (res) => run(res, "npx", ["tsx", "scripts/world-scan-furniture.ts"]),
+  "ai-name": (res, b) => {
+    const a = ["tsx", "scripts/world-vision-name.ts"];
+    if (b.theme?.trim()) a.push("--theme", b.theme.trim());
+    if (b.model?.trim()) a.push("--model", b.model.trim());
+    if (b.limit?.trim()) a.push("--limit", b.limit.trim());
+    return run(res, "npx", a);
+  },
   "seed-catalog": async (res) => {
     res.write("── 1/2 pack atlases + upsert items (prod DB) ──\n");
     if (
@@ -316,6 +325,14 @@ const PAGE = /* html */ `<!doctype html>
     <span id="cat-stats" class="hint" style="margin:0"></span>
   </div>
   <p class="hint">Tag the LimeZu furniture singles into named, priced shop items. Hand-name + set a price tier per sprite, mark Keep/Publish; "Seed catalog" packs the keepers into atlases and writes them to the game DB. Scan first if the list is empty.</p>
+  <div class="row" style="margin-top:8px">
+    <button class="ghost" onclick="act('scan-furniture')">① Scan sprites</button>
+    <input id="ai-theme" placeholder="theme (blank = all)" size="14">
+    <input id="ai-model" placeholder="model (blank = default)" size="20">
+    <input id="ai-limit" placeholder="montages (blank = all)" size="14">
+    <button onclick="aiName()">✨ AI auto-name</button>
+  </div>
+  <p class="hint">✨ uses a vision model (via OpenRouter — set OPENROUTER_API_KEY in .env) to pre-fill names, variant groups, tiers + ironic taglines into the seed. You then just review/approve in the tagger. Tip: run one theme with montages=1 first to see the names + real cost before doing all 24.</p>
 </div>
 
 <div class="card">
@@ -371,6 +388,13 @@ async function act(action, body) {
 }
 
 function openMap(id) { act("open-map", { id }); }
+function aiName() {
+  act("ai-name", {
+    theme: document.getElementById("ai-theme").value,
+    model: document.getElementById("ai-model").value,
+    limit: document.getElementById("ai-limit").value,
+  });
+}
 async function refreshDesigns() {
   const r = await fetch("/api/designs");
   const { designs } = await r.json();
@@ -443,7 +467,11 @@ const CATALOG_PAGE = /* html */ `<!doctype html>
   .sprite img { image-rendering:pixelated; max-width:90%; max-height:90%; }
   .fp { position:absolute; right:3px; bottom:2px; font-size:10px; background:#1a1a1a; color:#fde047;
         padding:0 3px; font-weight:700; }
-  .card input.name { width:100%; margin-bottom:5px; }
+  .card input.name { width:100%; margin-bottom:4px; }
+  .card input.tag { width:100%; margin-bottom:5px; font-size:11px; font-style:italic; }
+  .cardrow input.vr { width:70px; }
+  .sprite .aib { position:absolute; left:3px; top:2px; font-size:10px; background:#2563eb; color:#fff;
+                 padding:0 4px; font-weight:700; }
   .tiers { display:flex; gap:3px; margin-bottom:5px; }
   .tiers button { flex:1; border:2px solid #1a1a1a; background:#fff; font:inherit; font-size:10px;
                   padding:2px 0; cursor:pointer; }
@@ -475,6 +503,12 @@ const CATALOG_PAGE = /* html */ `<!doctype html>
                 color:#fff; padding:1px 6px; }
   #qname { width:380px; max-width:90vw; font-size:20px; font-weight:700; text-align:center;
            border:3px solid #1a1a1a; padding:8px; background:#fff; }
+  .qsub { display:flex; gap:6px; width:380px; max-width:90vw; }
+  .qsub input { border:2px solid #1a1a1a; padding:5px 7px; font:inherit; font-size:12px; background:#fff; }
+  .qsub input:first-child { flex:1; font-style:italic; }
+  .qsub input:last-child { flex:0 0 96px; }
+  .qstage .ai { position:absolute; left:6px; bottom:5px; font-size:11px; background:#2563eb;
+                color:#fff; padding:1px 6px; font-weight:700; }
   .qtiers { display:flex; gap:6px; }
   .qtiers button { border:3px solid #1a1a1a; background:#fff; font:inherit; font-weight:700;
                    padding:6px 12px; cursor:pointer; font-size:13px; }
@@ -592,14 +626,19 @@ function card(it){
     return '<option value="'+u+'" '+(s.surface===u?'selected':'')+'>'+u+'</option>';
   }).join("");
   const pricePh = s.tier?('tier: '+tierPrice(s.tier)):'price';
+  const aiBadge = s.ai ? '<span class="aib">✨'+(s.confidence!=null?Math.round(s.confidence*100):'')+'</span>' : '';
   return '<div class="card '+(s.keep?'keep':'')+' '+(s.publish?'pub':'')+'" id="c-'+it.key+'">'+
-    '<div class="sprite"><img loading="lazy" src="/furniture-img?key='+it.key+'"><span class="fp">'+it.tileW+'×'+it.tileH+'</span></div>'+
+    '<div class="sprite">'+aiBadge+'<img loading="lazy" src="/furniture-img?key='+it.key+'"><span class="fp">'+it.tileW+'×'+it.tileH+'</span></div>'+
     '<input class="name" placeholder="name this item" value="'+esc(s.name||"")+'" '+
-      'onkeydown="nameKey(event)" oninput="setField(\\''+it.key+'\\',{name:this.value})">'+
+      'onkeydown="nameKey(event)" oninput="setField(\\''+it.key+'\\',{name:this.value,ai:false})">'+
+    '<input class="tag" placeholder="tagline" value="'+esc(s.tagline||"")+'" '+
+      'oninput="setField(\\''+it.key+'\\',{tagline:this.value})">'+
     '<div class="tiers">'+tiers+'</div>'+
     '<div class="cardrow">'+
       '<input class="price" type="number" min="0" placeholder="'+pricePh+'" value="'+(s.price!=null?s.price:"")+'" '+
         'oninput="setField(\\''+it.key+'\\',{price:this.value===\\'\\'?null:Number(this.value)})">'+
+      '<input class="vr" placeholder="variant" value="'+esc(s.variant||"")+'" title="'+(s.variantGroup?'group: '+esc(s.variantGroup):'')+'" '+
+        'oninput="setField(\\''+it.key+'\\',{variant:this.value})">'+
       '<select onchange="setField(\\''+it.key+'\\',{surface:this.value})">'+surf+'</select>'+
     '</div>'+
     '<div class="toggles">'+
@@ -672,6 +711,8 @@ function qOn(){ return document.getElementById("queue").classList.contains("on")
 function tierPriceK(k){ const z=DATA.tiers.find(function(x){return x.key===k;}); return z?z.price:0; }
 function norm(s){ s=s||{}; return { name:(s.name||"").trim(), category:s.category, tier:s.tier||null,
   price:(s.price!=null?s.price:null), surface:s.surface||"floor", availability:s.availability||"shop",
+  variantGroup:s.variantGroup||null, variant:s.variant||null, tagline:s.tagline||null,
+  ai:!!s.ai, confidence:(s.confidence!=null?s.confidence:null),
   keep:!!s.keep, skip:!!s.skip, publish:!!s.publish }; }
 
 function fillScope(){
@@ -727,10 +768,15 @@ function renderQ(){
   const surfs = DATA.surfaces.map(function(u){
     return '<button data-s="'+u+'" class="'+(u===qSurf?'on':'')+'" onclick="setQSurf(\\''+u+'\\')">'+u+'</button>';
   }).join("");
+  const aiBadge = s.ai ? '<span class="ai">✨'+(s.confidence!=null?' '+Math.round(s.confidence*100)+'%':'')+'</span>' : '';
   body.innerHTML =
-    '<div class="qstage"><span class="th">'+esc(it.themeLabel)+'</span>'+
+    '<div class="qstage"><span class="th">'+esc(it.themeLabel)+'</span>'+aiBadge+
       '<img src="/furniture-img?key='+it.key+'"><span class="fp">'+it.tileW+'×'+it.tileH+'</span></div>'+
     '<input id="qname" placeholder="name it…" value="'+esc(s.name||"")+'">'+
+    '<div class="qsub">'+
+      '<input id="qtag" placeholder="tagline (shop flavor)…" value="'+esc(s.tagline||"")+'">'+
+      '<input id="qvar" placeholder="variant" value="'+esc(s.variant||"")+'" title="'+(s.variantGroup?'group: '+esc(s.variantGroup):'no variant group')+'">'+
+    '</div>'+
     '<div class="qtiers">'+tiers+'</div>'+
     '<div class="qmeta"><span>surface</span><div class="qsurf">'+surfs+'</div></div>'+
     '<div class="qactions">'+
@@ -770,7 +816,10 @@ function qKeep(){
   const name=(document.getElementById("qname").value||"").trim();
   if(!name){ qSkip(); return; } // never keep something unnamed
   const rung = rungs()[qTierIdx], un = rung.key===UNOB.key;
-  qCommit(it, { name:name, tier: un?null:rung.key, availability: un?"unobtainable":"shop", surface:qSurf,
+  const tag=(document.getElementById("qtag").value||"").trim();
+  const variant=(document.getElementById("qvar").value||"").trim();
+  qCommit(it, { name:name, tagline:tag||null, variant:variant||null, tier: un?null:rung.key,
+    availability: un?"unobtainable":"shop", surface:qSurf, ai:false,
     keep:true, skip:false, publish:document.getElementById("qpublish").checked }, un?"🔒 unobtainable":"kept");
 }
 function qSkip(){

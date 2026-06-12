@@ -1,3 +1,494 @@
 {
-  "items": {}
+  "items": {
+    "mi-birthday-party-1": {
+      "name": "A Rare Gift",
+      "tier": null,
+      "price": null,
+      "surface": "floor",
+      "availability": "unobtainable",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-10": {
+      "name": "Special Cake",
+      "tier": null,
+      "price": null,
+      "surface": "floor",
+      "availability": "unobtainable",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-11": {
+      "name": "Red Velvet Cake",
+      "tier": null,
+      "price": null,
+      "surface": "floor",
+      "availability": "unobtainable",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-12": {
+      "name": "Plain Cake",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-13": {
+      "name": "Quadruple Cake",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-14": {
+      "name": "Dirty Dishes",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-15": {
+      "name": "Confetti",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-16": {
+      "name": "Streamer",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-17": {
+      "name": "Boring Balloon",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-18": {
+      "name": "",
+      "tier": null,
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": false,
+      "skip": true,
+      "publish": false
+    },
+    "mi-birthday-party-19": {
+      "name": "Red Balloon",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-2": {
+      "name": "Blue Gift",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-20": {
+      "name": "Red Balloon",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-21": {
+      "name": "Red Balloon",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-22": {
+      "name": "Red Balloon",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-birthday-party-23": {
+      "name": "Blue Balloon",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-1": {
+      "name": "Boring Pot",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-10": {
+      "name": "Assorted Pots",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-11": {
+      "name": "Assorted Pots",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-12": {
+      "name": "Soup Pot",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-13": {
+      "name": "Soup Pot (Miso)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-14": {
+      "name": "Soup Pot (Pea)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-15": {
+      "name": "Soup Pot (Water)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-16": {
+      "name": "Soup Pot (Tomato)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-17": {
+      "name": "Soup Pot (Purified Water)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-18": {
+      "name": "",
+      "tier": null,
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": false,
+      "skip": true,
+      "publish": false
+    },
+    "mi-art-19": {
+      "name": "Paint buckets",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-2": {
+      "name": "Pot (Gold)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-20": {
+      "name": "Paint Buckets (Assorted)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-21": {
+      "name": "Bonsai Tree",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-22": {
+      "name": "Small shelf",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-23": {
+      "name": "Art supplies bench",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-24": {
+      "name": "Art supplies bench (2)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-25": {
+      "name": "Art supplies bench (3)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-26": {
+      "name": "Plain bench",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-27": {
+      "name": "Art supplies bench",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-28": {
+      "name": "",
+      "tier": null,
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": false,
+      "skip": true,
+      "publish": false
+    },
+    "mi-art-29": {
+      "name": "",
+      "tier": null,
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": false,
+      "skip": true,
+      "publish": false
+    },
+    "mi-art-3": {
+      "name": "",
+      "tier": null,
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": false,
+      "skip": true,
+      "publish": false
+    },
+    "mi-art-30": {
+      "name": "",
+      "tier": null,
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": false,
+      "skip": true,
+      "publish": false
+    },
+    "mi-art-31": {
+      "name": "Stool (mahogany)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-32": {
+      "name": "Stool (oak)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-33": {
+      "name": "Stools (stacked)",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-34": {
+      "name": "Easel",
+      "tier": "trinket",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-35": {
+      "name": "Easel (evil)",
+      "tier": "statement",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-36": {
+      "name": "Easel (very evil)",
+      "tier": "statement",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-37": {
+      "name": "Easel (Beautiful)",
+      "tier": "absurd",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-38": {
+      "name": "Easel (modern)",
+      "tier": "absurd",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    },
+    "mi-art-39": {
+      "name": "Easel (fantastically beautiful)",
+      "tier": "absurd",
+      "price": null,
+      "surface": "floor",
+      "availability": "shop",
+      "keep": true,
+      "skip": false,
+      "publish": true
+    }
+  }
 }
