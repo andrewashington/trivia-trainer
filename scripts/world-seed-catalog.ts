@@ -207,6 +207,16 @@ async function main() {
       await db.worldItem.upsert({ where: { key: k.key }, create: { key: k.key, ...data }, update: data });
       if (++n % 50 === 0) console.log(`  …${n}/${keepers.length}`);
     }
+    if (publishAll) {
+      // self-clean: anything previously published but NOT in this selection
+      // (e.g. now re-classified as "non-item") gets pulled from the shop.
+      const keep = keepers.map((k) => k.key);
+      const { count } = await db.worldItem.updateMany({
+        where: { published: true, key: { notIn: keep } },
+        data: { published: false },
+      });
+      if (count) console.log(`  unpublished ${count} stale item(s) no longer in the selection`);
+    }
     console.log(`\n✔ seeded ${n} items. Next: npx tsx scripts/world-sync-assets.ts (push atlases to S3).`);
   } finally {
     await db.$disconnect();
