@@ -35,6 +35,14 @@ export default async function WorldPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {user.role === "admin" && (
+            <Link
+              href="/world/admin"
+              className="border-3 border-ink bg-card px-2 py-0.5 font-mono text-[10px] font-bold uppercase shadow-brutal-sm no-underline"
+            >
+              console
+            </Link>
+          )}
           <Link
             href="/world/create"
             className="border-3 border-ink bg-card px-2 py-0.5 font-mono text-[10px] font-bold uppercase shadow-brutal-sm no-underline"

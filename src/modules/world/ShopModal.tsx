@@ -19,13 +19,6 @@ const FRAME_W = 16;
 const FRAME_H = 32;
 const SCALE = 4;
 
-const SHOPKEEP_LINES = [
-  "Everything's for sale. The economy demands it.",
-  "No refunds. The fitting room is legally binding.",
-  "You're my favorite customer. Statistically unavoidable.",
-  "Shoplifting is impossible here. I checked the code.",
-];
-
 type CatalogEntry = {
   style: string;
   name: string;
@@ -38,6 +31,7 @@ type ShopState = {
   coins: number;
   config: AvatarConfig | null;
   equipped: { style: string; color: string } | null;
+  shopLines: string[];
   catalog: CatalogEntry[];
 };
 
@@ -84,7 +78,12 @@ export function ShopModal({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState<string | null>(null); // style being bought/equipped
   const [colorIdx, setColorIdx] = useState<Record<string, number>>({});
   const [frameCol, setFrameCol] = useState(0);
-  const line = useMemo(() => SHOPKEEP_LINES[Math.floor(Math.random() * SHOPKEEP_LINES.length)], []);
+  // dialog comes from the shop payload (admin-editable in /world/admin)
+  const line = useMemo(() => {
+    const lines = state?.shopLines ?? [];
+    return lines.length ? lines[Math.floor(Math.random() * lines.length)] : "";
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.shopLines]);
 
   useEffect(() => {
     fetch("/api/world/shop")

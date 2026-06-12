@@ -3,7 +3,8 @@ import { apiHandler } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import type { AvatarConfig } from "@/modules/world/avatar";
-import { SHOP_OUTFITS, STARTER_OUTFITS, OUTFIT_COLORS } from "@/modules/world/cosmetics";
+import { STARTER_OUTFITS, OUTFIT_COLORS } from "@/modules/world/cosmetics";
+import { getDialog, getEffectiveCatalog } from "@/modules/world/content";
 
 /**
  * GET /api/world/shop — everything the shop modal needs in one fetch:
@@ -12,12 +13,14 @@ import { SHOP_OUTFITS, STARTER_OUTFITS, OUTFIT_COLORS } from "@/modules/world/co
  */
 export const GET = apiHandler(async () => {
   const user = await requireUser();
-  const [owned, avatar] = await Promise.all([
+  const [owned, avatar, catalog, dialog] = await Promise.all([
     db.worldOwnedCosmetic.findMany({
       where: { userId: user.id, kind: "outfit" },
       select: { itemKey: true },
     }),
     db.worldAvatar.findUnique({ where: { userId: user.id } }),
+    getEffectiveCatalog(),
+    getDialog(),
   ]);
   const ownedSet = new Set(owned.map((o) => o.itemKey));
   const config = (avatar?.config as AvatarConfig | undefined) ?? null;
@@ -27,7 +30,8 @@ export const GET = apiHandler(async () => {
     config,
     equipped: config?.outfit ?? null,
     starters: STARTER_OUTFITS,
-    catalog: SHOP_OUTFITS.map((o) => ({
+    shopLines: dialog["shopkeep:shop"] ?? [],
+    catalog: catalog.map((o) => ({
       ...o,
       colors: OUTFIT_COLORS[o.style],
       owned: ownedSet.has(o.style),

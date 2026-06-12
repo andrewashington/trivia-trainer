@@ -4,7 +4,7 @@ import { apiHandler, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { HttpError, requireUser } from "@/lib/session";
 import { withOutbox } from "@/lib/outbox";
-import { shopOutfit } from "@/modules/world/cosmetics";
+import { getEffectiveOutfit } from "@/modules/world/content";
 
 const purchaseInput = z.object({
   kind: z.literal("outfit"),
@@ -20,7 +20,7 @@ export const POST = apiHandler(async (req: Request) => {
   const user = await requireUser();
   const { kind, itemKey } = await parseBody(req, purchaseInput);
 
-  const item = shopOutfit(itemKey);
+  const item = await getEffectiveOutfit(itemKey);
   if (!item) throw new HttpError(404, "That isn't for sale. Flattered you asked.");
 
   const result = await withOutbox(

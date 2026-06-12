@@ -7,9 +7,9 @@
  *   assets-src/runtime/world/tiles/<name>.png      one image per tileset actually used
  *
  * To add a map: save the .tmx under assets-src/runtime/world/maps/ and
- * register it in MAPS below — the key is the map id used by portals and
- * presence rooms. Re-run after every Tiled editing session, then sync to
- * S3 for prod:
+ * register it in MAP_REGISTRY (src/modules/world/maps.ts) — its id is
+ * used by portals and presence rooms. Re-run after every Tiled editing
+ * session, then sync to S3 for prod:
  *   npx tsx scripts/world-export-map.ts
  *   railway run npx tsx scripts/world-sync-assets.ts
  *
@@ -20,10 +20,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const MAPS: Record<string, string> = {
-  neighborhood: "assets-src/runtime/world/maps/working-map.tmx",
-  "market-interior": "assets-src/runtime/world/maps/market-interior.tmx",
-};
+import { MAP_REGISTRY } from "../src/modules/world/maps";
+
 const OUT_DIR = "assets-src/runtime/world";
 const GID_FLAGS = 0x1fffffff; // mask off flip bits when range-checking
 
@@ -225,4 +223,4 @@ function exportMap(mapId: string, mapSrc: string) {
   if (dropped.length) console.log(`  dropped (unused/dup, gids remapped): ${dropped.join(", ")}`);
 }
 
-for (const [id, src] of Object.entries(MAPS)) exportMap(id, src);
+for (const m of MAP_REGISTRY) exportMap(m.id, m.tmx);

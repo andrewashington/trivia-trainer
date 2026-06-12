@@ -1219,6 +1219,16 @@ model WorldOwnedItem {
   @@index([userId])
 }
 
+// Generic world game-data overrides, keyed JSON documents edited in
+// /world/admin. Code ships defaults; getWorldContent() merges these on
+// top. Keys today: "cosmetics" (price/name overrides), "dialog" (NPC
+// lines). Future tunables get new keys, not new tables.
+model WorldConfig {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
 // Unlocked avatar cosmetics. Catalog (names/prices/colors) lives in
 // src/modules/world/cosmetics.ts; this row just records ownership.
 // kind = "outfit" today; future kinds (hairstyle…) reuse the table.

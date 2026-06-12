@@ -382,6 +382,18 @@ entry in `NPC_PANELS` (and an `npcs` point on the map), a modal in
 `/api/world/<thing>/`. Server-side validation always; the client is a
 rumor.
 
+**Game-data layer + admin console (added 2026-06-12):** `/world/admin`
+(admin-gated, linked from /world's header) manages the game: shop
+pricing, NPC dialogue, the map registry, and Andrew's process runbooks
+(`src/modules/world/admin/runbooks.ts`). Defaults live in code;
+overrides live in the `WorldConfig` table (key → JSON document) and are
+merged by `src/modules/world/content.ts` — game/shop code must read
+through `getEffectiveCatalog()`/`getDialog()`, never the raw defaults,
+so admin edits apply without a deploy. NPC dialog reaches the scene via
+`GET /api/world/content` (loaded in preload); shop copy rides the shop
+payload. New tunables = a new WorldConfig key + a tab/field in the
+console, not a new table.
+
 ## Adding a new map (runbook — follow this every time)
 
 The engine is multi-map (since 2026-06-12): each map is its own presence
@@ -414,8 +426,8 @@ order below the player, except `overhead`):
 3. On the source map (e.g. `working-map.tmx`): add a `portals` rect over
    the doorway (name = new map id, Class = `spawn`), and a `spawns`
    point just below/outside the door for re-emerging.
-4. Register the map id → .tmx path in `MAPS` at the top of
-   `scripts/world-export-map.ts`.
+4. Register the map in `MAP_REGISTRY` (`src/modules/world/maps.ts`) —
+   the exporter and the /world/admin console both read it.
 5. (If the map has NPCs) add their dialog lines under the same key in
    `NPC_LINES` in `src/modules/world/WorldScene.ts`.
 6. Export + verify: `npx tsx scripts/world-export-map.ts` then

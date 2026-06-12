@@ -153,6 +153,8 @@ export class WorldScene extends Phaser.Scene {
       frameWidth: 16,
       frameHeight: 32,
     });
+    // Admin-editable game data (NPC dialog) — cached for the session
+    this.load.json("world-content", "/api/world/content");
   }
 
   // ── Loading screen (spans preload + the second-stage tileset load) ────
@@ -575,7 +577,10 @@ export class WorldScene extends Phaser.Scene {
       worldBridge.emit("open-panel", { panel, npc: npc.name });
       return;
     }
-    const lines = NPC_LINES[npc.name] ?? ["…"];
+    const content = this.cache.json.get("world-content") as
+      | { dialog?: Record<string, string[]> }
+      | undefined;
+    const lines = content?.dialog?.[npc.name] ?? NPC_LINES[npc.name] ?? ["…"];
     const line = lines[npc.lineIdx % lines.length];
     npc.lineIdx++;
 
