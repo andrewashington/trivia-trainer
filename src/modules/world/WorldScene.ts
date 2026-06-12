@@ -53,7 +53,8 @@ export class WorldScene extends Phaser.Scene {
 
   preload() {
     this.load.tilemapTiledJSON("map", `${ASSET_BASE}/map.json`);
-    this.load.image("tileset", `${ASSET_BASE}/tileset.png`);
+    // raw copy of the same JSON so create() can discover tileset images
+    this.load.json("mapdata", `${ASSET_BASE}/map.json`);
     this.load.spritesheet("character", `${ASSET_BASE}/character.png`, {
       frameWidth: 16,
       frameHeight: 16,
@@ -61,18 +62,29 @@ export class WorldScene extends Phaser.Scene {
   }
 
   create() {
+    // Second-stage load: the map names its tileset images (exported by
+    // scripts/world-export-map.ts), so fetch whatever it declares.
+    const mapdata = this.cache.json.get("mapdata") as {
+      tilesets: { name: string; image: string }[];
+    };
+    for (const ts of mapdata.tilesets) {
+      this.load.image(ts.name, `${ASSET_BASE}/${ts.image}`);
+    }
+    this.load.once("complete", () => this.buildWorld());
+    this.load.start();
+  }
+
+  private buildWorld() {
     // ── Tilemap ─────────────────────────────────────────────────────────
     const map = this.make.tilemap({ key: "map" });
-    const tiles = map.addTilesetImage("tileset", "tileset")!;
+    const tiles = map.tilesets.map(
+      (ts) => map.addTilesetImage(ts.name, ts.name)!
+    );
 
-    const groundLayer = map.createLayer("ground", tiles, 0, 0)!;
-    const detailLayer = map.createLayer("ground-detail", tiles, 0, 0)!;
-    const propsLayer = map.createLayer("props", tiles, 0, 0)!;
-
-    // Depth ordering: ground < detail < player < props (player walks under prop tops)
-    groundLayer.setDepth(0);
-    detailLayer.setDepth(1);
-    propsLayer.setDepth(10); // props render above player
+    // Layer contract v3: ground < props < player < overhead
+    map.createLayer("ground", tiles, 0, 0)?.setDepth(0);
+    map.createLayer("props", tiles, 0, 0)?.setDepth(2);
+    map.createLayer("overhead", tiles, 0, 0)?.setDepth(10);
 
     // ── Collision rectangles from "collision" object layer ───────────────
     const collisionLayer = map.getObjectLayer("collision");

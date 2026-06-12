@@ -1,0 +1,189 @@
+/**
+ * Exports the Tiled authoring map (working-map.tmx) into the engine-ready
+ * bundle the /world route loads via /api/world/assets:
+ *
+ *   assets-src/runtime/world/map.json          Tiled-JSON map, tilesets embedded
+ *   assets-src/runtime/world/tiles/<name>.png  one image per tileset actually used
+ *
+ * Re-run after every Tiled editing session, then sync to S3 for prod:
+ *   npx tsx scripts/world-export-map.ts
+ *   railway run npx tsx scripts/world-sync-assets.ts
+ *
+ * Only tilesets that contribute at least one painted tile are embedded, so
+ * the client never downloads unused mega-sheets. Flip flags in gids pass
+ * through untouched (Phaser honors them).
+ */
+import fs from "node:fs";
+import path from "node:path";
+
+const MAP_SRC = "assets-src/runtime/world/maps/working-map.tmx";
+const TILESET_DIR = "assets-src/runtime/world/tilesets";
+const OUT_DIR = "assets-src/runtime/world";
+const GID_FLAGS = 0x1fffffff; // mask off flip bits when range-checking
+
+const xml = fs.readFileSync(MAP_SRC, "utf8");
+
+const mapAttrs = xml.match(/<map ([^>]+)>/)![1];
+const attr = (s: string, name: string) => {
+  const m = s.match(new RegExp(`${name}="([^"]*)"`));
+  return m ? m[1] : undefined;
+};
+const mapW = Number(attr(mapAttrs, "width"));
+const mapH = Number(attr(mapAttrs, "height"));
+
+// ── Tilesets referenced by the map (external .tsx or embedded) ──────────
+type TsRef = {
+  firstgid: number;
+  name: string;
+  columns: number;
+  tilecount: number;
+  imagePath: string; // on-disk source of the PNG
+  imageW: number;
+  imageH: number;
+};
+const tilesets: TsRef[] = [];
+for (const m of xml.matchAll(/<tileset ([^>]*?)(?:\/>|>([\s\S]*?)<\/tileset>)/g)) {
+  const firstgid = Number(attr(m[1], "firstgid"));
+  const source = attr(m[1], "source");
+  if (source) {
+    const tsxPath = path.join(path.dirname(MAP_SRC), source);
+    const tsx = fs.readFileSync(tsxPath, "utf8");
+    const tsAttrs = tsx.match(/<tileset ([^>]+)>/)![1];
+    const img = tsx.match(/<image ([^>]+)\/>/)![1];
+    tilesets.push({
+      firstgid,
+      name: attr(tsAttrs, "name")!,
+      columns: Number(attr(tsAttrs, "columns")),
+      tilecount: Number(attr(tsAttrs, "tilecount")),
+      imagePath: path.join(path.dirname(tsxPath), attr(img, "source")!),
+      imageW: Number(attr(img, "width")),
+      imageH: Number(attr(img, "height")),
+    });
+  } else {
+    // tileset embedded directly in the .tmx
+    const img = m[2]!.match(/<image ([^>]+)\/>/)![1];
+    tilesets.push({
+      firstgid,
+      name: attr(m[1], "name")!,
+      columns: Number(attr(m[1], "columns")),
+      tilecount: Number(attr(m[1], "tilecount")),
+      imagePath: path.join(path.dirname(MAP_SRC), attr(img, "source")!),
+      imageW: Number(attr(img, "width")),
+      imageH: Number(attr(img, "height")),
+    });
+  }
+}
+tilesets.sort((a, b) => a.firstgid - b.firstgid);
+
+// ── Layers ───────────────────────────────────────────────────────────────
+type AnyLayer = Record<string, unknown>;
+const layers: AnyLayer[] = [];
+let layerId = 1;
+const usedGids = new Set<number>();
+
+for (const m of xml.matchAll(
+  /<layer [^>]*name="([^"]+)"[^>]*>[\s\S]*?<data encoding="csv">([\s\S]*?)<\/data>[\s\S]*?<\/layer>/g
+)) {
+  const data = m[2]
+    .trim()
+    .split(",")
+    .map((s) => Number(s.trim()));
+  for (const g of data) if (g) usedGids.add(g & GID_FLAGS);
+  layers.push({
+    id: layerId++,
+    name: m[1],
+    type: "tilelayer",
+    width: mapW,
+    height: mapH,
+    x: 0,
+    y: 0,
+    opacity: 1,
+    visible: true,
+    data,
+  });
+}
+
+for (const m of xml.matchAll(/<objectgroup [^>]*name="([^"]+)"[^>]*(?:\/>|>([\s\S]*?)<\/objectgroup>)/g)) {
+  const objects: AnyLayer[] = [];
+  for (const o of [...(m[2] ?? "").matchAll(/<object ([^>]*?)(?:\/>|>([\s\S]*?)<\/object>)/g)]) {
+    objects.push({
+      id: Number(attr(o[1], "id")),
+      name: attr(o[1], "name") ?? "",
+      type: attr(o[1], "type") ?? "",
+      x: Number(attr(o[1], "x") ?? 0),
+      y: Number(attr(o[1], "y") ?? 0),
+      width: Number(attr(o[1], "width") ?? 0),
+      height: Number(attr(o[1], "height") ?? 0),
+      rotation: Number(attr(o[1], "rotation") ?? 0),
+      visible: true,
+      point: (o[2] ?? "").includes("<point"),
+    });
+  }
+  layers.push({
+    id: layerId++,
+    name: m[1],
+    type: "objectgroup",
+    draworder: "topdown",
+    x: 0,
+    y: 0,
+    opacity: 1,
+    visible: true,
+    objects,
+  });
+}
+
+// ── Keep only tilesets that own at least one used gid ───────────────────
+const used = tilesets.filter((ts) =>
+  [...usedGids].some((g) => g >= ts.firstgid && g < ts.firstgid + ts.tilecount)
+);
+// de-dup by name (e.g. an accidentally embedded copy of an external sheet)
+const seenNames = new Set<string>();
+const finalTilesets = used.filter((ts) => {
+  if (seenNames.has(ts.name)) return false;
+  seenNames.add(ts.name);
+  return true;
+});
+
+fs.mkdirSync(`${OUT_DIR}/tiles`, { recursive: true });
+const embedded = finalTilesets.map((ts) => {
+  fs.copyFileSync(ts.imagePath, `${OUT_DIR}/tiles/${ts.name}.png`);
+  return {
+    firstgid: ts.firstgid,
+    name: ts.name,
+    image: `tiles/${ts.name}.png`,
+    imagewidth: ts.imageW,
+    imageheight: ts.imageH,
+    tilewidth: 16,
+    tileheight: 16,
+    tilecount: ts.tilecount,
+    columns: ts.columns,
+    margin: 0,
+    spacing: 0,
+  };
+});
+
+const out = {
+  compressionlevel: -1,
+  type: "map",
+  version: "1.10",
+  tiledversion: "1.11.0",
+  orientation: "orthogonal",
+  renderorder: "right-down",
+  infinite: false,
+  width: mapW,
+  height: mapH,
+  tilewidth: 16,
+  tileheight: 16,
+  nextlayerid: layerId,
+  nextobjectid: 1000,
+  tilesets: embedded,
+  layers,
+};
+fs.writeFileSync(`${OUT_DIR}/map.json`, JSON.stringify(out));
+
+const mb = (f: string) => (fs.statSync(f).size / 1024 / 1024).toFixed(2);
+console.log(`map.json: ${mapW}x${mapH}, layers: ${layers.map((l) => l.name).join(", ")}`);
+for (const ts of embedded)
+  console.log(`  tileset ${ts.name} firstgid=${ts.firstgid} → ${ts.image} (${mb(`${OUT_DIR}/${ts.image}`)} MB)`);
+const dropped = tilesets.filter((t) => !finalTilesets.includes(t)).map((t) => t.name);
+if (dropped.length) console.log(`  dropped (unused/dup): ${dropped.join(", ")}`);
