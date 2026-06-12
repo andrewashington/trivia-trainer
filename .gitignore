@@ -43,3 +43,4 @@ yarn-error.log*
 !/assets-src/runtime/world/tilesets/
 /assets-src/runtime/world/tilesets/composites/*
 !/assets-src/runtime/world/tilesets/composites/manifest.json
+!/assets-src/runtime/world/tilesets/composites/interiors-manifest.json

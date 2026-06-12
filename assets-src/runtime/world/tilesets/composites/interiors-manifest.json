@@ -1,0 +1,154 @@
+{
+  "I1_Room_Builder": [
+    {
+      "source": "Room_Builder_16x16.png",
+      "y": 0,
+      "rows": 113
+    },
+    {
+      "source": "Room_Builder_subfiles/Room_Builder_Floor_Shadows_16x16.png",
+      "y": 1808,
+      "rows": 5
+    }
+  ],
+  "I2_Generic_and_Living": [
+    {
+      "source": "Theme_Sorter/1_Generic_16x16.png",
+      "y": 0,
+      "rows": 78
+    },
+    {
+      "source": "Theme_Sorter/2_LivingRoom_16x16.png",
+      "y": 1248,
+      "rows": 45
+    },
+    {
+      "source": "Theme_Sorter/26_Condominium.png",
+      "y": 1968,
+      "rows": 19
+    }
+  ],
+  "I3_Kitchen_Bath_Bedroom": [
+    {
+      "source": "Theme_Sorter/12_Kitchen_16x16.png",
+      "y": 0,
+      "rows": 49
+    },
+    {
+      "source": "Theme_Sorter/3_Bathroom_16x16.png",
+      "y": 784,
+      "rows": 56
+    },
+    {
+      "source": "Theme_Sorter/4_Bedroom_16x16.png",
+      "y": 1680,
+      "rows": 107
+    }
+  ],
+  "I4_Work_and_Civic": [
+    {
+      "source": "Theme_Sorter/5_Classroom_and_library_16x16.png",
+      "y": 0,
+      "rows": 34
+    },
+    {
+      "source": "Theme_Sorter/13_Conference_Hall_16x16.png",
+      "y": 544,
+      "rows": 12
+    },
+    {
+      "source": "Theme_Sorter/19_Hospital_16x16.png",
+      "y": 736,
+      "rows": 110
+    },
+    {
+      "source": "Theme_Sorter/18_Jail_16x16.png",
+      "y": 2496,
+      "rows": 45
+    },
+    {
+      "source": "Theme_Sorter/17_Visibile_Upstairs_System_16x16.png",
+      "y": 3216,
+      "rows": 27
+    }
+  ],
+  "I5_Shops_and_Studios": [
+    {
+      "source": "Theme_Sorter/16_Grocery_store_16x16.png",
+      "y": 0,
+      "rows": 78
+    },
+    {
+      "source": "Theme_Sorter/21_Clothing_Store.png",
+      "y": 1248,
+      "rows": 67
+    },
+    {
+      "source": "Theme_Sorter/24_Ice_Cream_Shop.png",
+      "y": 2320,
+      "rows": 17
+    },
+    {
+      "source": "Theme_Sorter/22_Museum.png",
+      "y": 2592,
+      "rows": 122
+    },
+    {
+      "source": "Theme_Sorter/23_Television_and_Film_Studio.png",
+      "y": 4544,
+      "rows": 14
+    }
+  ],
+  "I6_Hobby_and_Seasonal": [
+    {
+      "source": "Theme_Sorter/6_Music_and_sport_16x16.png",
+      "y": 0,
+      "rows": 48
+    },
+    {
+      "source": "Theme_Sorter/8_Gym_16x16.png",
+      "y": 768,
+      "rows": 33
+    },
+    {
+      "source": "Theme_Sorter/7_Art_16x16.png",
+      "y": 1296,
+      "rows": 7
+    },
+    {
+      "source": "Theme_Sorter/9_Fishing_16x16.png",
+      "y": 1408,
+      "rows": 27
+    },
+    {
+      "source": "Theme_Sorter/25_Shooting_Range.png",
+      "y": 1840,
+      "rows": 5
+    },
+    {
+      "source": "Theme_Sorter/10_Birthday_party_16x16.png",
+      "y": 1920,
+      "rows": 7
+    },
+    {
+      "source": "Theme_Sorter/11_Halloween_16x16.png",
+      "y": 2032,
+      "rows": 61
+    },
+    {
+      "source": "Theme_Sorter/15_Christmas_16x16.png",
+      "y": 3008,
+      "rows": 17
+    },
+    {
+      "source": "Theme_Sorter/20_Japanese_interiors.png",
+      "y": 3280,
+      "rows": 32
+    },
+    {
+      "source": "Theme_Sorter/14_Basement_16x16.png",
+      "y": 3792,
+      "rows": 50
+    }
+  ]
+}

@@ -181,6 +181,14 @@ Status items with visibly absurd prices (golden toilet, 25k) are the point.
   curated `0_Working` (built by `world-build-tilesets.ts` +
   `world-build-working-tileset.ts`), terrain sets (Wang) on BOTH
   0_Working and the 1_Terrain_and_Water mega-sheet.
+- **Interior authoring setup** (same pattern, from the Modern Interiors
+  pack): 6 `I*`-prefixed composite tilesets (`I1_Room_Builder` =
+  structural floors/walls/entryways + floor shadows; `I2`–`I6` = themed
+  furniture/decor) built by `world-build-interior-tilesets.ts`, manifest
+  at `tilesets/composites/interiors-manifest.json`. Start a new interior
+  by **copying `maps/interior-template.tmx`** — it pre-loads all 6
+  interior tilesets and carries the layer contract (ground/props/overhead
+  tile layers + `collision` object layer).
 - Deps added (intentional, Node 22 lockfile-clean): `phaser`, `sharp`.
 - **Multiplayer presence v1 (polling)** — shipped 2026-06-11, pending
   Andrew's in-browser verify. `PresenceTransport` interface +
@@ -353,6 +361,8 @@ Hand back: filename + tilesets used + plot count.
    (`assets-src/world.tiled-project`) and .tsx files reference, and
    `npx tsx scripts/world-build-working-tileset.ts` regenerates the
    curated 0_Working sheet from those composites, and
+   `npx tsx scripts/world-build-interior-tilesets.ts` regenerates the
+   interior (I1–I6) composite sheets from the Modern Interiors pack, and
    `npx tsx scripts/world-character-parts.ts` re-stages the character
    generator part sheets (normalized to the 896×656 grid) + manifest.
 5. Sync assets to prod bucket after changes:
