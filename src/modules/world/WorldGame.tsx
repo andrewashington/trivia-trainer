@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 
 /** Lazy-loaded so the Phaser import only runs on the client. */
-export function WorldGame() {
+export function WorldGame({ characterPath }: { characterPath: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,14 +35,14 @@ export function WorldGame() {
             debug: false,
           },
         },
-        scene: [WorldScene],
       });
+      game.scene.add("WorldScene", WorldScene, true, { characterPath });
     })();
 
     return () => {
       game?.destroy(true);
     };
-  }, []);
+  }, [characterPath]);
 
   return (
     <div

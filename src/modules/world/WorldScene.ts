@@ -48,15 +48,23 @@ export class WorldScene extends Phaser.Scene {
   private clickTarget: Phaser.Math.Vector2 | null = null;
   private facing: FacingDirection = "down";
 
+  // Asset-relative path of the player's spritesheet (personal composited
+  // avatar, e.g. "avatars/<userId>.png"); falls back to the premade sheet.
+  private characterPath = "character.png";
+
   constructor() {
     super({ key: "WorldScene" });
+  }
+
+  init(data: { characterPath?: string }) {
+    if (data?.characterPath) this.characterPath = data.characterPath;
   }
 
   preload() {
     this.load.tilemapTiledJSON("map", `${ASSET_BASE}/map.json`);
     // raw copy of the same JSON so create() can discover tileset images
     this.load.json("mapdata", `${ASSET_BASE}/map.json`);
-    this.load.spritesheet("character", `${ASSET_BASE}/character.png`, {
+    this.load.spritesheet("character", `${ASSET_BASE}/${this.characterPath}`, {
       frameWidth: 16,
       frameHeight: 32,
     });

@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/session";
+import { db } from "@/lib/db";
 import { WorldClient } from "./WorldClient";
 
 export const metadata = { title: "World" };
@@ -10,10 +12,16 @@ export const dynamic = "force-dynamic";
  *
  * Hidden from nav (not registered in registry.ts). Reachable by URL only.
  * Renders a Phaser game: walkable character on a Tiled outdoor map.
+ * First visit (no WorldAvatar yet) onboards through /world/create.
  */
 export default async function WorldPage() {
   const user = await currentUser();
   if (!user) redirect("/signin");
+
+  const avatar = await db.worldAvatar.findUnique({ where: { userId: user.id } });
+  if (!avatar) redirect("/world/create");
+  // cache-bust the avatar sheet on re-customization
+  const characterPath = `avatars/${user.id}.png?v=${avatar.updatedAt.getTime()}`;
 
   return (
     <div className="space-y-4">
@@ -26,12 +34,20 @@ export default async function WorldPage() {
             Phase 0 spike · WASD / arrow keys · click to walk
           </p>
         </div>
-        <span className="border-3 border-ink bg-accent-yellow px-2 py-0.5 font-mono text-[10px] font-bold uppercase shadow-brutal-sm">
-          spike
-        </span>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/world/create"
+            className="border-3 border-ink bg-card px-2 py-0.5 font-mono text-[10px] font-bold uppercase shadow-brutal-sm no-underline"
+          >
+            restyle
+          </Link>
+          <span className="border-3 border-ink bg-accent-yellow px-2 py-0.5 font-mono text-[10px] font-bold uppercase shadow-brutal-sm">
+            spike
+          </span>
+        </div>
       </div>
 
-      <WorldClient />
+      <WorldClient characterPath={characterPath} />
     </div>
   );
 }

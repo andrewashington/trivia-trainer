@@ -110,6 +110,7 @@ model User {
   crashRounds        CrashRound[]
   worldOwnedItems    WorldOwnedItem[]
   worldHouse         WorldHouse?
+  worldAvatar        WorldAvatar?
 }
 
 // ============ Blackjack: casino hands wagering coins ============
@@ -871,6 +872,20 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// World character look. Config = chosen generator parts (bodies/eyes/
+// hairstyles/outfits, store-bought extras later); the composited personal
+// spritesheet lives at world/avatars/<userId>.png in S3 (or the local
+// runtime dir in dev). Separate from User.avatarConfig (site avatar).
+model WorldAvatar {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  config    Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

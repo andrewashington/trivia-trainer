@@ -60,3 +60,17 @@ export async function presignView(key: string) {
 export async function deleteObject(key: string) {
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 }
+
+/** Server-side direct upload (small server-generated files, e.g. world avatars). */
+export async function putObject(key: string, body: Buffer, contentType: string) {
+  await s3.send(
+    new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: body, ContentType: contentType })
+  );
+}
+
+/** Server-side direct download into memory (small assets, e.g. sprite parts). */
+export async function getObjectBuffer(key: string): Promise<Buffer> {
+  const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  const bytes = await res.Body!.transformToByteArray();
+  return Buffer.from(bytes);
+}

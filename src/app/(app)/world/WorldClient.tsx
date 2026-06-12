@@ -13,6 +13,6 @@ const WorldGame = dynamic(
   { ssr: false, loading: () => <div className="h-80 animate-pulse bg-card border-3 border-ink" /> }
 );
 
-export function WorldClient() {
-  return <WorldGame />;
+export function WorldClient({ characterPath }: { characterPath: string }) {
+  return <WorldGame characterPath={characterPath} />;
 }
