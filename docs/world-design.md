@@ -291,14 +291,41 @@ DB is optional, don't block on it.
 - Item `key` slug: from pack path, e.g. `mi-bathroom-bathtub-1`
   (`mi`/`me` prefix = interiors/exteriors).
 
+### Furniture catalog pipeline (SHIPPED 2026-06-12 — supersedes the old `world-ingest.ts` plan)
+
+The pack's singles have **non-descriptive numbered filenames**
+(`Living_Room_Singles_12.png`), so names can't be auto-derived — the catalog
+needs a human pass. Built as a **local one-time seed flow** (Andrew curates
+locally; `/world/admin` is the ongoing-edit surface later). Three decoupled
+stages so the expensive human pass is durable against re-scans/schema churn:
+
+1. **Scan** — `scripts/world-scan-furniture.ts` walks all 24
+   `Theme_Sorter_Singles` themes (16x16), measures each PNG's alpha-bbox
+   footprint, emits `assets-src/runtime/world/catalog/draft.json` (gitignored,
+   regenerable). Stable keys `mi-<theme>-<n>`. No DB, no atlas. 5,381 sprites.
+2. **Tag** — World Studio **"Furniture catalog"** view (`/catalog` on the
+   local panel): per-sprite hand-name + price **tier** chip + surface +
+   keep/publish, keyboard-fast (Enter → next name), autosaved to
+   **`src/modules/world/catalog-seed.json`** (COMMITTED — the durable human
+   work, keyed by stable key). Bulk "keep all + tier" per theme.
+3. **Seed** — `scripts/world-seed-catalog.ts` (Studio "Seed catalog" button):
+   packs only KEPT sprites into per-theme atlases
+   (`assets-src/runtime/world/atlas/furniture-<theme>.png`+`.json`, **frame
+   name === stable item key** so re-packs never break placed items), upserts
+   `WorldItem` rows (price derives from tier via `src/modules/world/catalog.ts`;
+   `published` from the flag). Runs against prod DB via `railway run`, then
+   `world-sync-assets.ts` pushes atlases to S3.
+
+Future-proofing baked into the human pass (cheap now, painful to retrofit):
+`surface = floor|wall|tabletop` (decorate-mode layering), price **tier** not
+raw coins (rebalance the economy by editing one map in `catalog.ts`), `theme`
+(auto, stable) kept distinct from `category` (functional), and page-agnostic
+stable `spriteKey`s. `WorldItem` gained `theme`+`tier` columns (additive
+migration `20260612140229_world_item_theme_tier`).
+
 ### Remaining Phase 1 work (was about to be delegated to parallel agents)
-1. `scripts/world-ingest.ts` — walk curated singles folders (interiors
-   `Theme_Sorter_Singles` 16x16 regular-shadow variant; exteriors Garden +
-   a few fun theme folders; skip Shadowless/Black_Shadow dupes), measure
-   each PNG with sharp, pack per-theme atlases (max 2048px pages),
-   write atlas png+json, upsert draft `WorldItem` rows (idempotent by
-   `key`; name/category parsed from filename, published=false, price=0).
-   Run against prod DB via `railway run`.
+1. ~~`scripts/world-ingest.ts`~~ — DONE, replaced by the scan→tag→seed
+   pipeline above.
 2. Admin API `/api/world/admin/*` (requireAdmin): paginated item list with
    q/category/published filters; PATCH item (name/category/price/surface/
    published); bulk publish + bulk default-pricing (e.g. by footprint area).
