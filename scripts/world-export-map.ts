@@ -132,17 +132,39 @@ for (const m of xml.matchAll(/<objectgroup [^>]*name="([^"]+)"[^>]*(?:\/>|>([\s\
   });
 }
 
-// ── Keep only tilesets that own at least one used gid ───────────────────
-const used = tilesets.filter((ts) =>
+// ── De-dup tilesets by name (e.g. an accidentally embedded copy of an
+// external sheet) and REMAP gids painted from the dropped copy onto the
+// kept one — local tile ids are identical since it's the same image.
+const keptByName = new Map<string, TsRef>();
+for (const ts of tilesets) if (!keptByName.has(ts.name)) keptByName.set(ts.name, ts);
+const remaps = tilesets
+  .filter((ts) => keptByName.get(ts.name) !== ts)
+  .map((ts) => ({
+    lo: ts.firstgid,
+    hi: ts.firstgid + ts.tilecount,
+    delta: keptByName.get(ts.name)!.firstgid - ts.firstgid,
+  }));
+if (remaps.length) {
+  usedGids.clear();
+  for (const layer of layers) {
+    if (layer.type !== "tilelayer") continue;
+    const data = layer.data as number[];
+    for (let i = 0; i < data.length; i++) {
+      const flags = data[i] & ~GID_FLAGS;
+      let base = data[i] & GID_FLAGS;
+      if (!base) continue;
+      const r = remaps.find((r) => base >= r.lo && base < r.hi);
+      if (r) base += r.delta;
+      data[i] = base | flags;
+      usedGids.add(base);
+    }
+  }
+}
+
+// keep only tilesets that own at least one used gid
+const finalTilesets = [...keptByName.values()].filter((ts) =>
   [...usedGids].some((g) => g >= ts.firstgid && g < ts.firstgid + ts.tilecount)
 );
-// de-dup by name (e.g. an accidentally embedded copy of an external sheet)
-const seenNames = new Set<string>();
-const finalTilesets = used.filter((ts) => {
-  if (seenNames.has(ts.name)) return false;
-  seenNames.add(ts.name);
-  return true;
-});
 
 fs.mkdirSync(`${OUT_DIR}/tiles`, { recursive: true });
 const embedded = finalTilesets.map((ts) => {
@@ -186,4 +208,4 @@ console.log(`map.json: ${mapW}x${mapH}, layers: ${layers.map((l) => l.name).join
 for (const ts of embedded)
   console.log(`  tileset ${ts.name} firstgid=${ts.firstgid} → ${ts.image} (${mb(`${OUT_DIR}/${ts.image}`)} MB)`);
 const dropped = tilesets.filter((t) => !finalTilesets.includes(t)).map((t) => t.name);
-if (dropped.length) console.log(`  dropped (unused/dup): ${dropped.join(", ")}`);
+if (dropped.length) console.log(`  dropped (unused/dup, gids remapped): ${dropped.join(", ")}`);

@@ -206,6 +206,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update() {
+    // World builds asynchronously (second-stage tileset load in create())
+    if (!this.player) return;
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     const up =
       this.cursors.up.isDown || this.wasd.up.isDown;
