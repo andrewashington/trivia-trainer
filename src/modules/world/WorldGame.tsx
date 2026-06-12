@@ -150,9 +150,11 @@ function WorldChat() {
         target?.tagName === "TEXTAREA" ||
         target?.isContentEditable;
       if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (event.key.toLowerCase() === "t") {
+      if (event.key.toLowerCase() === "t" || event.key === "Enter") {
         event.preventDefault();
         setOpen(true);
+        // Already open but unfocused — Enter/T should refocus the input
+        requestAnimationFrame(() => inputRef.current?.focus());
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -161,9 +163,14 @@ function WorldChat() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (available !== true) return;
     const text = draft.replace(/\s+/g, " ").trim().slice(0, CHAT_MAX_CHARS);
-    if (!text) return;
+    if (!text) {
+      // Enter on an empty box hands control back to the game (MMO-style)
+      inputRef.current?.blur();
+      setOpen(false);
+      return;
+    }
+    if (available !== true) return;
     worldBridge.emit("chat-send", { text });
     setDraft("");
   };
@@ -209,7 +216,7 @@ function WorldChat() {
             World Chat
           </h2>
           <p className="mt-1 font-mono text-[10px] font-bold uppercase text-ink/60">
-            {statusText} / press T to chat
+            {statusText} · enter to chat · esc to walk
           </p>
         </div>
         <button
@@ -259,7 +266,10 @@ function WorldChat() {
           onBlur={() => worldBridge.emit("chat-focus", { focused: false })}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Escape") setOpen(false);
+            if (event.key === "Escape") {
+              event.currentTarget.blur();
+              setOpen(false);
+            }
           }}
           placeholder={
             available === false ? "Chat needs the world socket" : "Message the room"

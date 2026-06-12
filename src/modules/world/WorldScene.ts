@@ -117,7 +117,7 @@ export class WorldScene extends Phaser.Scene {
   private talkKey: Phaser.Input.Keyboard.Key | null = null;
   private bubble: Phaser.GameObjects.Text | null = null;
   private bubbleTimer: Phaser.Time.TimerEvent | null = null;
-  private playerChatBubble: Phaser.GameObjects.Text | null = null;
+  private playerChatBubble: Phaser.GameObjects.Container | null = null;
   private playerChatBubbleTimer: Phaser.Time.TimerEvent | null = null;
 
   // True while a React panel (shop etc.) is open over the canvas —
@@ -420,11 +420,10 @@ export class WorldScene extends Phaser.Scene {
     this.bridgeUnsubs.push(
       worldBridge.on("panel-closed", () => {
         this.uiOpen = false;
+        this.applyKeyboardCapture();
       }),
       worldBridge.on("avatar-updated", ({ sheetPath }) => this.swapPlayerSheet(sheetPath)),
-      worldBridge.on("chat-focus", ({ focused }) => {
-        this.chatFocused = focused;
-      }),
+      worldBridge.on("chat-focus", ({ focused }) => this.setChatFocused(focused)),
       worldBridge.on("chat-send", ({ text }) => this.sendChatMessage(text))
     );
     const unsubAll = () => {
@@ -440,6 +439,33 @@ export class WorldScene extends Phaser.Scene {
   }
 
   // ── Room chat ─────────────────────────────────────────────────────────
+  /**
+   * Phaser registers WASD/E/arrows in its GLOBAL key capture, which
+   * preventDefault()s those keydowns at the window level — they'd never
+   * reach the DOM chat input. While the input is focused, release the
+   * capture and disable the keyboard plugin entirely; restore (and reset
+   * any stuck isDown state) when focus returns to the game.
+   */
+  private setChatFocused(focused: boolean) {
+    this.chatFocused = focused;
+    if (focused) this.clickTarget = null;
+    this.applyKeyboardCapture();
+  }
+
+  /** Phaser keys are live only when no React UI wants the keyboard. */
+  private applyKeyboardCapture() {
+    const kb = this.input.keyboard;
+    if (!kb) return;
+    if (this.chatFocused || this.uiOpen) {
+      kb.disableGlobalCapture();
+      kb.enabled = false;
+    } else {
+      kb.enableGlobalCapture();
+      kb.enabled = true;
+      kb.resetKeys();
+    }
+  }
+
   private cleanChatText(text: string) {
     return text.replace(/\s+/g, " ").trim().slice(0, CHAT_MAX_CHARS);
   }
@@ -468,7 +494,10 @@ export class WorldScene extends Phaser.Scene {
   private receiveChatMessage(message: ChatMessage) {
     worldBridge.emit("chat-message", message);
     const ghost = this.ghosts.get(message.userId);
-    if (ghost) this.showChatBubble(ghost.sprite, message.text, false);
+    if (ghost) {
+      ghost.bubble?.destroy();
+      ghost.bubble = this.showChatBubble(ghost.sprite, message.text, false);
+    }
   }
 
   private showPlayerChatBubble(text: string) {
@@ -481,30 +510,69 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Speech bubble anchored above a character's head: rounded card with a
+   * tail, sized to the wrapped text. The container's origin is the tail
+   * tip, so positioning it at (x, y - 34) sits it just above the name tag.
+   */
   private showChatBubble(
     target: { x: number; y: number },
     text: string,
     isMine: boolean
   ) {
-    const bubble = this.add
-      .text(target.x, target.y - 42, text, {
+    const txt = this.add
+      .text(0, 0, text, {
         fontFamily: "monospace",
         fontSize: "8px",
-        color: isMine ? "#111111" : "#ffffff",
-        backgroundColor: isMine ? "#fde047" : "#111111",
-        padding: { x: 4, y: 3 },
-        wordWrap: { width: 120 },
+        color: "#111111",
+        wordWrap: { width: 110, useAdvancedWrap: true },
         align: "center",
+        lineSpacing: 2,
       })
-      .setOrigin(0.5, 1)
-      .setDepth(30)
+      .setOrigin(0.5, 0)
       .setResolution(3);
 
+    const padX = 6;
+    const padY = 4;
+    const w = Math.max(txt.width + padX * 2, 18);
+    const h = txt.height + padY * 2;
+    const tail = 5; // tail height below the card
+    const fill = isMine ? 0xfde047 : 0xffffff;
+
+    const g = this.add.graphics();
+    // soft drop shadow
+    g.fillStyle(0x111111, 0.25);
+    g.fillRoundedRect(-w / 2 + 1.5, -h - tail + 1.5, w, h, 4);
+    // card
+    g.fillStyle(fill, 1);
+    g.fillRoundedRect(-w / 2, -h - tail, w, h, 4);
+    g.lineStyle(1.5, 0x111111, 1);
+    g.strokeRoundedRect(-w / 2, -h - tail, w, h, 4);
+    // tail (drawn after the card so it overlaps the bottom border)
+    g.fillTriangle(-4, -tail - 1, 4, -tail - 1, 0, 0);
+    g.lineStyle(1.5, 0x111111, 1);
+    g.lineBetween(-4, -tail, 0, 0.75);
+    g.lineBetween(4, -tail, 0, 0.75);
+
+    txt.setPosition(0, -h - tail + padY);
+
+    const bubble = this.add
+      .container(target.x, target.y - 34, [g, txt])
+      .setDepth(30);
+
+    bubble.setScale(0.3).setAlpha(0);
+    this.tweens.add({
+      targets: bubble,
+      scale: 1,
+      alpha: 1,
+      duration: 160,
+      ease: "Back.Out",
+    });
     this.tweens.add({
       targets: bubble,
       alpha: 0,
-      delay: CHAT_BUBBLE_MS - 900,
-      duration: 900,
+      delay: CHAT_BUBBLE_MS - 600,
+      duration: 600,
       onComplete: () => bubble.destroy(),
     });
     return bubble;
@@ -556,6 +624,7 @@ export class WorldScene extends Phaser.Scene {
       moving: boolean;
       key: string; // texture key, also the anim prefix
       stale: boolean; // mark-and-sweep flag for syncPeers
+      bubble?: Phaser.GameObjects.Container; // active chat bubble, follows the ghost
     }
   >();
   private loadingSheets = new Set<string>();
@@ -621,6 +690,7 @@ export class WorldScene extends Phaser.Scene {
       if (g.stale) {
         g.sprite.destroy();
         g.label.destroy();
+        g.bubble?.destroy();
         this.ghosts.delete(userId);
       }
     }
@@ -695,6 +765,13 @@ export class WorldScene extends Phaser.Scene {
       const anim = `${g.key}-${closing || g.moving ? "walk" : "idle"}-${g.facing}`;
       if (g.sprite.anims.currentAnim?.key !== anim) g.sprite.play(anim);
       g.label.setPosition(Math.round(g.sprite.x), Math.round(g.sprite.y - 26));
+      if (g.bubble) {
+        if (g.bubble.active) {
+          g.bubble.setPosition(Math.round(g.sprite.x), Math.round(g.sprite.y - 34));
+        } else {
+          g.bubble = undefined; // fade-out tween destroyed it
+        }
+      }
     }
   }
 
@@ -722,6 +799,7 @@ export class WorldScene extends Phaser.Scene {
     const panel = NPC_PANELS[npc.name];
     if (panel) {
       this.uiOpen = true;
+      this.applyKeyboardCapture();
       this.clickTarget = null;
       (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
       this.player.play(`${this.playerKey}-idle-${this.facing}`, true);
@@ -795,10 +873,12 @@ export class WorldScene extends Phaser.Scene {
     // World builds asynchronously (second-stage tileset load in create())
     if (!this.player || this.switchingMap) return;
     this.updateGhosts(delta);
-    this.playerChatBubble?.setPosition(
-      Math.round(this.player.x),
-      Math.round(this.player.y - 42)
-    );
+    if (this.playerChatBubble?.active) {
+      this.playerChatBubble.setPosition(
+        Math.round(this.player.x),
+        Math.round(this.player.y - 34)
+      );
+    }
     if (this.uiOpen || this.chatFocused) {
       // React UI is active — freeze gameplay input (ghosts still move)
       (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
