@@ -200,9 +200,13 @@ Status items with visibly absurd prices (golden toilet, 25k) are the point.
   dependency-light Node `ws` room server (own package.json + npm-10
   lockfile, ~200 lines, no DB, no shared code) deployed as the
   **`world-ws` Railway service** in the same project
-  (`wss://world-ws-production.up.railway.app`; deployed via
-  `railway up --service world-ws` from its dir — it is NOT on the
-  repo-autodeploy hook, redeploy manually after editing it). Auth:
+  (`wss://world-ws-production.up.railway.app`). It is NOT on the
+  repo-autodeploy hook — redeploy manually after editing it, and note
+  the CLI gotcha: `railway up` uploads the **linked repo root** (which
+  built the Next Dockerfile by mistake), so deploy by copying the three
+  files to a temp dir, `railway link -p <projectId> -e production -s
+  world-ws`, then `railway up --service world-ws --detach` from there.
+  Auth:
   `GET /api/world/ws-token` mints a 60s HMAC token (payload carries
   userId/name/sheetPath) signed with `WORLD_WS_SECRET`, set on BOTH
   services; the app also has `WORLD_WS_URL`. Client `SocketTransport`
