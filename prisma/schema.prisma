@@ -113,6 +113,10 @@ model User {
   worldCosmetics     WorldOwnedCosmetic[]
   worldHouse         WorldHouse?
   worldAvatar        WorldAvatar?
+  pokerSeats         PokerSeat[]
+  tqHosted           TwentyQuestionsGame[]  @relation("tqHost")
+  tqWon              TwentyQuestionsGame[]  @relation("tqWinner")
+  tqEntries          TwentyQuestionsEntry[] @relation("tqAsker")
 }
 
 // ============ Blackjack: casino hands wagering coins ============
@@ -1273,4 +1277,157 @@ model WorldHouse {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ Poker: ongoing async Texas Hold'em cash tables ============
+//
+// Zero-sum vs. the table — no coins are minted or burned by play. Coins
+// move from a player's balance into their `PokerSeat.stack` when they sit,
+// ride the pot between seat stacks during a hand, and return to the balance
+// when they stand up. The deck and hole cards are server-only secrets (in
+// JSON) until showdown. There is no live socket: turns are async with a
+// per-action deadline, and the engine lazily auto-acts (check/fold) for a
+// player whose clock expired whenever anyone next loads the hand.
+
+model PokerTable {
+  id          String      @id @default(cuid())
+  name        String
+  smallBlind  Int         @default(1)
+  bigBlind    Int         @default(2)
+  // Per-action clock in hours: 1 | 6 | 24. How long a player has to act
+  // before the engine auto-checks/folds them on the next poll.
+  clockHours  Int         @default(24)
+  status      String      @default("open") // "open" | "closed"
+  createdById String
+  createdAt   DateTime    @default(now())
+
+  seats PokerSeat[]
+  hands PokerHand[]
+
+  @@index([status, createdAt])
+}
+
+// A player parked at a table. `stack` is real coins held off-balance while
+// seated. One seat per user per table; seatIndex fixes turn order.
+model PokerSeat {
+  id         String   @id @default(cuid())
+  tableId    String
+  userId     String
+  seatIndex  Int
+  stack      Int
+  sittingOut Boolean  @default(false)
+  joinedAt   DateTime @default(now())
+
+  table PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tableId, userId])
+  @@unique([tableId, seatIndex])
+  @@index([tableId])
+}
+
+// One dealt hand. `deck` (remaining stock) and per-seat hole cards are
+// server secrets; `board` is the community cards revealed so far. `state`
+// holds the live betting machine (street, currentBet, minRaise, toAct,
+// deadline) plus the resolved result once complete.
+model PokerHand {
+  id          String    @id @default(cuid())
+  tableId     String
+  handNumber  Int
+  buttonSeat  Int
+  deck        Json      // int[] of remaining card codes — SECRET
+  board       Json      @default("[]") // revealed community cards
+  pot         Int       @default(0)
+  state       Json      // betting state machine + result
+  status      String    @default("betting") // "betting" | "complete"
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  table PokerTable      @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  seats PokerHandSeat[]
+  actions PokerAction[]
+
+  @@unique([tableId, handNumber])
+  @@index([tableId, status])
+}
+
+// A seat's involvement in one hand. `hole` is that player's two cards —
+// only ever sent to that user. Commit counters drive pot/side-pot math.
+model PokerHandSeat {
+  id             String  @id @default(cuid())
+  handId         String
+  seatIndex      Int
+  userId         String
+  hole           Json    // [cardA, cardB] — SECRET to others
+  startingStack  Int
+  committed      Int     @default(0) // total chips put in this hand
+  streetCommit   Int     @default(0) // chips in on the current street
+  folded         Boolean @default(false)
+  allIn          Boolean @default(false)
+
+  hand PokerHand @relation(fields: [handId], references: [id], onDelete: Cascade)
+
+  @@unique([handId, seatIndex])
+  @@index([handId])
+}
+
+// Append-only action log for a hand (audit + replay).
+model PokerAction {
+  id        String   @id @default(cuid())
+  handId    String
+  seatIndex Int
+  userId    String
+  street    String   // "preflop" | "flop" | "turn" | "river"
+  kind      String   // "blind" | "fold" | "check" | "call" | "bet" | "raise"
+  amount    Int      @default(0)
+  createdAt DateTime @default(now())
+
+  hand PokerHand @relation(fields: [handId], references: [id], onDelete: Cascade)
+
+  @@index([handId, createdAt])
+}
+
+// ============ 20 Questions: async group guessing game ============
+//
+// A host picks a secret answer + category; everyone else submits yes/no
+// questions into a shared pool. The host answers them (yes | no | sometimes)
+// — up to 20 answered questions. Anyone may submit a guess; the host marks
+// one correct to end the round, and the first correct guesser wins. Async +
+// polling, like Tanks. `secret` stays hidden until the game ends.
+
+model TwentyQuestionsGame {
+  id          String    @id @default(cuid())
+  hostId      String
+  category    String    // "person" | "place" | "thing"
+  secret      String    // SECRET until solved/revealed
+  status      String    @default("active") // "active" | "solved" | "revealed"
+  winnerId    String?
+  answered    Int       @default(0) // count of answered questions (cap 20)
+  createdAt   DateTime  @default(now())
+  endedAt     DateTime?
+
+  host    User    @relation("tqHost", fields: [hostId], references: [id], onDelete: Cascade)
+  winner  User?   @relation("tqWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  entries TwentyQuestionsEntry[]
+
+  @@index([status, createdAt])
+}
+
+// A question or a guess against a game. For questions, `answer` is null
+// until the host responds. For guesses, `correct` is set when the host
+// judges it (a correct guess ends the game).
+model TwentyQuestionsEntry {
+  id        String   @id @default(cuid())
+  gameId    String
+  askerId   String
+  kind      String   // "question" | "guess"
+  text      String
+  answer    String?  // "yes" | "no" | "sometimes" — questions only
+  correct   Boolean? // guesses only
+  createdAt DateTime @default(now())
+
+  game  TwentyQuestionsGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  asker User                @relation("tqAsker", fields: [askerId], references: [id], onDelete: Cascade)
+
+  @@index([gameId, createdAt])
 }

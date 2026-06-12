@@ -46,6 +46,9 @@ const config: Config = {
           frost: "#3AD6FF", // mines
           rocket: "#FF2E63", // crash
           meadow: "#2FBF71", // the world
+          baize: "#0E7A4B", // poker (table felt)
+          slot: "#FF1F8F", // slots
+          riddle: "#5E60CE", // 20 questions
 
         },
       },

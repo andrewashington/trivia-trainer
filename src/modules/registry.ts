@@ -566,6 +566,54 @@ export const modules: ModuleDef[] = [
       "It can bust at 1.00× instantly, so don't get greedy",
     ],
   },
+  {
+    key: "slots",
+    label: "Slots",
+    icon: "sparkles",
+    category: "arcade",
+    navOrder: 27,
+    href: "/slots",
+    accentBg: "bg-accent-slot",
+    intro:
+      "One-armed bandit, UDM edition. Pull the lever, line up the symbols, pray to the RNG. Tiny house edge, occasional fireworks.",
+    tips: [
+      "Three of a kind on the line pays — the rarer the symbol, the fatter the payout",
+      "Crowns are the jackpot: hit three and the whole room hears about it",
+      "Bet bigger to win bigger; bet smaller to last longer",
+    ],
+  },
+  {
+    key: "poker",
+    label: "Poker",
+    icon: "crown",
+    category: "arcade",
+    navOrder: 28,
+    href: "/poker",
+    accentBg: "bg-accent-baize",
+    intro:
+      "Ongoing no-limit Hold'em tables. Drop in, post your blinds, and play your hand on your own clock. You're betting each other's coins — the house takes nothing.",
+    tips: [
+      "Sit down with a stack; stand up any time to pocket what's left",
+      "Hands run async — you've got 1, 6, or 24 hours to act before you're folded",
+      "Pots are pure player-vs-player: every coin you win came off someone you know",
+    ],
+  },
+  {
+    key: "twentyq",
+    label: "20 Questions",
+    icon: "circle-question",
+    category: "arcade",
+    navOrder: 29,
+    href: "/twentyq",
+    accentBg: "bg-accent-riddle",
+    intro:
+      "One of you knows the answer. Everyone else gets twenty yes-or-no questions to drag it out of them. First correct guess takes the glory.",
+    tips: [
+      "Host a round: pick person, place, or thing, then answer honestly",
+      "Ask sharp questions — the pool only gets twenty answers total",
+      "Think you've got it? Drop a guess. First one right wins",
+    ],
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {

@@ -74,6 +74,21 @@
   }
 }
 
+/* Poker: deal-in pop for board/hole cards. */
+@keyframes poker-deal {
+  from {
+    transform: translateY(-8px) scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+.poker-deal {
+  animation: poker-deal 0.22s ease-out;
+}
+
 /* Respect reduced-motion: keep the look, drop the perpetual movement. */
 @media (prefers-reduced-motion: reduce) {
   *,

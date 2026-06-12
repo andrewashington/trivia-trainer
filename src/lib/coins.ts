@@ -56,6 +56,12 @@ export const COIN_RULES: Partial<Record<OutboxEventType, CoinRule>> = {
   "canvas.drew": { amount: 25, userId: (p) => p.userId, label: "Doodled on the canvas" },
   "smash.deck.created": { amount: 150, userId: (p) => p.creatorId, label: "Dealt a smash-or-pass deck" },
   "smash.voted": { amount: 15, userId: (p) => p.userId, label: "Rendered a verdict" },
+
+  // ---- 20 Questions ----
+  // Poker is zero-sum (coins only move between seat stacks) so it earns no
+  // house award here — the pot is funded entirely by players.
+  "twentyq.created": { amount: 150, userId: (p) => p.hostId, label: "Hosted 20 Questions" },
+  "twentyq.solved": { amount: 300, userId: (p) => p.winnerId, label: "Cracked 20 Questions" },
   // treasure.found pays the (variable) pot directly in its route — no fixed rule here.
 };
 

@@ -72,7 +72,11 @@ export type OutboxEventType =
   | "smash.deck.created"
   | "smash.voted"
   | "smash.deck.deleted"
-  | "world.cosmetic.purchased";
+  | "world.cosmetic.purchased"
+  | "poker.table.created"
+  | "poker.hand.finished"
+  | "twentyq.created"
+  | "twentyq.solved";
 
 /**
  * Write a domain event (and apply any coin award it earns) on an open
