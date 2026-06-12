@@ -1217,12 +1217,13 @@ model WorldItem {
   tileW     Int      @default(1) // footprint in 16px tiles
   tileH     Int      @default(1)
   surface   String   @default("floor") // floor | wall | tabletop
-  published Boolean  @default(false) // only published+priced items appear in the shop
+  availability String @default("shop") // shop | unobtainable — unobtainable items never sell, but can still be granted/owned/placed
+  published Boolean  @default(false) // appears in-game/catalog; shop also requires availability="shop" + price>0
   createdAt DateTime @default(now())
 
   ownedItems WorldOwnedItem[]
 
-  @@index([published, category])
+  @@index([published, availability, category])
   @@index([theme])
 }
 

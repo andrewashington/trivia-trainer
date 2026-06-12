@@ -36,6 +36,7 @@ type SeedEntry = {
   name?: string; category?: string; tier?: string;
   price?: number | null; surface?: string; keep?: boolean; publish?: boolean;
   skip?: boolean; // explicitly decided "no" (distinct from undecided); never seeded
+  availability?: string; // "shop" (default) | "unobtainable" — exists but never sells
 };
 type Seed = { items: Record<string, SeedEntry> };
 
@@ -533,6 +534,10 @@ const CATALOG_PAGE = /* html */ `<!doctype html>
 let DATA = null, CUR = null, ITEMS = [];
 const saved = document.getElementById("saved");
 function flash(t){ saved.textContent = t; }
+// the pricing ladder + one rung above it: too coveted to buy (availability flag)
+const UNOB = { key:"__unob", label:"🔒 Unobtainable", price:0, blurb:"Exists but never for sale — can still be granted, owned, and placed" };
+function rungs(){ return DATA.tiers.concat([UNOB]); }
+function isUnob(s){ return s && s.availability==="unobtainable"; }
 
 async function boot(){
   DATA = await (await fetch("/api/catalog/data")).json();
@@ -578,9 +583,11 @@ function renderGrid(){
 }
 function card(it){
   const s = it.seed||{};
+  const un = isUnob(s);
   const tiers = DATA.tiers.map(function(z){
-    return '<button class="'+(s.tier===z.key?'on':'')+'" title="'+z.blurb+'" onclick="setTier(\\''+it.key+'\\',\\''+z.key+'\\')">'+z.label+'</button>';
-  }).join("");
+    return '<button class="'+(!un&&s.tier===z.key?'on':'')+'" title="'+z.blurb+'" onclick="setTier(\\''+it.key+'\\',\\''+z.key+'\\')">'+z.label+'</button>';
+  }).join("")+
+    '<button class="'+(un?'on':'')+'" title="'+UNOB.blurb+'" onclick="setUnob(\\''+it.key+'\\')">🔒</button>';
   const surf = DATA.surfaces.map(function(u){
     return '<option value="'+u+'" '+(s.surface===u?'selected':'')+'>'+u+'</option>';
   }).join("");
@@ -614,7 +621,12 @@ function setField(key, patch, immediate){
 }
 function setTier(key, tier){
   const it = local(key); if(!it) return;
-  it.seed = Object.assign({}, it.seed, {tier:tier});
+  it.seed = Object.assign({}, it.seed, {tier:tier, availability:"shop"});
+  flush(key, it.seed); reflectCard(it);
+}
+function setUnob(key){
+  const it = local(key); if(!it) return;
+  it.seed = Object.assign({}, it.seed, {availability:"unobtainable", tier:null, keep:true});
   flush(key, it.seed); reflectCard(it);
 }
 function reflectCard(it){
@@ -659,7 +671,8 @@ let qTierIdx = 2, qSurf = "floor"; // sticky across items
 function qOn(){ return document.getElementById("queue").classList.contains("on"); }
 function tierPriceK(k){ const z=DATA.tiers.find(function(x){return x.key===k;}); return z?z.price:0; }
 function norm(s){ s=s||{}; return { name:(s.name||"").trim(), category:s.category, tier:s.tier||null,
-  price:(s.price!=null?s.price:null), surface:s.surface||"floor", keep:!!s.keep, skip:!!s.skip, publish:!!s.publish }; }
+  price:(s.price!=null?s.price:null), surface:s.surface||"floor", availability:s.availability||"shop",
+  keep:!!s.keep, skip:!!s.skip, publish:!!s.publish }; }
 
 function fillScope(){
   const opts = DATA.themes.map(function(t){
@@ -702,11 +715,14 @@ function renderQ(){
   }
   const it = qList[qIdx];
   const s = it.seed || {};
-  if (s.tier){ const i=DATA.tiers.findIndex(function(z){return z.key===s.tier;}); if(i>=0) qTierIdx=i; }
+  const RG = rungs();
+  if (isUnob(s)){ qTierIdx = RG.length-1; }
+  else if (s.tier){ const i=RG.findIndex(function(z){return z.key===s.tier;}); if(i>=0) qTierIdx=i; }
   if (s.surface) qSurf = s.surface;
-  const tiers = DATA.tiers.map(function(z,i){
+  const tiers = RG.map(function(z,i){
+    const pc = z.key===UNOB.key ? "never" : z.price+"c";
     return '<button onclick="setQTier('+i+')" class="'+(i===qTierIdx?'on':'')+'" title="'+z.blurb+'">'+
-      z.label+'<span class="pc">'+z.price+'c</span></button>';
+      z.label+'<span class="pc">'+pc+'</span></button>';
   }).join("");
   const surfs = DATA.surfaces.map(function(u){
     return '<button data-s="'+u+'" class="'+(u===qSurf?'on':'')+'" onclick="setQSurf(\\''+u+'\\')">'+u+'</button>';
@@ -753,8 +769,9 @@ function qKeep(){
   const it=qList[qIdx]; if(!it) return;
   const name=(document.getElementById("qname").value||"").trim();
   if(!name){ qSkip(); return; } // never keep something unnamed
-  qCommit(it, { name:name, tier:DATA.tiers[qTierIdx].key, surface:qSurf, keep:true, skip:false,
-    publish:document.getElementById("qpublish").checked }, "kept");
+  const rung = rungs()[qTierIdx], un = rung.key===UNOB.key;
+  qCommit(it, { name:name, tier: un?null:rung.key, availability: un?"unobtainable":"shop", surface:qSurf,
+    keep:true, skip:false, publish:document.getElementById("qpublish").checked }, un?"🔒 unobtainable":"kept");
 }
 function qSkip(){
   const it=qList[qIdx]; if(!it) return;
@@ -787,7 +804,7 @@ document.addEventListener("keydown", function(e){
   if(!qOn()) return;
   if(e.key==="Enter"){ e.preventDefault(); qKeep(); }
   else if(e.key==="Escape"){ e.preventDefault(); qSkip(); }
-  else if(e.key==="ArrowUp"){ e.preventDefault(); qTierIdx=Math.min(DATA.tiers.length-1,qTierIdx+1); paintTier(); }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); qTierIdx=Math.min(rungs().length-1,qTierIdx+1); paintTier(); }
   else if(e.key==="ArrowDown"){ e.preventDefault(); qTierIdx=Math.max(0,qTierIdx-1); paintTier(); }
   else if(e.key==="ArrowLeft"){ e.preventDefault(); cycleSurf(-1); }
   else if(e.key==="ArrowRight"){ e.preventDefault(); cycleSurf(1); }

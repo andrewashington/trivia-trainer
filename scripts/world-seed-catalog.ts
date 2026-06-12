@@ -36,6 +36,7 @@ type SeedEntry = {
   tier?: string;
   price?: number | null; // raw override; null/absent = derive from tier
   surface?: string;
+  availability?: string; // "shop" (default) | "unobtainable"
   keep?: boolean;
   publish?: boolean;
 };
@@ -159,8 +160,9 @@ async function main() {
   console.log(`\nUpserting ${keepers.length} WorldItem rows (${published} published)…`);
   if (dryRun) {
     for (const k of keepers.slice(0, 10)) {
-      const price = priceFor(k.entry.tier, k.entry.price);
-      console.log(`  ${k.key.padEnd(28)} ${(k.entry.name ?? "(unnamed)").padEnd(22)} ${k.entry.tier ?? "-"} ${price}c ${k.entry.publish ? "PUB" : "draft"}`);
+      const un = k.entry.availability === "unobtainable";
+      const price = un ? "🔒unobtainable" : priceFor(k.entry.tier, k.entry.price) + "c";
+      console.log(`  ${k.key.padEnd(28)} ${(k.entry.name ?? "(unnamed)").padEnd(22)} ${un ? "-" : k.entry.tier ?? "-"} ${price} ${k.entry.publish ? "PUB" : "draft"}`);
     }
     console.log(`  …(${keepers.length} total) — --dry-run, no writes.`);
     return;
@@ -172,16 +174,18 @@ async function main() {
     for (const k of keepers) {
       const d = k.draft;
       const e = k.entry;
+      const unobtainable = e.availability === "unobtainable";
       const data = {
         name: (e.name ?? "").trim() || d.themeLabel + " item",
         category: (e.category ?? "").trim() || d.theme,
         theme: d.theme,
-        tier: e.tier ?? null,
-        price: priceFor(e.tier, e.price),
+        tier: unobtainable ? null : e.tier ?? null,
+        price: unobtainable ? 0 : priceFor(e.tier, e.price), // unobtainables never sell
         spriteKey: spriteKeyFor(d.theme, k.key),
         tileW: d.tileW,
         tileH: d.tileH,
         surface: e.surface ?? "floor",
+        availability: unobtainable ? "unobtainable" : "shop",
         published: !!e.publish,
       };
       await db.worldItem.upsert({ where: { key: k.key }, create: { key: k.key, ...data }, update: data });

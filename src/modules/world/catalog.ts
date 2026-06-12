@@ -44,6 +44,15 @@ export type Surface = "floor" | "wall" | "tabletop";
 export const SURFACES: Surface[] = ["floor", "wall", "tabletop"];
 
 /**
+ * Availability is orthogonal to price tier. "unobtainable" items exist in
+ * the catalog and can be granted / owned / placed in a house, but never
+ * appear in the shop — the rung above "absurd": too coveted to even buy.
+ * Shop listing requires availability === "shop" AND a positive price.
+ */
+export type Availability = "shop" | "unobtainable";
+export const UNOBTAINABLE: Availability = "unobtainable";
+
+/**
  * Resolve an item's effective price: an explicit override wins, else the
  * tier default, else 0 (unpriced draft — never appears in the shop).
  */
