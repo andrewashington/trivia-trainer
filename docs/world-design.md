@@ -396,6 +396,13 @@ console, not a new table.
 
 ## Adding a new map (runbook — follow this every time)
 
+Andrew-facing tooling: **World Studio** (`npm run world:studio`, or the
+"World Studio.command" launcher on his Desktop) — a local-only control
+panel (scripts/world-studio.ts, 127.0.0.1:4499) with buttons for
+new-map scaffolding, open-in-Tiled, validate, and a full "Ship maps"
+chain (validate → commit map files → rebase → typecheck → push both
+branches → S3 sync). The steps below are what those buttons run.
+
 The engine is multi-map (since 2026-06-12): each map is its own presence
 room, portals teleport between maps, and NPCs are placed per-map. The
 contract below is what the engine actually reads — anything else in the

@@ -29,14 +29,13 @@ export const RUNBOOKS: Runbook[] = [
     tagline: "one command scaffolds it — you only paint",
     sections: [
       {
-        heading: "Scaffold the map",
+        heading: "Open World Studio",
         owner: "you",
         intro:
-          "Never copy or save-as a template again. One command creates the file with every layer pre-named, the right tilesets loaded, a collision border, and a spawn point — and registers it with the game.",
+          "Double-click `World Studio.command` on your Desktop. A control panel opens in the browser — no commands, no file paths. (First time, macOS may ask you to allow it: right-click → Open.)",
         steps: [
-          "In the repo: `npm run world:new-map -- cafe-interior --kind interior --label \"The Cafe\"`",
-          "Kinds: `interior` (40x30, I1–I6 tilesets) or `exterior` (50x50, outdoor tilesets, grass pre-filled). Custom size: `--size 60x40`",
-          "Too lazy to run a command? Just tell Claude \"scaffold me an interior map called cafe-interior\" — same result.",
+          "In Studio → \"New map\": type an id (e.g. `cafe-interior`), pick interior/exterior, optional label → Create. Every layer is pre-named, tilesets loaded, collision border + `spawn` point placed, the map is registered with the game, and Tiled opens on it automatically.",
+          "No Studio handy? Same thing via `npm run world:new-map -- cafe-interior --kind interior`, or just ask Claude.",
         ],
       },
       {
@@ -53,10 +52,11 @@ export const RUNBOOKS: Runbook[] = [
         ],
       },
       {
-        heading: "Hand off",
+        heading: "Ship + hand off",
         owner: "you",
         steps: [
-          "Tell Claude: \"cafe-interior is painted — the door connects to the cafe storefront on the neighborhood map\" (or wherever).",
+          "In Studio: hit \"🚢 Ship maps\" — it validates, commits, pushes, and syncs assets. If validation fails it tells you exactly what to fix in Tiled.",
+          "Then tell Claude: \"cafe-interior is shipped — the door connects to the cafe storefront on the neighborhood map\" (or wherever). Claude wires the doors + dialog.",
         ],
       },
       {
@@ -64,9 +64,8 @@ export const RUNBOOKS: Runbook[] = [
         owner: "claude",
         steps: [
           "Wires portals both ways + a return spawn outside the door",
-          "Runs `npm run world:export` — this VALIDATES the map contract (layers, spawn, portal targets) and fails loudly with exact fix-its",
           "Adds NPC dialog defaults (editable in the Dialogue tab after)",
-          "Typechecks, commits, pushes, syncs assets to S3 — live in minutes",
+          "Re-validates, ships the wiring — live in minutes",
         ],
       },
     ],
@@ -111,10 +110,10 @@ export const RUNBOOKS: Runbook[] = [
       },
       {
         heading: "Assets: maps, tilesets, character parts (minutes, no deploy)",
-        owner: "claude",
+        owner: "info",
         steps: [
-          "`npm run world:export` (also validates the map contract)",
-          "`railway run --service trivia-trainer npx tsx scripts/world-sync-assets.ts`",
+          "Maps: World Studio's \"🚢 Ship maps\" button does the whole chain (validate → commit → push → S3 sync). You can do this yourself.",
+          "Under the hood / other assets: `npm run world:export` then `railway run --service trivia-trainer npx tsx scripts/world-sync-assets.ts` — Claude's department.",
           "Live on next page load — the game fetches assets from S3.",
         ],
       },

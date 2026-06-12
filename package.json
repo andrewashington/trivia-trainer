@@ -15,6 +15,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:demo": "tsx prisma/seed-demo.ts",
     "db:demo:remove": "tsx prisma/seed-demo-remove.ts",
+    "world:studio": "tsx scripts/world-studio.ts",
     "world:new-map": "tsx scripts/world-new-map.ts",
     "world:export": "tsx scripts/world-export-map.ts",
     "triage:export": "tsx scripts/export-triage.ts",
