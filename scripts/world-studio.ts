@@ -510,6 +510,12 @@ const CATALOG_PAGE = /* html */ `<!doctype html>
   .qsub input:last-child { flex:0 0 96px; }
   .qstage .ai { position:absolute; left:6px; bottom:5px; font-size:11px; background:#2563eb;
                 color:#fff; padding:1px 6px; font-weight:700; }
+  .qstage .junk { position:absolute; right:6px; top:5px; font-size:11px; background:#dc2626;
+                  color:#fff; padding:1px 6px; font-weight:700; }
+  .qtags { width:380px; max-width:90vw; border:2px solid #1a1a1a; padding:5px 7px; font:inherit;
+           font-size:12px; background:#fff; }
+  .qsub input#qgroup { flex:1; }
+  .qsub input#qprice { flex:0 0 96px; }
   .qtiers { display:flex; gap:6px; }
   .qtiers button { border:3px solid #1a1a1a; background:#fff; font:inherit; font-weight:700;
                    padding:6px 12px; cursor:pointer; font-size:13px; }
@@ -774,11 +780,18 @@ function renderQ(){
   const aiBadge = s.ai ? '<span class="ai">✨'+(s.confidence!=null?' '+Math.round(s.confidence*100)+'%':'')+'</span>' : '';
   body.innerHTML =
     '<div class="qstage"><span class="th">'+esc(it.themeLabel)+'</span>'+aiBadge+
+      (s.category==="non-item"?'<span class="junk">non-item</span>':'')+
       '<img src="/furniture-img?key='+it.key+'"><span class="fp">'+it.tileW+'×'+it.tileH+'</span></div>'+
     '<input id="qname" placeholder="name it…" value="'+esc(s.name||"")+'">'+
     '<div class="qsub">'+
       '<input id="qtag" placeholder="tagline (shop flavor)…" value="'+esc(s.tagline||"")+'">'+
-      '<input id="qvar" placeholder="variant" value="'+esc(s.variant||"")+'" title="'+(s.variantGroup?'group: '+esc(s.variantGroup):'no variant group')+'">'+
+      '<input id="qvar" placeholder="variant" value="'+esc(s.variant||"")+'">'+
+    '</div>'+
+    '<input id="qtags" class="qtags" placeholder="tags, comma, separated" value="'+esc((s.tags||[]).join(", "))+'">'+
+    '<div class="qsub">'+
+      '<input id="qcat" placeholder="category" value="'+esc(s.category||"")+'">'+
+      '<input id="qgroup" placeholder="variant group" value="'+esc(s.variantGroup||"")+'">'+
+      '<input id="qprice" type="number" min="0" placeholder="price ↦ tier" value="'+(s.price!=null?s.price:"")+'">'+
     '</div>'+
     '<div class="qtiers">'+tiers+'</div>'+
     '<div class="qmeta"><span>surface</span><div class="qsurf">'+surfs+'</div></div>'+
@@ -819,10 +832,12 @@ function qKeep(){
   const name=(document.getElementById("qname").value||"").trim();
   if(!name){ qSkip(); return; } // never keep something unnamed
   const rung = rungs()[qTierIdx], un = rung.key===UNOB.key;
-  const tag=(document.getElementById("qtag").value||"").trim();
-  const variant=(document.getElementById("qvar").value||"").trim();
-  qCommit(it, { name:name, tagline:tag||null, variant:variant||null, tier: un?null:rung.key,
-    availability: un?"unobtainable":"shop", surface:qSurf, ai:false,
+  const g = function(id){ return (document.getElementById(id).value||"").trim(); };
+  const pv = document.getElementById("qprice").value;
+  qCommit(it, { name:name, tagline:g("qtag")||null, variant:g("qvar")||null,
+    tags:g("qtags").split(",").map(function(x){return x.trim();}).filter(Boolean),
+    category:g("qcat")||null, variantGroup:g("qgroup")||null, price: pv===""?null:Number(pv),
+    tier: un?null:rung.key, availability: un?"unobtainable":"shop", surface:qSurf, ai:false,
     keep:true, skip:false, publish:document.getElementById("qpublish").checked }, un?"🔒 unobtainable":"kept");
 }
 function qSkip(){
