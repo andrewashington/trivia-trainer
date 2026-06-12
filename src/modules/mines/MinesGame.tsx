@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 import { confettiBurst } from "@/lib/confetti";
+import { playSfx } from "@/lib/sfx";
 import { Button, Card, Field, Input } from "@/components/ui";
 import type { MinesView } from "@/modules/mines/schema";
 
@@ -210,8 +211,19 @@ export function MinesGame({ initialCoins }: { initialCoins: number }) {
       const res = await fn();
       setGame(res.game);
       if (res.coins !== undefined) setCoins(res.coins);
-      if (res.game?.status === "cashed" && res.game.revealed.length > 0) confettiBurst();
-      if (res.game) router.refresh();
+      const g = res.game;
+      if (g) {
+        // Sound follows the resulting state: each transition has one sting.
+        if (g.status === "busted") {
+          playSfx("lose"); // hit a mine
+        } else if (g.status === "cashed") {
+          if (g.revealed.length > 0) confettiBurst(); // banked a win (plays "win")
+          else playSfx("blip"); // cashed out before revealing — stake refunded
+        } else if (g.status === "active") {
+          playSfx(g.revealed.length === 0 ? "blip" : "chirp"); // round start vs. safe gem
+        }
+        router.refresh();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
