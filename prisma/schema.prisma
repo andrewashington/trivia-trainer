@@ -1205,18 +1205,21 @@ model WorldItem {
   id        String   @id @default(cuid())
   key       String   @unique // stable slug from pack path, e.g. "mi-bathroom-bathtub-1"
   name      String // human name, editable in admin
-  category  String // shop grouping, defaults to pack theme, editable
-  price     Int      @default(0) // 0 = unpriced draft; admin sets before publish
-  spriteKey String // "<atlasKey>#<frameName>"
+  category  String // functional shop grouping, defaults to theme, editable
+  theme     String? // pack theme folder slug, e.g. "living-room" — automatic, stable
+  tier      String? // price tier (trinket|decor|furniture|statement|absurd); drives default price
+  price     Int      @default(0) // 0 = unpriced draft; tier-derived or admin override
+  spriteKey String // "<atlasKey>#<frameName>" — frameName is the stable item key
   tileW     Int      @default(1) // footprint in 16px tiles
   tileH     Int      @default(1)
-  surface   String   @default("floor") // floor | wall
+  surface   String   @default("floor") // floor | wall | tabletop
   published Boolean  @default(false) // only published+priced items appear in the shop
   createdAt DateTime @default(now())
 
   ownedItems WorldOwnedItem[]
 
   @@index([published, category])
+  @@index([theme])
 }
 
 // Inventory; placement lives on the row (null x/y = in storage, not placed)
