@@ -13,6 +13,14 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import sharp from "sharp";
+
+// The shared premade-character grid: 56 cols × 16px, 656px tall. Some
+// source sheets carry extra junk columns (Bodies are 927px wide — a
+// palette strip); normalize everything to exactly this canvas so CSS
+// previews and Phaser frame math line up.
+const SHEET_W = 896;
+const SHEET_H = 656;
 
 const GEN = "assets-src/modern-interiors/2_Characters/Character_Generator";
 const OUT = "assets-src/runtime/world/character-parts";
@@ -29,7 +37,20 @@ if (!fs.existsSync(GEN)) {
   process.exit(1);
 }
 
+async function stageNormalized(src: string, dst: string): Promise<void> {
+  const meta = await sharp(src).metadata();
+  if (meta.width === SHEET_W && meta.height === SHEET_H) {
+    fs.copyFileSync(src, dst);
+    return;
+  }
+  if (meta.width! < SHEET_W || meta.height! < SHEET_H) {
+    throw new Error(`${src} is ${meta.width}x${meta.height} — smaller than the ${SHEET_W}x${SHEET_H} grid`);
+  }
+  await sharp(src).extract({ left: 0, top: 0, width: SHEET_W, height: SHEET_H }).toFile(dst);
+}
+
 const manifest: Record<string, string[] | Record<string, string[]>> = {};
+async function main() {
 for (const cat of CATS) {
   const src = path.join(GEN, cat.dir, "16x16");
   const dst = path.join(OUT, cat.out);
@@ -38,7 +59,7 @@ for (const cat of CATS) {
   const flat: string[] = [];
   const styled: Record<string, string[]> = {};
   for (const f of files) {
-    fs.copyFileSync(path.join(src, f), path.join(dst, f));
+    await stageNormalized(path.join(src, f), path.join(dst, f));
     const m = f.match(cat.re)!;
     if (m[2] === undefined) {
       flat.push(m[1]);
@@ -53,3 +74,5 @@ for (const cat of CATS) {
 
 fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
 console.log(`Wrote ${OUT}/manifest.json`);
+}
+main().catch((e) => { console.error(e); process.exit(1); });

@@ -61,6 +61,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   preload() {
+    this.showLoadingScreen();
     this.load.tilemapTiledJSON("map", `${ASSET_BASE}/map.json`);
     // raw copy of the same JSON so create() can discover tileset images
     this.load.json("mapdata", `${ASSET_BASE}/map.json`);
@@ -70,7 +71,62 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  // ── Loading screen (spans preload + the second-stage tileset load) ────
+  private loadingUi: Phaser.GameObjects.GameObject[] = [];
+  private loadingBar!: Phaser.GameObjects.Rectangle;
+
+  private showLoadingScreen() {
+    const { width, height } = this.scale;
+    const cx = width / 2;
+    const cy = height / 2;
+    const barW = Math.min(320, width * 0.6);
+
+    const bg = this.add.rectangle(cx, cy, width, height, 0x1a1a1a);
+    const title = this.add
+      .text(cx, cy - 40, "THE WORLD", {
+        fontFamily: "monospace",
+        fontSize: "28px",
+        color: "#fde047",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+    const hint = this.add
+      .text(cx, cy + 36, "lacing up your shoes…", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#9ca3af",
+      })
+      .setOrigin(0.5);
+    const frame = this.add
+      .rectangle(cx, cy, barW, 18)
+      .setStrokeStyle(3, 0xffffff);
+    this.loadingBar = this.add
+      .rectangle(cx - barW / 2 + 3, cy, 1, 12, 0xfde047)
+      .setOrigin(0, 0.5);
+
+    this.loadingUi = [bg, title, hint, frame, this.loadingBar];
+    for (const o of this.loadingUi) {
+      (o as Phaser.GameObjects.Rectangle).setScrollFactor(0).setDepth(1000);
+    }
+
+    // First stage fills 0→50%, second stage (tileset images) 50→100%.
+    const barMax = barW - 6;
+    this.load.on("progress", (v: number) => {
+      this.loadingBar.width = Math.max(1, barMax * (this.stage2 ? 0.5 + v / 2 : v / 2));
+    });
+  }
+
+  // flips when create() kicks off the tileset-image load (second half of the bar)
+  private stage2 = false;
+
+  private hideLoadingScreen() {
+    for (const o of this.loadingUi) o.destroy();
+    this.loadingUi = [];
+    this.cameras.main.fadeIn(450, 26, 26, 26);
+  }
+
   create() {
+    this.stage2 = true;
     // Second-stage load: the map names its tileset images (exported by
     // scripts/world-export-map.ts), so fetch whatever it declares.
     const mapdata = this.cache.json.get("mapdata") as {
@@ -84,6 +140,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private buildWorld() {
+    this.hideLoadingScreen();
     // ── Tilemap ─────────────────────────────────────────────────────────
     const map = this.make.tilemap({ key: "map" });
     const tiles = map.tilesets.map(
@@ -249,40 +306,47 @@ export class WorldScene extends Phaser.Scene {
       // Keyboard input cancels click target
       this.clickTarget = null;
 
-      let vx = 0;
-      let vy = 0;
-      if (left) vx -= PLAYER_SPEED;
-      if (right) vx += PLAYER_SPEED;
-      if (up) vy -= PLAYER_SPEED;
-      if (down) vy += PLAYER_SPEED;
+      // Pokémon-style 4-direction movement: never diagonal. Keep moving
+      // along the current facing while its key is held; otherwise take
+      // whichever single direction is pressed.
+      const held: { dir: FacingDirection; vx: number; vy: number }[] = [];
+      if (up) held.push({ dir: "up", vx: 0, vy: -PLAYER_SPEED });
+      if (down) held.push({ dir: "down", vx: 0, vy: PLAYER_SPEED });
+      if (left) held.push({ dir: "left", vx: -PLAYER_SPEED, vy: 0 });
+      if (right) held.push({ dir: "right", vx: PLAYER_SPEED, vy: 0 });
+      const move = held.find((h) => h.dir === this.facing) ?? held[0];
 
-      // Normalise diagonal
-      if (vx !== 0 && vy !== 0) {
-        vx *= 0.707;
-        vy *= 0.707;
-      }
-
-      body.setVelocity(vx, vy);
-      this.facing = this.velocityToFacing(vx, vy) ?? this.facing;
+      body.setVelocity(move.vx, move.vy);
+      this.facing = move.dir;
       this.player.play(`walk-${this.facing}`, true);
     } else if (this.clickTarget) {
       const dx = this.clickTarget.x - this.player.x;
       const dy = this.clickTarget.y - this.player.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
 
-      if (dist < ARRIVE_THRESHOLD) {
+      // Axis-aligned (L-shaped) walk: finish the dominant axis first,
+      // then the other — no diagonals here either.
+      let vx = 0;
+      let vy = 0;
+      if (Math.abs(dx) >= ARRIVE_THRESHOLD && Math.abs(dx) >= Math.abs(dy)) {
+        vx = Math.sign(dx) * PLAYER_SPEED;
+      } else if (Math.abs(dy) >= ARRIVE_THRESHOLD) {
+        vy = Math.sign(dy) * PLAYER_SPEED;
+      } else if (Math.abs(dx) >= ARRIVE_THRESHOLD) {
+        vx = Math.sign(dx) * PLAYER_SPEED;
+      }
+
+      if (vx === 0 && vy === 0) {
         // Arrived
         this.clickTarget = null;
         body.setVelocity(0, 0);
         this.player.play(`idle-${this.facing}`, true);
       } else {
-        const vx = (dx / dist) * PLAYER_SPEED;
-        const vy = (dy / dist) * PLAYER_SPEED;
         body.setVelocity(vx, vy);
         this.facing = this.velocityToFacing(vx, vy) ?? this.facing;
         this.player.play(`walk-${this.facing}`, true);
 
         // If blocked (velocity near zero while still far from target), cancel
+        const dist = Math.sqrt(dx * dx + dy * dy);
         const actualSpeed = Math.sqrt(
           body.velocity.x * body.velocity.x + body.velocity.y * body.velocity.y
         );
