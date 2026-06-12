@@ -195,7 +195,23 @@ Status items with visibly absurd prices (golden toilet, 25k) are the point.
   (`createCharacterAnims`), eased interpolation (1.25× walk speed,
   snap-teleport beyond 160px), and name labels. mapId is the constant
   `"neighborhood"` for now — becomes meaningful when interiors land.
-  v2 (websocket sidecar) remains tabled per the locked decision.
+- **Multiplayer presence v2 (websocket sidecar)** — shipped 2026-06-11,
+  pending Andrew's in-browser verify. `services/world-ws/` is a
+  dependency-light Node `ws` room server (own package.json + npm-10
+  lockfile, ~200 lines, no DB, no shared code) deployed as the
+  **`world-ws` Railway service** in the same project
+  (`wss://world-ws-production.up.railway.app`; deployed via
+  `railway up --service world-ws` from its dir — it is NOT on the
+  repo-autodeploy hook, redeploy manually after editing it). Auth:
+  `GET /api/world/ws-token` mints a 60s HMAC token (payload carries
+  userId/name/sheetPath) signed with `WORLD_WS_SECRET`, set on BOTH
+  services; the app also has `WORLD_WS_URL`. Client `SocketTransport`
+  samples player state at 10Hz, sends only on change, reconnects with
+  backoff (3 strikes), and degrades to `PollingTransport` on its own
+  when the sidecar is unconfigured or unreachable — the scene just
+  constructs `SocketTransport`. Protocol doc lives at the top of
+  `services/world-ws/server.js`; keep it in sync with `transport.ts`
+  and the token shape in `ws-token/route.ts`.
 
 ### Asset facts (verified by labeled-crop measurement — never guess grids)
 - Character generator sheets (`2_Characters/Character_Generator/*/16x16`):
