@@ -12,14 +12,21 @@ type ApiResponse = { game: MinesView | null; coins?: number };
 
 const MINE_COUNTS = [1, 3, 5, 10, 15, 20, 24] as const;
 
+// How long a tile spends "breaking" before its gem/bomb is shown. The reveal
+// is held back this long so each dig is a real moment, not an instant flip.
+const DIG_MS = 750;
+const delay = (ms: number) => new Promise<void>((res) => setTimeout(res, ms));
+
 function TileGrid({
   game,
   onReveal,
   busy,
+  digging,
 }: {
   game: MinesView;
   onReveal: (tile: number) => void;
   busy: boolean;
+  digging: number | null;
 }) {
   const isActive = game.status === "active";
   const isBusted = game.status === "busted";
@@ -36,7 +43,28 @@ function TileGrid({
         const isSafeRevealed = revealedSet.has(i);
         const isMine = isOver && mineSet.has(i);
         const isHidden = !isSafeRevealed && !isMine;
-        const canClick = isActive && isHidden && !busy;
+        const isDigging = digging === i;
+        // Hidden tiles keep their "live" look during a dig, but only become
+        // clickable when nothing is currently being dug.
+        const live = isActive && isHidden;
+        const canClick = live && !busy && digging === null;
+
+        if (isDigging) {
+          return (
+            <button
+              key={`dig-${i}`}
+              disabled
+              aria-label="Digging…"
+              className="mines-tile mines-digging relative flex h-12 w-full items-center justify-center border-2 border-ink text-xl"
+            >
+              <span className="mines-dig-cracks" aria-hidden />
+              <span className="mines-dig-dust" aria-hidden />
+              <span className="mines-tile-face" aria-hidden>
+                ?
+              </span>
+            </button>
+          );
+        }
 
         if (isSafeRevealed) {
           return (
@@ -77,7 +105,7 @@ function TileGrid({
             disabled={!canClick}
             aria-label={`Tile ${i}`}
             className={`mines-tile relative flex h-12 w-full items-center justify-center border-2 text-xl ${
-              canClick
+              live
                 ? "mines-tile-live cursor-pointer border-ink"
                 : "border-ink/40 opacity-50"
             }`}
@@ -177,6 +205,55 @@ const minesFx = `
   animation: mines-shockwave 0.6s ease-out both;
 }
 .mines-board-bust { animation: mines-board-bust 0.45s ease-out both; }
+@keyframes mines-dig {
+  0% { transform: translate(0, 0) scale(1); }
+  15% { transform: translate(-1px, 1px) scale(0.99); }
+  30% { transform: translate(2px, -1px) scale(1.01); }
+  45% { transform: translate(-2px, 1px) scale(0.985); }
+  60% { transform: translate(2px, -2px) scale(1.02); }
+  75% { transform: translate(-3px, 2px) scale(0.97); }
+  88% { transform: translate(3px, -2px) scale(1.05); }
+  100% { transform: translate(0, 0) scale(0.86); opacity: 0.8; }
+}
+@keyframes mines-crack {
+  0%, 22% { opacity: 0; transform: scale(0.55); }
+  60% { opacity: 0.55; }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes mines-dust {
+  0% { opacity: 0; transform: scale(0.3); }
+  25% { opacity: 0.7; }
+  100% { opacity: 0; transform: scale(1.9); }
+}
+.mines-digging {
+  background: linear-gradient(145deg, #efe8d6, #d6ccb4);
+  box-shadow: inset 0 -3px 0 rgba(26, 26, 26, 0.28), inset 0 2px 0 rgba(255, 255, 255, 0.5);
+  animation: mines-dig 0.75s ease-in both;
+}
+.mines-dig-cracks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(58deg, transparent 47%, rgba(26, 26, 26, 0.5) 48%, rgba(26, 26, 26, 0.5) 49%, transparent 50%),
+    linear-gradient(-37deg, transparent 46%, rgba(26, 26, 26, 0.42) 47%, rgba(26, 26, 26, 0.42) 48%, transparent 49%),
+    linear-gradient(8deg, transparent 49%, rgba(26, 26, 26, 0.38) 50%, rgba(26, 26, 26, 0.38) 51%, transparent 52%);
+  background-repeat: no-repeat;
+  opacity: 0;
+  animation: mines-crack 0.75s ease-in both;
+}
+.mines-dig-dust {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 70%;
+  height: 70%;
+  pointer-events: none;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(122, 102, 72, 0.55) 0%, rgba(122, 102, 72, 0) 70%);
+  opacity: 0;
+  animation: mines-dust 0.75s ease-out both;
+}
 `;
 
 export function MinesGame({ initialCoins }: { initialCoins: number }) {
@@ -188,6 +265,7 @@ export function MinesGame({ initialCoins }: { initialCoins: number }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [digging, setDigging] = useState<number | null>(null);
 
   // On mount: resume any active round
   useEffect(() => {
@@ -239,10 +317,20 @@ export function MinesGame({ initialCoins }: { initialCoins: number }) {
       })
     );
 
-  const revealTile = (tile: number) =>
-    run(() =>
-      api<ApiResponse>("/api/mines/reveal", { method: "POST", body: { tile } })
-    );
+  const revealTile = (tile: number) => {
+    if (busy || digging !== null) return;
+    setDigging(tile); // start the breaking animation immediately
+    playSfx("blip"); // the shovel hitting the tile — result sting fires on reveal
+    run(async () => {
+      // Hold the reveal until the breaking animation has played out, so the
+      // gem/bomb lands as a payoff instead of an instant flip.
+      const [res] = await Promise.all([
+        api<ApiResponse>("/api/mines/reveal", { method: "POST", body: { tile } }),
+        delay(DIG_MS),
+      ]);
+      return res;
+    }).finally(() => setDigging(null));
+  };
 
   const cashOut = () =>
     run(() => api<ApiResponse>("/api/mines/cashout", { method: "POST" }));
@@ -351,7 +439,7 @@ export function MinesGame({ initialCoins }: { initialCoins: number }) {
       {/* Grid */}
       {game ? (
         <Card className="space-y-4">
-          <TileGrid game={game} onReveal={revealTile} busy={busy} />
+          <TileGrid game={game} onReveal={revealTile} busy={busy} digging={digging} />
 
           {error && (
             <p className="border-3 border-ink bg-accent-red/15 px-3 py-2 font-mono text-xs">
