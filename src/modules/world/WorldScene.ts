@@ -20,7 +20,7 @@
 
 import Phaser from "phaser";
 import type { FacingDirection, PlayerState } from "./types";
-import { PollingTransport, type Peer, type PresenceTransport } from "./transport";
+import { SocketTransport, type Peer, type PresenceTransport } from "./transport";
 
 // Asset base URL — served (and auth-gated) by our API route.
 const ASSET_BASE = "/api/world/assets";
@@ -223,7 +223,7 @@ export class WorldScene extends Phaser.Scene {
     this.cameras.main.setRoundPixels(true);
 
     // ── Presence (multiplayer ghosts) ────────────────────────────────────
-    this.transport = new PollingTransport();
+    this.transport = new SocketTransport();
     this.transport.onPeers((peers) => this.syncPeers(peers));
     this.transport.join(MAP_ID, () => this.playerState());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.transport?.leave());

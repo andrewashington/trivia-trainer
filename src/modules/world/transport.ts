@@ -1,10 +1,14 @@
 /**
- * Client presence transport (v1: REST polling, per world-design.md).
+ * Client presence transports (per world-design.md).
  *
- * The scene reports its player state ~every 2s; each heartbeat's
- * response carries the peer list, which is handed to onPeers. The
- * interface is transport-shaped so a SocketTransport can replace this
- * later without touching the scene.
+ * v2 (preferred): SocketTransport — websocket to the world-ws sidecar
+ * (services/world-ws), ~10Hz position updates, push-based peers.
+ * v1 (fallback): PollingTransport — REST heartbeat every 2s; each
+ * response carries the peer list.
+ *
+ * SocketTransport degrades to PollingTransport on its own when the
+ * sidecar is unconfigured or unreachable, so the scene just constructs
+ * a SocketTransport and never thinks about it again.
  */
 
 import type { FacingDirection, PlayerState } from "./types";
@@ -90,5 +94,156 @@ export class PollingTransport implements PresenceTransport {
       "/api/world/presence",
       new Blob([body], { type: "application/json" })
     );
+  }
+}
+
+// ── v2: websocket transport ────────────────────────────────────────────────
+
+// How often we sample the player state and (if changed) push a move frame.
+const SEND_INTERVAL_MS = 100;
+// Reconnect with backoff; after this many consecutive failures, give up
+// on the socket for this session and fall back to polling.
+const MAX_RECONNECT_ATTEMPTS = 3;
+
+type ServerMsg =
+  | { t: "joined"; peers: Peer[] }
+  | { t: "peer"; peer: Peer }
+  | { t: "leave"; userId: string }
+  | { t: "error"; message: string };
+
+export class SocketTransport implements PresenceTransport {
+  private ws: WebSocket | null = null;
+  private mapId = "";
+  private getState: (() => PlayerState) | null = null;
+  private peersCb: ((peers: Peer[]) => void) | null = null;
+  private sendTimer: ReturnType<typeof setInterval> | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private failures = 0;
+  private lastSent = "";
+  private peers = new Map<string, Peer>();
+  private fallback: PollingTransport | null = null;
+  private left = false;
+
+  join(mapId: string, getState: () => PlayerState): void {
+    this.leave();
+    this.left = false;
+    this.mapId = mapId;
+    this.getState = getState;
+    void this.connect();
+  }
+
+  onPeers(cb: (peers: Peer[]) => void): void {
+    this.peersCb = cb;
+    this.fallback?.onPeers(cb);
+  }
+
+  leave(): void {
+    this.left = true;
+    if (this.sendTimer) clearInterval(this.sendTimer);
+    this.sendTimer = null;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    this.ws?.close(1000, "leaving");
+    this.ws = null;
+    this.fallback?.leave();
+    this.fallback = null;
+    this.peers.clear();
+    this.mapId = "";
+    this.getState = null;
+  }
+
+  private async connect(): Promise<void> {
+    if (this.left || !this.getState) return;
+    let url: string | null = null;
+    let token: string | null = null;
+    try {
+      const res = await fetch("/api/world/ws-token");
+      if (res.ok) {
+        const data = (await res.json()) as { url: string | null; token: string | null };
+        url = data.url;
+        token = data.token;
+      }
+    } catch {
+      // treated as a connection failure below
+    }
+    if (this.left) return;
+
+    // Sidecar not configured → polling, permanently for this session
+    if (!url || !token) {
+      this.usePollingFallback();
+      return;
+    }
+
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(url);
+    } catch {
+      this.onConnectionLost();
+      return;
+    }
+    this.ws = ws;
+
+    ws.onopen = () => {
+      if (this.left || !this.getState) return;
+      this.failures = 0;
+      const state = this.getState();
+      ws.send(JSON.stringify({ t: "join", token, mapId: this.mapId, ...state }));
+      this.lastSent = "";
+      this.sendTimer = setInterval(() => this.sendIfChanged(), SEND_INTERVAL_MS);
+    };
+
+    ws.onmessage = (ev) => {
+      let msg: ServerMsg;
+      try {
+        msg = JSON.parse(String(ev.data)) as ServerMsg;
+      } catch {
+        return;
+      }
+      if (msg.t === "joined") {
+        this.peers = new Map(msg.peers.map((p) => [p.userId, p]));
+      } else if (msg.t === "peer") {
+        this.peers.set(msg.peer.userId, msg.peer);
+      } else if (msg.t === "leave") {
+        this.peers.delete(msg.userId);
+      } else {
+        return;
+      }
+      this.peersCb?.([...this.peers.values()]);
+    };
+
+    ws.onclose = () => {
+      if (this.ws !== ws) return; // superseded by a newer connection
+      this.ws = null;
+      if (this.sendTimer) clearInterval(this.sendTimer);
+      this.sendTimer = null;
+      if (!this.left) this.onConnectionLost();
+    };
+    // onclose fires after onerror in browsers; no separate handling needed
+  }
+
+  private sendIfChanged(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.getState) return;
+    const state = this.getState();
+    const frame = JSON.stringify({ t: "move", ...state });
+    if (frame === this.lastSent) return;
+    this.lastSent = frame;
+    this.ws.send(frame);
+  }
+
+  private onConnectionLost(): void {
+    this.failures += 1;
+    if (this.failures >= MAX_RECONNECT_ATTEMPTS) {
+      this.usePollingFallback();
+      return;
+    }
+    const delay = 1000 * 2 ** (this.failures - 1); // 1s, 2s
+    this.reconnectTimer = setTimeout(() => void this.connect(), delay);
+  }
+
+  private usePollingFallback(): void {
+    if (this.left || this.fallback || !this.getState) return;
+    this.fallback = new PollingTransport();
+    if (this.peersCb) this.fallback.onPeers(this.peersCb);
+    this.fallback.join(this.mapId, this.getState);
   }
 }
