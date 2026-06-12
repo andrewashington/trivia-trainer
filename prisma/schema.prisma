@@ -86,6 +86,7 @@ model User {
   tanksWins          TanksGame[]        @relation("tanksWinner")
   tanksTurns         TanksTurn[]
   coinTransactions   CoinTransaction[]
+  coinRewardClaims   CoinRewardClaim[]
   gameChatMessages   GameChatMessage[]
   gayReadings        GayReading[]
   photobookPhotos    PhotobookPhoto[]
@@ -216,6 +217,21 @@ model CoinTransaction {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, reason, createdAt])
+}
+
+// Claim records for app-wide free coin drops. The active campaign lives in
+// src/lib/coinRewards.ts; this table makes each reward idempotent per user.
+model CoinRewardClaim {
+  id        String   @id @default(cuid())
+  userId    String
+  rewardKey String
+  amount    Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, rewardKey])
+  @@index([rewardKey, createdAt])
 }
 
 // ============ Tanks: async turn-based artillery duels ============

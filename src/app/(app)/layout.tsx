@@ -4,6 +4,7 @@ import { signOut } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { unreadCounts } from "@/lib/unread";
+import { ACTIVE_COIN_REWARD } from "@/lib/coinRewards";
 import { Logo } from "@/components/Logo";
 import { AppDecor } from "@/components/AppDecor";
 import { MobileNav, SideNav } from "@/components/NavTabs";
@@ -15,6 +16,7 @@ import { CoinBadge } from "@/components/CoinBadge";
 import { PresenceBadge } from "@/components/PresenceBadge";
 import { CommandButton } from "@/components/command/CommandButton";
 import { FeedbackButton } from "@/components/FeedbackButton";
+import { CoinRewardBanner } from "@/components/CoinRewardBanner";
 import { NotificationBell } from "@/components/NotificationBell";
 
 export default async function AppLayout({
@@ -35,6 +37,15 @@ export default async function AppLayout({
   const glowKeys = user.introsSeen.includes("world") ? [] : ["world"];
   const counts = await unreadCounts(user);
   const notifUnread = await db.notification.count({ where: { userId: user.id, readAt: null } });
+  const activeRewardClaim = await db.coinRewardClaim.findUnique({
+    where: {
+      userId_rewardKey: {
+        userId: user.id,
+        rewardKey: ACTIVE_COIN_REWARD.key,
+      },
+    },
+    select: { id: true },
+  });
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl">
@@ -66,6 +77,9 @@ export default async function AppLayout({
 
         <main className="flex-1">
           {user.onboardedAt && <ModuleIntro introsSeen={user.introsSeen} />}
+          {user.onboardedAt && !activeRewardClaim && (
+            <CoinRewardBanner reward={ACTIVE_COIN_REWARD} />
+          )}
           {children}
         </main>
       </div>
