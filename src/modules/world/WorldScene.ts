@@ -6,15 +6,16 @@
  * object layer, spawns the player at the "spawns" layer's "spawn" point,
  * and handles keyboard + tap/click-to-walk movement.
  *
- * Frame layout (Premade_Character_01.png, 896×656, frameW=16, frameH=16):
- *   Sheet cols = 56.  Frame index = row * 56 + col.
- *   Row 0: standing reference (4 frames)
- *     0 = idle down, 1 = idle left, 2 = idle right, 3 = idle up
- *   Row 1 (frames 56–111): walk cycle, all directions packed left→right
- *     down  cols 0–5  → frames 56–61
- *     left  cols 6–11 → frames 62–67
- *     right cols 12–17 → frames 68–73
- *     up    cols 18–23 → frames 74–79
+ * Frame layout (Premade_Character_01.png, 896×656, frameW=16, frameH=32 —
+ * characters are TWO tiles tall; verified visually via labeled crops):
+ *   Sheet cols = 56.  Frame index = row * 56 + col (rows are 32px).
+ *   Row 0: idle (4 frames), direction order RIGHT, UP, LEFT, DOWN
+ *     0 = idle right, 1 = idle up, 2 = idle left, 3 = idle down
+ *   Row 1 (frames 56–111): walk cycles, 6 frames each, same order
+ *     right cols 0–5   → frames 56–61
+ *     up    cols 6–11  → frames 62–67
+ *     left  cols 12–17 → frames 68–73
+ *     down  cols 18–23 → frames 74–79
  */
 
 import Phaser from "phaser";
@@ -57,7 +58,7 @@ export class WorldScene extends Phaser.Scene {
     this.load.json("mapdata", `${ASSET_BASE}/map.json`);
     this.load.spritesheet("character", `${ASSET_BASE}/character.png`, {
       frameWidth: 16,
-      frameHeight: 16,
+      frameHeight: 32,
     });
   }
 
@@ -111,6 +112,10 @@ export class WorldScene extends Phaser.Scene {
     this.player = this.physics.add.sprite(spawnX, spawnY, "character", 0);
     this.player.setDepth(5);
     this.player.setCollideWorldBounds(false);
+    // Collide with the feet only (sprite is 16×32; head may overlap props)
+    (this.player.body as Phaser.Physics.Arcade.Body)
+      .setSize(12, 10)
+      .setOffset(2, 22);
 
     // Collide player with the static rectangles
     this.physics.add.collider(this.player, colliders);
@@ -118,25 +123,25 @@ export class WorldScene extends Phaser.Scene {
     // ── Animations ───────────────────────────────────────────────────────
     this.anims.create({
       key: "idle-down",
-      frames: [{ key: "character", frame: frame(0, 0) }],
+      frames: [{ key: "character", frame: frame(0, 3) }],
       frameRate: 1,
       repeat: -1,
     });
     this.anims.create({
       key: "idle-left",
-      frames: [{ key: "character", frame: frame(0, 1) }],
-      frameRate: 1,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: "idle-right",
       frames: [{ key: "character", frame: frame(0, 2) }],
       frameRate: 1,
       repeat: -1,
     });
     this.anims.create({
+      key: "idle-right",
+      frames: [{ key: "character", frame: frame(0, 0) }],
+      frameRate: 1,
+      repeat: -1,
+    });
+    this.anims.create({
       key: "idle-up",
-      frames: [{ key: "character", frame: frame(0, 3) }],
+      frames: [{ key: "character", frame: frame(0, 1) }],
       frameRate: 1,
       repeat: -1,
     });
@@ -145,23 +150,14 @@ export class WorldScene extends Phaser.Scene {
     this.anims.create({
       key: "walk-down",
       frames: this.anims.generateFrameNumbers("character", {
-        start: frame(1, 0),
-        end: frame(1, 5),
+        start: frame(1, 18),
+        end: frame(1, 23),
       }),
       frameRate: 10,
       repeat: -1,
     });
     this.anims.create({
       key: "walk-left",
-      frames: this.anims.generateFrameNumbers("character", {
-        start: frame(1, 6),
-        end: frame(1, 11),
-      }),
-      frameRate: 10,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: "walk-right",
       frames: this.anims.generateFrameNumbers("character", {
         start: frame(1, 12),
         end: frame(1, 17),
@@ -170,10 +166,19 @@ export class WorldScene extends Phaser.Scene {
       repeat: -1,
     });
     this.anims.create({
+      key: "walk-right",
+      frames: this.anims.generateFrameNumbers("character", {
+        start: frame(1, 0),
+        end: frame(1, 5),
+      }),
+      frameRate: 10,
+      repeat: -1,
+    });
+    this.anims.create({
       key: "walk-up",
       frames: this.anims.generateFrameNumbers("character", {
-        start: frame(1, 18),
-        end: frame(1, 23),
+        start: frame(1, 6),
+        end: frame(1, 11),
       }),
       frameRate: 10,
       repeat: -1,
