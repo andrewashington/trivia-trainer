@@ -21,6 +21,7 @@
 import Phaser from "phaser";
 import type { FacingDirection, PlayerState } from "./types";
 import { SocketTransport, type Peer, type PresenceTransport } from "./transport";
+import { worldBridge } from "./bridge";
 
 // Asset base URL — served (and auth-gated) by our API route.
 const ASSET_BASE = "/api/world/assets";
@@ -40,16 +41,16 @@ const GHOST_SPEED = PLAYER_SPEED * 1.25;
 // How close (px) the player must be to an NPC to talk to it.
 const NPC_TALK_RANGE = 36;
 
-// NPC dialog, keyed by the object name on the map's "npcs" layer.
-// Each interaction advances to the next line.
-const NPC_LINES: Record<string, string[]> = {
-  shopkeep: [
-    "Welcome to the market. Everything is for sale except, legally, anything.",
-    "Browse all you want. The inventory system ships Soon™.",
-    "You're my favorite customer. Statistically unavoidable — you're the only one.",
-    "No refunds. Mostly because there are no purchases.",
-  ],
+// Interactive NPCs: name → which React panel talking to them opens
+// (via worldBridge). NPCs not listed here just cycle dialog lines.
+const NPC_PANELS: Record<string, "shop"> = {
+  shopkeep: "shop",
 };
+
+// NPC dialog, keyed by the object name on the map's "npcs" layer.
+// Each interaction advances to the next line. (NPCs in NPC_PANELS skip
+// dialog and open their panel instead — their voice lives in the modal.)
+const NPC_LINES: Record<string, string[]> = {};
 // A peer further than this from its ghost just teleports (joined,
 // door transition, or a long network gap — don't slide across the map).
 const GHOST_SNAP_DISTANCE = 160;
@@ -100,6 +101,14 @@ export class WorldScene extends Phaser.Scene {
   private bubble: Phaser.GameObjects.Text | null = null;
   private bubbleTimer: Phaser.Time.TimerEvent | null = null;
 
+  // True while a React panel (shop etc.) is open over the canvas —
+  // gameplay input is frozen so WASD doesn't walk under the modal.
+  private uiOpen = false;
+  private bridgeUnsubs: (() => void)[] = [];
+  // Texture key of the player's sheet; changes when the avatar is
+  // re-composited mid-session (anims are prefixed by this key).
+  private playerKey = "character";
+
   constructor() {
     super({ key: "WorldScene" });
   }
@@ -122,6 +131,11 @@ export class WorldScene extends Phaser.Scene {
     this.npcs = [];
     this.bubble = null;
     this.bubbleTimer = null;
+    this.uiOpen = false;
+    for (const u of this.bridgeUnsubs) u();
+    this.bridgeUnsubs = [];
+    // NOTE: playerKey intentionally NOT reset — a swapped avatar sheet
+    // persists at the game level across map transitions.
   }
 
   preload() {
@@ -252,7 +266,7 @@ export class WorldScene extends Phaser.Scene {
     const spawnX = spawnObj?.x ?? map.widthInPixels / 2;
     const spawnY = spawnObj?.y ?? map.heightInPixels / 2;
 
-    this.player = this.physics.add.sprite(spawnX, spawnY, "character", 0);
+    this.player = this.physics.add.sprite(spawnX, spawnY, this.playerKey, 0);
     this.player.setDepth(5);
     this.player.setCollideWorldBounds(false);
     // Collide with the feet only (sprite is 16×32; head may overlap props)
@@ -307,8 +321,8 @@ export class WorldScene extends Phaser.Scene {
     }
 
     // ── Animations ───────────────────────────────────────────────────────
-    this.createCharacterAnims("character");
-    this.player.play("character-idle-down");
+    this.createCharacterAnims(this.playerKey);
+    this.player.play(`${this.playerKey}-idle-down`);
 
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard!.createCursorKeys();
@@ -356,6 +370,20 @@ export class WorldScene extends Phaser.Scene {
     this.transport.join(this.mapId, () => this.playerState());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.transport?.leave());
     this.events.once(Phaser.Scenes.Events.DESTROY, () => this.transport?.leave());
+
+    // ── React bridge (shop modal etc.) ───────────────────────────────────
+    this.bridgeUnsubs.push(
+      worldBridge.on("panel-closed", () => {
+        this.uiOpen = false;
+      }),
+      worldBridge.on("avatar-updated", ({ sheetPath }) => this.swapPlayerSheet(sheetPath))
+    );
+    const unsubAll = () => {
+      for (const u of this.bridgeUnsubs) u();
+      this.bridgeUnsubs = [];
+    };
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, unsubAll);
+    this.events.once(Phaser.Scenes.Events.DESTROY, unsubAll);
   }
 
   // ── Multiplayer ghosts ─────────────────────────────────────────────────
@@ -517,8 +545,36 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  /** Hot-swap the player's spritesheet (e.g. equipped a new outfit). */
+  private swapPlayerSheet(sheetPath: string) {
+    if (!this.player) return;
+    const key = `character-${Date.now()}`;
+    this.load.spritesheet(key, `${ASSET_BASE}/${sheetPath}`, {
+      frameWidth: 16,
+      frameHeight: 32,
+    });
+    this.load.once(`filecomplete-spritesheet-${key}`, () => {
+      if (!this.player) return; // scene switched while loading
+      this.createCharacterAnims(key);
+      this.playerKey = key;
+      this.player.setTexture(key, 0);
+      this.player.play(`${key}-idle-${this.facing}`, true);
+    });
+    this.load.start();
+  }
+
   // ── NPC dialog ─────────────────────────────────────────────────────────
   private talkTo(npc: { sprite: Phaser.GameObjects.Sprite; name: string; lineIdx: number }) {
+    // Interactive NPCs open their React panel instead of chatting
+    const panel = NPC_PANELS[npc.name];
+    if (panel) {
+      this.uiOpen = true;
+      this.clickTarget = null;
+      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      this.player.play(`${this.playerKey}-idle-${this.facing}`, true);
+      worldBridge.emit("open-panel", { panel, npc: npc.name });
+      return;
+    }
     const lines = NPC_LINES[npc.name] ?? ["…"];
     const line = lines[npc.lineIdx % lines.length];
     npc.lineIdx++;
@@ -582,6 +638,11 @@ export class WorldScene extends Phaser.Scene {
     // World builds asynchronously (second-stage tileset load in create())
     if (!this.player || this.switchingMap) return;
     this.updateGhosts(delta);
+    if (this.uiOpen) {
+      // A React panel is open — freeze gameplay input (ghosts still move)
+      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      return;
+    }
     this.checkPortals();
 
     // E talks to the nearest NPC in range
@@ -625,7 +686,7 @@ export class WorldScene extends Phaser.Scene {
 
       body.setVelocity(move.vx, move.vy);
       this.facing = move.dir;
-      this.player.play(`character-walk-${this.facing}`, true);
+      this.player.play(`${this.playerKey}-walk-${this.facing}`, true);
     } else if (this.clickTarget) {
       const dx = this.clickTarget.x - this.player.x;
       const dy = this.clickTarget.y - this.player.y;
@@ -646,11 +707,11 @@ export class WorldScene extends Phaser.Scene {
         // Arrived
         this.clickTarget = null;
         body.setVelocity(0, 0);
-        this.player.play(`character-idle-${this.facing}`, true);
+        this.player.play(`${this.playerKey}-idle-${this.facing}`, true);
       } else {
         body.setVelocity(vx, vy);
         this.facing = this.velocityToFacing(vx, vy) ?? this.facing;
-        this.player.play(`character-walk-${this.facing}`, true);
+        this.player.play(`${this.playerKey}-walk-${this.facing}`, true);
 
         // If blocked (velocity near zero while still far from target), cancel
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -663,7 +724,7 @@ export class WorldScene extends Phaser.Scene {
       }
     } else {
       body.setVelocity(0, 0);
-      this.player.play(`character-idle-${this.facing}`, true);
+      this.player.play(`${this.playerKey}-idle-${this.facing}`, true);
     }
   }
 

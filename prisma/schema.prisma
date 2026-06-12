@@ -109,6 +109,7 @@ model User {
   minesGames         MinesGame[]
   crashRounds        CrashRound[]
   worldOwnedItems    WorldOwnedItem[]
+  worldCosmetics     WorldOwnedCosmetic[]
   worldHouse         WorldHouse?
   worldAvatar        WorldAvatar?
 }
@@ -1216,6 +1217,21 @@ model WorldOwnedItem {
   item WorldItem @relation(fields: [itemId], references: [id])
 
   @@index([userId])
+}
+
+// Unlocked avatar cosmetics. Catalog (names/prices/colors) lives in
+// src/modules/world/cosmetics.ts; this row just records ownership.
+// kind = "outfit" today; future kinds (hairstyle…) reuse the table.
+model WorldOwnedCosmetic {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String
+  itemKey   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, itemKey])
 }
 
 // One house per user; tier = floorplan size (the big coin sink), plot =

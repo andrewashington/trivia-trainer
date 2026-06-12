@@ -43,10 +43,19 @@ export async function loadPartsManifest(): Promise<PartsManifest> {
 }
 
 /** Composite the config's layers and store the personal spritesheet at
- *  avatars/<userId>.png. Returns the asset-relative path. */
-export async function buildAvatarSheet(userId: string, config: AvatarConfig): Promise<string> {
+ *  avatars/<userId>.png. Returns the asset-relative path.
+ *  `extraOutfits` extends the manifest's starter wardrobe with styles
+ *  the user has purchased (style → colors, from cosmetics.ts). */
+export async function buildAvatarSheet(
+  userId: string,
+  config: AvatarConfig,
+  extraOutfits: Record<string, string[]> = {}
+): Promise<string> {
   const manifest = await loadPartsManifest();
-  const problem = validateAgainstManifest(config, manifest);
+  const problem = validateAgainstManifest(config, {
+    ...manifest,
+    outfits: { ...manifest.outfits, ...extraOutfits },
+  });
   if (problem) throw new Error(problem);
 
   const [base, ...overlays] = await Promise.all(partPaths(config).map(readAsset));

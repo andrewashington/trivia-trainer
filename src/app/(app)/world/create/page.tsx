@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/session";
 import { db } from "@/lib/db";
 import type { AvatarConfig } from "@/modules/world/avatar";
+import { OUTFIT_COLORS } from "@/modules/world/cosmetics";
 import { CreatorClient } from "./CreatorClient";
 
 export const metadata = { title: "Character Creator" };
@@ -15,7 +16,21 @@ export default async function WorldCreatePage() {
   const user = await currentUser();
   if (!user) redirect("/signin");
 
-  const avatar = await db.worldAvatar.findUnique({ where: { userId: user.id } });
+  const [avatar, owned] = await Promise.all([
+    db.worldAvatar.findUnique({ where: { userId: user.id } }),
+    db.worldOwnedCosmetic.findMany({
+      where: { userId: user.id, kind: "outfit" },
+      select: { itemKey: true },
+    }),
+  ]);
+  // Purchased outfit styles → colors, merged into the starter manifest
+  // client-side so bought looks are pickable here too.
+  const ownedOutfits = Object.fromEntries(
+    owned
+      .map((o) => o.itemKey)
+      .filter((k) => OUTFIT_COLORS[k])
+      .map((k) => [k, OUTFIT_COLORS[k]])
+  );
 
   return (
     <div className="space-y-4">
@@ -27,7 +42,10 @@ export default async function WorldCreatePage() {
           this is you now · choose wisely (you can come back)
         </p>
       </div>
-      <CreatorClient initialConfig={(avatar?.config as AvatarConfig | undefined) ?? null} />
+      <CreatorClient
+        initialConfig={(avatar?.config as AvatarConfig | undefined) ?? null}
+        ownedOutfits={ownedOutfits}
+      />
     </div>
   );
 }

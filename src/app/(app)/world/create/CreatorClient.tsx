@@ -68,7 +68,14 @@ function Stepper({
   );
 }
 
-export function CreatorClient({ initialConfig }: { initialConfig: AvatarConfig | null }) {
+export function CreatorClient({
+  initialConfig,
+  ownedOutfits = {},
+}: {
+  initialConfig: AvatarConfig | null;
+  /** Purchased outfit styles → colors, merged into the starter manifest. */
+  ownedOutfits?: Record<string, string[]>;
+}) {
   const router = useRouter();
   const [manifest, setManifest] = useState<PartsManifest | null>(null);
   const [config, setConfig] = useState<AvatarConfig | null>(initialConfig);
@@ -85,10 +92,13 @@ export function CreatorClient({ initialConfig }: { initialConfig: AvatarConfig |
         return r.json();
       })
       .then((m: PartsManifest) => {
-        setManifest(m);
-        setConfig((c) => c ?? defaultConfig(m));
+        const merged = { ...m, outfits: { ...m.outfits, ...ownedOutfits } };
+        setManifest(merged);
+        setConfig((c) => c ?? defaultConfig(merged));
       })
       .catch((e) => setError(e.message));
+    // ownedOutfits is a server-rendered constant for the page's lifetime
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 6-frame animation loop (idle ~6fps, walk ~10fps)

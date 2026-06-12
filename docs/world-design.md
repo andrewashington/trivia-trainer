@@ -346,6 +346,42 @@ animation wired Phaser-side later.
 Design: small road loop, ~8 house facades, park/plaza in the middle.
 Hand back: filename + tilesets used + plot count.
 
+## Interactive elements (runbook — the shop is the reference implementation)
+
+First shipped 2026-06-12: the market shopkeep sells outfit cosmetics for
+coins. The architecture is the template for every future interactive
+element (vendors, minigames, mailboxes, house decoration):
+
+- **Phaser owns the world, React owns the UI.** Anything with forms,
+  money, or persistence is a React modal over the canvas + API routes —
+  never built in Phaser.
+- **`src/modules/world/bridge.ts`** is the typed event bus between them.
+  Scene emits `open-panel` (player input freezes via `uiOpen`); React
+  modal renders in `WorldClient`; closing emits `panel-closed`;
+  `avatar-updated` hot-swaps the player sheet in-scene (versioned
+  texture key — `playerKey` survives map transitions).
+- **NPC → panel wiring** is the `NPC_PANELS` table in `WorldScene.ts`
+  (npc object name → panel id). Non-listed NPCs cycle `NPC_LINES`.
+- **Cosmetics specifically:** catalog (names/prices/colors) is code, in
+  `src/modules/world/cosmetics.ts`; ownership is the
+  `WorldOwnedCosmetic` table (userId, kind, itemKey — kinds beyond
+  "outfit" reuse it). All 33 outfit styles are staged on S3; the
+  creator manifest carries only the 5 starters, and purchased styles
+  are merged in at /world/create (server passes `ownedOutfits`) and
+  validated server-side in the avatar/equip routes (`wearableOutfits`).
+- **Money:** spends follow the pet-rename pattern — balance check +
+  `coinTransaction.create` (negative amount) + `user.coins decrement` +
+  ownership row, all in one `withOutbox` transaction
+  (`world.cosmetic.purchased`).
+- **Endpoints:** `GET /api/world/shop` (catalog+coins+config),
+  `POST /api/world/shop/purchase`, `POST /api/world/shop/equip`.
+
+To add a new interactive element: add the bridge event/panel id, an
+entry in `NPC_PANELS` (and an `npcs` point on the map), a modal in
+`src/modules/world/`, rendered from `WorldClient`, and API routes under
+`/api/world/<thing>/`. Server-side validation always; the client is a
+rumor.
+
 ## Adding a new map (runbook — follow this every time)
 
 The engine is multi-map (since 2026-06-12): each map is its own presence

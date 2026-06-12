@@ -71,7 +71,8 @@ export type OutboxEventType =
   | "canvas.drew"
   | "smash.deck.created"
   | "smash.voted"
-  | "smash.deck.deleted";
+  | "smash.deck.deleted"
+  | "world.cosmetic.purchased";
 
 /**
  * Write a domain event (and apply any coin award it earns) on an open
