@@ -13,6 +13,14 @@
 
 import type { FacingDirection, PlayerState } from "./types";
 
+export type ChatMessage = {
+  id: string;
+  userId: string;
+  name: string;
+  text: string;
+  at: number;
+};
+
 export type Peer = {
   userId: string;
   name: string;
@@ -27,6 +35,9 @@ export interface PresenceTransport {
   /** Start heartbeating. getState is polled for the latest player state. */
   join(mapId: string, getState: () => PlayerState): void;
   onPeers(cb: (peers: Peer[]) => void): void;
+  onChat(cb: (message: ChatMessage) => void): void;
+  onChatStatus(cb: (available: boolean) => void): void;
+  sendChat(text: string): boolean;
   leave(): void;
 }
 
@@ -37,6 +48,7 @@ export class PollingTransport implements PresenceTransport {
   private mapId = "";
   private getState: (() => PlayerState) | null = null;
   private peersCb: ((peers: Peer[]) => void) | null = null;
+  private chatStatusCb: ((available: boolean) => void) | null = null;
   private inFlight = false;
   private onPageHide = () => this.beaconLeave();
 
@@ -47,10 +59,24 @@ export class PollingTransport implements PresenceTransport {
     this.timer = setInterval(() => void this.tick(), HEARTBEAT_MS);
     void this.tick(); // immediate first heartbeat — see peers right away
     window.addEventListener("pagehide", this.onPageHide);
+    this.chatStatusCb?.(false);
   }
 
   onPeers(cb: (peers: Peer[]) => void): void {
     this.peersCb = cb;
+  }
+
+  onChat(_cb: (message: ChatMessage) => void): void {
+    // Polling presence does not carry chat; websocket sessions do.
+  }
+
+  onChatStatus(cb: (available: boolean) => void): void {
+    this.chatStatusCb = cb;
+    cb(false);
+  }
+
+  sendChat(_text: string): boolean {
+    return false;
   }
 
   leave(): void {
@@ -108,6 +134,7 @@ const MAX_RECONNECT_ATTEMPTS = 3;
 type ServerMsg =
   | { t: "joined"; peers: Peer[] }
   | { t: "peer"; peer: Peer }
+  | { t: "chat"; message: ChatMessage }
   | { t: "leave"; userId: string }
   | { t: "error"; message: string };
 
@@ -116,6 +143,8 @@ export class SocketTransport implements PresenceTransport {
   private mapId = "";
   private getState: (() => PlayerState) | null = null;
   private peersCb: ((peers: Peer[]) => void) | null = null;
+  private chatCb: ((message: ChatMessage) => void) | null = null;
+  private chatStatusCb: ((available: boolean) => void) | null = null;
   private sendTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private failures = 0;
@@ -137,6 +166,25 @@ export class SocketTransport implements PresenceTransport {
     this.fallback?.onPeers(cb);
   }
 
+  onChat(cb: (message: ChatMessage) => void): void {
+    this.chatCb = cb;
+    this.fallback?.onChat(cb);
+  }
+
+  onChatStatus(cb: (available: boolean) => void): void {
+    this.chatStatusCb = cb;
+    cb(this.ws?.readyState === WebSocket.OPEN && !this.fallback);
+    this.fallback?.onChatStatus(cb);
+  }
+
+  sendChat(text: string): boolean {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || this.fallback) return false;
+    const trimmed = text.trim().slice(0, 180);
+    if (!trimmed) return false;
+    this.ws.send(JSON.stringify({ t: "chat", text: trimmed }));
+    return true;
+  }
+
   leave(): void {
     this.left = true;
     if (this.sendTimer) clearInterval(this.sendTimer);
@@ -145,6 +193,7 @@ export class SocketTransport implements PresenceTransport {
     this.reconnectTimer = null;
     this.ws?.close(1000, "leaving");
     this.ws = null;
+    this.chatStatusCb?.(false);
     this.fallback?.leave();
     this.fallback = null;
     this.peers.clear();
@@ -188,6 +237,7 @@ export class SocketTransport implements PresenceTransport {
       this.failures = 0;
       const state = this.getState();
       ws.send(JSON.stringify({ t: "join", token, mapId: this.mapId, ...state }));
+      this.chatStatusCb?.(true);
       this.lastSent = "";
       this.sendTimer = setInterval(() => this.sendIfChanged(), SEND_INTERVAL_MS);
     };
@@ -205,6 +255,9 @@ export class SocketTransport implements PresenceTransport {
         this.peers.set(msg.peer.userId, msg.peer);
       } else if (msg.t === "leave") {
         this.peers.delete(msg.userId);
+      } else if (msg.t === "chat") {
+        this.chatCb?.(msg.message);
+        return;
       } else {
         return;
       }
@@ -214,6 +267,7 @@ export class SocketTransport implements PresenceTransport {
     ws.onclose = () => {
       if (this.ws !== ws) return; // superseded by a newer connection
       this.ws = null;
+      this.chatStatusCb?.(false);
       if (this.sendTimer) clearInterval(this.sendTimer);
       this.sendTimer = null;
       if (!this.left) this.onConnectionLost();
@@ -244,6 +298,8 @@ export class SocketTransport implements PresenceTransport {
     if (this.left || this.fallback || !this.getState) return;
     this.fallback = new PollingTransport();
     if (this.peersCb) this.fallback.onPeers(this.peersCb);
+    if (this.chatCb) this.fallback.onChat(this.chatCb);
+    if (this.chatStatusCb) this.fallback.onChatStatus(this.chatStatusCb);
     this.fallback.join(this.mapId, this.getState);
   }
 }

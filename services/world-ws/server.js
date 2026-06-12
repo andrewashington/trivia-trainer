@@ -16,8 +16,10 @@
  * Protocol (JSON text frames):
  *   client → server: {t:"join", token, mapId, x, y, facing}
  *                    {t:"move", x, y, facing, moving}
+ *                    {t:"chat", text}
  *   server → client: {t:"joined", peers:[Peer]}      (snapshot on join)
  *                    {t:"peer", peer:Peer}           (someone moved/joined)
+ *                    {t:"chat", message}             (room chat)
  *                    {t:"leave", userId}
  *                    {t:"error", message}            (then socket closes)
  */
@@ -34,6 +36,7 @@ if (!SECRET) {
 }
 
 const FACINGS = new Set(["down", "up", "left", "right"]);
+const CHAT_MAX_CHARS = 180;
 // Dead-connection sweep: server pings; a socket that misses two rounds dies.
 const PING_INTERVAL_MS = 15_000;
 
@@ -84,6 +87,11 @@ function broadcast(room, exceptUserId, msg) {
       m.ws.send(text);
     }
   }
+}
+
+function cleanChatText(value) {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim().slice(0, CHAT_MAX_CHARS);
 }
 
 // ── Server ────────────────────────────────────────────────────────────────
@@ -165,6 +173,25 @@ wss.on("connection", (ws) => {
       member.peer.facing = msg.facing;
       member.peer.moving = msg.moving === true;
       broadcast(room, userId, { t: "peer", peer: member.peer });
+      return;
+    }
+
+    if (msg.t === "chat" && userId && mapId) {
+      const room = rooms.get(mapId);
+      const member = room?.get(userId);
+      if (!member || member.ws !== ws) return;
+      const text = cleanChatText(msg.text);
+      if (!text) return;
+      broadcast(room, userId, {
+        t: "chat",
+        message: {
+          id: `${userId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+          userId,
+          name: member.peer.name,
+          text,
+          at: Date.now(),
+        },
+      });
     }
   });
 

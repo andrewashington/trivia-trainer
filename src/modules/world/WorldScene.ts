@@ -20,11 +20,19 @@
 
 import Phaser from "phaser";
 import type { FacingDirection, PlayerState } from "./types";
-import { SocketTransport, type Peer, type PresenceTransport } from "./transport";
+import {
+  SocketTransport,
+  type ChatMessage,
+  type Peer,
+  type PresenceTransport,
+} from "./transport";
 import { worldBridge } from "./bridge";
 
 // Asset base URL — served (and auth-gated) by our API route.
 const ASSET_BASE = "/api/world/assets";
+const WORLD_MUSIC_KEY = "world-pixel-jackpot";
+const WORLD_MUSIC_SRC = "/music/pixel-jackpot.mp3";
+const WORLD_MUSIC_VOLUME = 0.28;
 
 // Pixel speed for player movement.
 const PLAYER_SPEED = 90;
@@ -40,6 +48,8 @@ const FRAME_COLS = 56;
 const GHOST_SPEED = PLAYER_SPEED * 1.25;
 // How close (px) the player must be to an NPC to talk to it.
 const NPC_TALK_RANGE = 36;
+const CHAT_BUBBLE_MS = 5000;
+const CHAT_MAX_CHARS = 180;
 
 // Interactive NPCs: name → which React panel talking to them opens
 // (via worldBridge). NPCs not listed here just cycle dialog lines.
@@ -58,6 +68,13 @@ const GHOST_SNAP_DISTANCE = 160;
 function frame(row: number, col: number): number {
   return row * FRAME_COLS + col;
 }
+
+type WorldMusicSound = Phaser.Sound.BaseSound & {
+  mute: boolean;
+  volume: number;
+  setMute(value: boolean): WorldMusicSound;
+  setVolume(value: number): WorldMusicSound;
+};
 
 export class WorldScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -100,23 +117,34 @@ export class WorldScene extends Phaser.Scene {
   private talkKey: Phaser.Input.Keyboard.Key | null = null;
   private bubble: Phaser.GameObjects.Text | null = null;
   private bubbleTimer: Phaser.Time.TimerEvent | null = null;
+  private playerChatBubble: Phaser.GameObjects.Text | null = null;
+  private playerChatBubbleTimer: Phaser.Time.TimerEvent | null = null;
 
   // True while a React panel (shop etc.) is open over the canvas —
   // gameplay input is frozen so WASD doesn't walk under the modal.
   private uiOpen = false;
+  private chatFocused = false;
   private bridgeUnsubs: (() => void)[] = [];
   // Texture key of the player's sheet; changes when the avatar is
   // re-composited mid-session (anims are prefixed by this key).
   private playerKey = "character";
+  private music: WorldMusicSound | null = null;
+  private musicMuted = false;
 
   constructor() {
     super({ key: "WorldScene" });
   }
 
-  init(data: { characterPath?: string; mapId?: string; spawnName?: string }) {
+  init(data: {
+    characterPath?: string;
+    mapId?: string;
+    spawnName?: string;
+    musicMuted?: boolean;
+  }) {
     if (data?.characterPath) this.characterPath = data.characterPath;
     this.mapId = data?.mapId ?? "neighborhood";
     this.spawnName = data?.spawnName ?? "spawn";
+    this.musicMuted = data?.musicMuted ?? this.musicMuted;
     // Scene restarts (map transitions) reuse this instance — reset
     // everything that referenced the previous map's objects.
     this.player = undefined as unknown as Phaser.Physics.Arcade.Sprite;
@@ -131,9 +159,16 @@ export class WorldScene extends Phaser.Scene {
     this.npcs = [];
     this.bubble = null;
     this.bubbleTimer = null;
+    this.playerChatBubble = null;
+    this.playerChatBubbleTimer = null;
     this.uiOpen = false;
+    this.chatFocused = false;
+    this.music = null;
     for (const u of this.bridgeUnsubs) u();
     this.bridgeUnsubs = [];
+    this.bridgeUnsubs.push(
+      worldBridge.on("music-muted", ({ muted }) => this.setWorldMusicMuted(muted))
+    );
     // NOTE: playerKey intentionally NOT reset — a swapped avatar sheet
     // persists at the game level across map transitions.
   }
@@ -153,6 +188,9 @@ export class WorldScene extends Phaser.Scene {
       frameWidth: 16,
       frameHeight: 32,
     });
+    if (!this.cache.audio.exists(WORLD_MUSIC_KEY)) {
+      this.load.audio(WORLD_MUSIC_KEY, WORLD_MUSIC_SRC);
+    }
     // Admin-editable game data (NPC dialog) — cached for the session
     this.load.json("world-content", "/api/world/content");
   }
@@ -227,6 +265,7 @@ export class WorldScene extends Phaser.Scene {
 
   private buildWorld() {
     this.hideLoadingScreen();
+    this.ensureWorldMusic();
     // ── Tilemap ─────────────────────────────────────────────────────────
     const map = this.make.tilemap({ key: `map-${this.mapId}` });
     const tiles = map.tilesets.map(
@@ -369,6 +408,10 @@ export class WorldScene extends Phaser.Scene {
     // ── Presence (multiplayer ghosts) ────────────────────────────────────
     this.transport = new SocketTransport();
     this.transport.onPeers((peers) => this.syncPeers(peers));
+    this.transport.onChat((message) => this.receiveChatMessage(message));
+    this.transport.onChatStatus((available) => {
+      worldBridge.emit("chat-status", { available });
+    });
     this.transport.join(this.mapId, () => this.playerState());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.transport?.leave());
     this.events.once(Phaser.Scenes.Events.DESTROY, () => this.transport?.leave());
@@ -378,7 +421,11 @@ export class WorldScene extends Phaser.Scene {
       worldBridge.on("panel-closed", () => {
         this.uiOpen = false;
       }),
-      worldBridge.on("avatar-updated", ({ sheetPath }) => this.swapPlayerSheet(sheetPath))
+      worldBridge.on("avatar-updated", ({ sheetPath }) => this.swapPlayerSheet(sheetPath)),
+      worldBridge.on("chat-focus", ({ focused }) => {
+        this.chatFocused = focused;
+      }),
+      worldBridge.on("chat-send", ({ text }) => this.sendChatMessage(text))
     );
     const unsubAll = () => {
       for (const u of this.bridgeUnsubs) u();
@@ -386,6 +433,110 @@ export class WorldScene extends Phaser.Scene {
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, unsubAll);
     this.events.once(Phaser.Scenes.Events.DESTROY, unsubAll);
+
+    this.input.once("pointerdown", () => {
+      this.playWorldMusic();
+    });
+  }
+
+  // ── Room chat ─────────────────────────────────────────────────────────
+  private cleanChatText(text: string) {
+    return text.replace(/\s+/g, " ").trim().slice(0, CHAT_MAX_CHARS);
+  }
+
+  private sendChatMessage(text: string) {
+    const clean = this.cleanChatText(text);
+    if (!clean) return;
+
+    if (!this.transport?.sendChat(clean)) {
+      worldBridge.emit("chat-status", { available: false });
+      return;
+    }
+
+    const message = {
+      id: `me:${Date.now()}`,
+      userId: "me",
+      name: "You",
+      text: clean,
+      at: Date.now(),
+      mine: true,
+    };
+    worldBridge.emit("chat-message", message);
+    this.showPlayerChatBubble(clean);
+  }
+
+  private receiveChatMessage(message: ChatMessage) {
+    worldBridge.emit("chat-message", message);
+    const ghost = this.ghosts.get(message.userId);
+    if (ghost) this.showChatBubble(ghost.sprite, message.text, false);
+  }
+
+  private showPlayerChatBubble(text: string) {
+    this.playerChatBubble?.destroy();
+    this.playerChatBubbleTimer?.remove();
+    if (!this.player) return;
+    this.playerChatBubble = this.showChatBubble(this.player, text, true);
+    this.playerChatBubbleTimer = this.time.delayedCall(CHAT_BUBBLE_MS, () => {
+      this.playerChatBubble = null;
+    });
+  }
+
+  private showChatBubble(
+    target: { x: number; y: number },
+    text: string,
+    isMine: boolean
+  ) {
+    const bubble = this.add
+      .text(target.x, target.y - 42, text, {
+        fontFamily: "monospace",
+        fontSize: "8px",
+        color: isMine ? "#111111" : "#ffffff",
+        backgroundColor: isMine ? "#fde047" : "#111111",
+        padding: { x: 4, y: 3 },
+        wordWrap: { width: 120 },
+        align: "center",
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(30)
+      .setResolution(3);
+
+    this.tweens.add({
+      targets: bubble,
+      alpha: 0,
+      delay: CHAT_BUBBLE_MS - 900,
+      duration: 900,
+      onComplete: () => bubble.destroy(),
+    });
+    return bubble;
+  }
+
+  // ── Background music ──────────────────────────────────────────────────
+  private ensureWorldMusic() {
+    const existing = this.sound.get<WorldMusicSound>(WORLD_MUSIC_KEY);
+    this.music =
+      existing ??
+      (this.sound.add(WORLD_MUSIC_KEY, {
+        loop: true,
+        volume: WORLD_MUSIC_VOLUME,
+      }) as WorldMusicSound);
+    this.music.setVolume(WORLD_MUSIC_VOLUME);
+    this.music.setMute(this.musicMuted);
+    this.playWorldMusic();
+  }
+
+  private setWorldMusicMuted(muted: boolean) {
+    this.musicMuted = muted;
+    if (!this.cache.audio.exists(WORLD_MUSIC_KEY)) return;
+    this.ensureWorldMusic();
+  }
+
+  private playWorldMusic() {
+    if (!this.music || this.musicMuted || this.music.isPlaying) return;
+    this.music.play({
+      loop: true,
+      volume: WORLD_MUSIC_VOLUME,
+      mute: this.musicMuted,
+    });
   }
 
   // ── Multiplayer ghosts ─────────────────────────────────────────────────
@@ -617,6 +768,7 @@ export class WorldScene extends Phaser.Scene {
         characterPath: this.characterPath,
         mapId: target,
         spawnName: spawn,
+        musicMuted: this.musicMuted,
       });
     });
   }
@@ -643,8 +795,12 @@ export class WorldScene extends Phaser.Scene {
     // World builds asynchronously (second-stage tileset load in create())
     if (!this.player || this.switchingMap) return;
     this.updateGhosts(delta);
-    if (this.uiOpen) {
-      // A React panel is open — freeze gameplay input (ghosts still move)
+    this.playerChatBubble?.setPosition(
+      Math.round(this.player.x),
+      Math.round(this.player.y - 42)
+    );
+    if (this.uiOpen || this.chatFocused) {
+      // React UI is active — freeze gameplay input (ghosts still move)
       (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
       return;
     }
