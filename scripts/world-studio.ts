@@ -35,6 +35,7 @@ type DraftItem = {
 type SeedEntry = {
   name?: string; category?: string; tier?: string;
   price?: number | null; surface?: string; keep?: boolean; publish?: boolean;
+  skip?: boolean; // explicitly decided "no" (distinct from undecided); never seeded
 };
 type Seed = { items: Record<string, SeedEntry> };
 
@@ -451,14 +452,76 @@ const CATALOG_PAGE = /* html */ `<!doctype html>
   .toggles { display:flex; gap:10px; font-size:12px; }
   .toggles label { display:flex; gap:4px; align-items:center; cursor:pointer; }
   .empty { opacity:.5; padding:40px; text-align:center; }
+  /* ── queue mode ── */
+  #queue { position:fixed; inset:0; z-index:20; background:#f5f1e8; display:none;
+           flex-direction:column; }
+  #queue.on { display:flex; }
+  #queue .qhead { background:#fde047; border-bottom:3px solid #1a1a1a; padding:8px 16px;
+                  display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  #queue .qhead h1 { font-size:14px; text-transform:uppercase; margin:0; }
+  #queue .qhead .grow { flex:1; }
+  #qbar { height:8px; background:#1a1a1a22; border:2px solid #1a1a1a; flex:1; min-width:120px; }
+  #qbar i { display:block; height:100%; background:#15803d; width:0; }
+  #qprog { font-size:12px; font-weight:700; white-space:nowrap; }
+  .qbody { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+           gap:14px; padding:18px; }
+  .qstage { width:340px; height:340px; display:flex; align-items:center; justify-content:center;
+            background:#dfd8c8; border:4px solid #1a1a1a; box-shadow:6px 6px 0 #1a1a1a; position:relative; }
+  .qstage img { image-rendering:pixelated; max-width:300px; max-height:300px; }
+  .qstage .fp { position:absolute; right:6px; bottom:5px; font-size:13px; background:#1a1a1a;
+                color:#fde047; padding:1px 6px; font-weight:700; }
+  .qstage .th { position:absolute; left:6px; top:5px; font-size:11px; background:#1a1a1a;
+                color:#fff; padding:1px 6px; }
+  #qname { width:380px; max-width:90vw; font-size:20px; font-weight:700; text-align:center;
+           border:3px solid #1a1a1a; padding:8px; background:#fff; }
+  .qtiers { display:flex; gap:6px; }
+  .qtiers button { border:3px solid #1a1a1a; background:#fff; font:inherit; font-weight:700;
+                   padding:6px 12px; cursor:pointer; font-size:13px; }
+  .qtiers button.on { background:#1a1a1a; color:#fde047; }
+  .qtiers button .pc { display:block; font-size:10px; opacity:.7; font-weight:400; }
+  .qtiers button.on .pc { opacity:.85; }
+  .qmeta { display:flex; gap:10px; align-items:center; font-size:13px; }
+  .qsurf button { border:2px solid #1a1a1a; background:#fff; font:inherit; font-size:12px;
+                  padding:3px 9px; cursor:pointer; }
+  .qsurf button.on { background:#1a1a1a; color:#fff; }
+  .qactions { display:flex; gap:12px; }
+  .qactions button { border:3px solid #1a1a1a; font:inherit; font-weight:700; padding:9px 20px;
+                     cursor:pointer; box-shadow:3px 3px 0 #1a1a1a; font-size:14px; }
+  .qskip { background:#fca5a5; } .qkeep { background:#86efac; } .qback { background:#fffdf7; }
+  .qhint { font-size:12px; opacity:.6; text-align:center; line-height:1.7; }
+  .qhint kbd { border:1px solid #1a1a1a; border-bottom-width:2px; border-radius:3px;
+               padding:0 4px; font-family:inherit; background:#fff; }
+  #qtoast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:30;
+            background:#1a1a1a; color:#fff; padding:8px 14px; font-size:12px; border:2px solid #1a1a1a;
+            display:none; align-items:center; gap:10px; }
+  #qtoast button { background:#fde047; border:2px solid #fff; font:inherit; font-weight:700;
+                   padding:2px 8px; cursor:pointer; }
+  .qdone { text-align:center; }
+  .qdone h2 { font-size:18px; }
 </style></head><body>
 <header>
   <a class="back" href="/">← Studio</a>
   <h1>🛋 Furniture Catalog</h1>
   <span id="totals"></span>
+  <button class="b" style="border:2px solid #1a1a1a;background:#fffdf7;box-shadow:2px 2px 0 #1a1a1a;font:inherit;font-weight:700;padding:4px 10px;cursor:pointer" onclick="openQueue()">⚡ Queue mode</button>
   <span class="grow"></span>
   <span id="saved"></span>
 </header>
+
+<div id="queue">
+  <div class="qhead">
+    <button class="qback" style="border:2px solid #1a1a1a;background:#fffdf7;font:inherit;font-weight:700;padding:3px 9px;cursor:pointer" onclick="closeQueue()">✕ Exit</button>
+    <h1>⚡ Queue</h1>
+    <select id="qscope" onchange="startQueue(this.value)"></select>
+    <label style="font-size:12px"><input type="checkbox" id="qpublish" checked> auto-publish kept</label>
+    <span class="grow"></span>
+    <div id="qbar"><i></i></div>
+    <span id="qprog"></span>
+  </div>
+  <div class="qbody" id="qbody"></div>
+</div>
+<div id="qtoast"></div>
+
 <div class="wrap">
   <nav id="themes"></nav>
   <main>
@@ -589,6 +652,148 @@ async function bulkUnkeep(){
     body:JSON.stringify({theme:CUR,patch:{keep:false}})});
   pick(CUR); refreshCounts();
 }
+
+// ── queue mode: one item at a time, keyboard-driven, fast ───────────────
+let qScope = "", qList = [], qIdx = 0, qHist = [], qSkips = 0;
+let qTierIdx = 2, qSurf = "floor"; // sticky across items
+function qOn(){ return document.getElementById("queue").classList.contains("on"); }
+function tierPriceK(k){ const z=DATA.tiers.find(function(x){return x.key===k;}); return z?z.price:0; }
+function norm(s){ s=s||{}; return { name:(s.name||"").trim(), category:s.category, tier:s.tier||null,
+  price:(s.price!=null?s.price:null), surface:s.surface||"floor", keep:!!s.keep, skip:!!s.skip, publish:!!s.publish }; }
+
+function fillScope(){
+  const opts = DATA.themes.map(function(t){
+    const left = t.count - t.decided;
+    return '<option value="'+t.theme+'">'+t.label+' ('+left+' left)</option>';
+  }).join("");
+  const totalLeft = DATA.count - DATA.decided;
+  document.getElementById("qscope").innerHTML =
+    '<option value="">All themes ('+totalLeft+' left)</option>'+opts;
+  document.getElementById("qscope").value = qScope;
+}
+function openQueue(){
+  if (DATA.count===0){ alert("Scan first — no sprites yet."); return; }
+  fillScope();
+  document.getElementById("queue").classList.add("on");
+  startQueue(qScope);
+}
+function closeQueue(){
+  document.getElementById("queue").classList.remove("on");
+  document.getElementById("qtoast").style.display="none";
+  refreshCounts().then(function(){ if(CUR) pick(CUR); });
+}
+async function startQueue(scope){
+  qScope = scope; qSkips = 0; qHist = []; qIdx = 0;
+  const url = scope ? "/api/catalog/items?theme="+encodeURIComponent(scope) : "/api/catalog/items";
+  const r = await (await fetch(url)).json();
+  // only undecided items — re-entering resumes where you left off
+  qList = r.items.filter(function(it){ return !(it.seed&&(it.seed.keep||it.seed.skip)); });
+  renderQ();
+}
+function renderQ(){
+  const body = document.getElementById("qbody");
+  updateProg();
+  if (qIdx >= qList.length){
+    body.innerHTML = '<div class="qdone"><h2>✓ Nothing left in this scope</h2>'+
+      '<p class="qhint">'+qSkips+' skipped this session. Skipped items stay out of the catalog — '+
+      'flip to grid view to revisit them, or pick another scope above.</p>'+
+      '<div class="qactions"><button class="qkeep" onclick="closeQueue()">Done</button></div></div>';
+    return;
+  }
+  const it = qList[qIdx];
+  const s = it.seed || {};
+  if (s.tier){ const i=DATA.tiers.findIndex(function(z){return z.key===s.tier;}); if(i>=0) qTierIdx=i; }
+  if (s.surface) qSurf = s.surface;
+  const tiers = DATA.tiers.map(function(z,i){
+    return '<button onclick="setQTier('+i+')" class="'+(i===qTierIdx?'on':'')+'" title="'+z.blurb+'">'+
+      z.label+'<span class="pc">'+z.price+'c</span></button>';
+  }).join("");
+  const surfs = DATA.surfaces.map(function(u){
+    return '<button data-s="'+u+'" class="'+(u===qSurf?'on':'')+'" onclick="setQSurf(\\''+u+'\\')">'+u+'</button>';
+  }).join("");
+  body.innerHTML =
+    '<div class="qstage"><span class="th">'+esc(it.themeLabel)+'</span>'+
+      '<img src="/furniture-img?key='+it.key+'"><span class="fp">'+it.tileW+'×'+it.tileH+'</span></div>'+
+    '<input id="qname" placeholder="name it…" value="'+esc(s.name||"")+'">'+
+    '<div class="qtiers">'+tiers+'</div>'+
+    '<div class="qmeta"><span>surface</span><div class="qsurf">'+surfs+'</div></div>'+
+    '<div class="qactions">'+
+      '<button class="qback" onclick="qBack()">← Back</button>'+
+      '<button class="qskip" onclick="qSkip()">Skip ⎋</button>'+
+      '<button class="qkeep" onclick="qKeep()">Keep ↵</button></div>'+
+    '<div class="qhint">type a name then <kbd>↵</kbd> to keep · <kbd>esc</kbd> skip · '+
+      '<kbd>↑</kbd><kbd>↓</kbd> tier · <kbd>←</kbd><kbd>→</kbd> surface · <kbd>⌘Z</kbd> back</div>';
+  const nm = document.getElementById("qname");
+  nm.focus(); nm.select();
+  // preload the next sprite so advancing is instant
+  if (qIdx+1 < qList.length){ const im=new Image(); im.src="/furniture-img?key="+qList[qIdx+1].key; }
+}
+function updateProg(){
+  const n=qList.length, i=Math.min(qIdx,n);
+  document.getElementById("qprog").textContent = i+" / "+n+(qSkips?" · "+qSkips+" skipped":"");
+  document.querySelector("#qbar i").style.width = (n? (i/n*100):0)+"%";
+}
+function paintTier(){ var bs=document.querySelectorAll(".qtiers button");
+  for (var i=0;i<bs.length;i++) bs[i].classList.toggle("on", i===qTierIdx); }
+function paintSurf(){ var bs=document.querySelectorAll(".qsurf button");
+  for (var i=0;i<bs.length;i++) bs[i].classList.toggle("on", bs[i].dataset.s===qSurf); }
+function setQTier(i){ qTierIdx=i; paintTier(); }
+function setQSurf(s){ qSurf=s; paintSurf(); }
+function cycleSurf(d){ var i=DATA.surfaces.indexOf(qSurf); i=(i+d+DATA.surfaces.length)%DATA.surfaces.length;
+  qSurf=DATA.surfaces[i]; paintSurf(); }
+
+function qCommit(it, patch, verb){
+  qHist.push({ idx:qIdx, key:it.key, prev:Object.assign({}, it.seed||{}) });
+  it.seed = Object.assign({}, it.seed||{}, patch);
+  qSave(it.key, it.seed);
+  qToast(verb, it.seed.name||it.key);
+  qIdx++; renderQ();
+}
+function qKeep(){
+  const it=qList[qIdx]; if(!it) return;
+  const name=(document.getElementById("qname").value||"").trim();
+  if(!name){ qSkip(); return; } // never keep something unnamed
+  qCommit(it, { name:name, tier:DATA.tiers[qTierIdx].key, surface:qSurf, keep:true, skip:false,
+    publish:document.getElementById("qpublish").checked }, "kept");
+}
+function qSkip(){
+  const it=qList[qIdx]; if(!it) return;
+  const name=(document.getElementById("qname").value||"").trim();
+  const patch={ keep:false, skip:true }; if(name) patch.name=name;
+  qSkips++;
+  qCommit(it, patch, "skipped");
+}
+function qBack(){
+  const h=qHist.pop(); if(!h){ return; }
+  qIdx=h.idx;
+  const it=qList[qIdx]; it.seed=h.prev;
+  if (h.prev && h.prev.skip) qSkips=Math.max(0,qSkips-1);
+  qSave(it.key, it.seed);
+  document.getElementById("qtoast").style.display="none";
+  renderQ();
+}
+async function qSave(key, seed){
+  flash("saving…");
+  await fetch("/api/catalog/save",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({key:key,patch:norm(seed)})});
+  flash("saved ✓"); refreshCounts();
+}
+function qToast(verb, name){
+  const t=document.getElementById("qtoast"); t.style.display="flex";
+  t.innerHTML = verb+': <b style="margin:0 3px">'+esc(name)+'</b> <button onclick="qBack()">undo ⌘Z</button>';
+  clearTimeout(qToast._t); qToast._t=setTimeout(function(){ t.style.display="none"; }, 2600);
+}
+document.addEventListener("keydown", function(e){
+  if(!qOn()) return;
+  if(e.key==="Enter"){ e.preventDefault(); qKeep(); }
+  else if(e.key==="Escape"){ e.preventDefault(); qSkip(); }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); qTierIdx=Math.min(DATA.tiers.length-1,qTierIdx+1); paintTier(); }
+  else if(e.key==="ArrowDown"){ e.preventDefault(); qTierIdx=Math.max(0,qTierIdx-1); paintTier(); }
+  else if(e.key==="ArrowLeft"){ e.preventDefault(); cycleSurf(-1); }
+  else if(e.key==="ArrowRight"){ e.preventDefault(); cycleSurf(1); }
+  else if((e.metaKey||e.ctrlKey) && (e.key==="z"||e.key==="Z")){ e.preventDefault(); qBack(); }
+});
+
 boot();
 </script>
 </body></html>`;
@@ -627,20 +832,22 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/api/catalog/data") {
     const { items } = loadDraft();
     const seed = loadSeed();
-    const themes = new Map<string, { theme: string; label: string; count: number; kept: number; named: number }>();
-    let kept = 0, published = 0;
+    const themes = new Map<string, { theme: string; label: string; count: number; kept: number; skipped: number; decided: number; named: number }>();
+    let kept = 0, published = 0, skipped = 0, decided = 0;
     for (const it of items) {
-      const t = themes.get(it.theme) ?? { theme: it.theme, label: it.themeLabel, count: 0, kept: 0, named: 0 };
+      const t = themes.get(it.theme) ?? { theme: it.theme, label: it.themeLabel, count: 0, kept: 0, skipped: 0, decided: 0, named: 0 };
       t.count++;
       const e = seed.items[it.key];
       if (e?.keep) { t.kept++; kept++; }
+      if (e?.skip) { t.skipped++; skipped++; }
+      if (e?.keep || e?.skip) { t.decided++; decided++; }
       if (e?.name?.trim()) t.named++;
       if (e?.publish) published++;
       themes.set(it.theme, t);
     }
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
-      count: items.length, kept, published,
+      count: items.length, kept, published, skipped, decided,
       themes: [...themes.values()].sort((a, b) => a.label.localeCompare(b.label)),
       tiers: TIERS, surfaces: SURFACES,
     }));
@@ -652,7 +859,7 @@ const server = http.createServer(async (req, res) => {
     const seed = loadSeed();
     const theme = url.searchParams.get("theme");
     const rows = items
-      .filter((it) => it.theme === theme)
+      .filter((it) => !theme || it.theme === theme)
       .map((it) => ({ ...it, seed: seed.items[it.key] ?? {} }));
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ items: rows }));
