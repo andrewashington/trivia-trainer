@@ -415,10 +415,12 @@ order below the player, except `overhead`):
 
 **Steps:**
 
-1. In Tiled: File → New Map (16×16 tiles), or copy
-   `maps/interior-template.tmx` for interiors (I1–I6 tilesets pre-loaded).
-   **Save As a new file in `assets-src/runtime/world/maps/` — never build
-   inside the template itself.**
+1. Scaffold it: `npm run world:new-map -- <id> --kind interior|exterior
+   [--size WxH] [--label "Name"]`. This writes a contract-correct .tmx
+   (layers pre-named, tilesets loaded, collision border, `spawn` point,
+   empty `npcs`/`portals` layers) AND registers it in MAP_REGISTRY.
+   (The old copy-the-template flow is retired; interior-template.tmx
+   was deleted in favor of the generator.)
 2. Paint tile layers; add `collision` rects; add a `spawns` point named
    `spawn`; add a `portals` rect back to where you came from (name =
    source map id, Class = the named spawn point you added on the source
@@ -426,11 +428,13 @@ order below the player, except `overhead`):
 3. On the source map (e.g. `working-map.tmx`): add a `portals` rect over
    the doorway (name = new map id, Class = `spawn`), and a `spawns`
    point just below/outside the door for re-emerging.
-4. Register the map in `MAP_REGISTRY` (`src/modules/world/maps.ts`) —
-   the exporter and the /world/admin console both read it.
+4. (Registration already happened in step 1 — `MAP_REGISTRY` in
+   `src/modules/world/maps.ts` feeds the exporter and /world/admin.)
 5. (If the map has NPCs) add their dialog lines under the same key in
    `NPC_LINES` in `src/modules/world/WorldScene.ts`.
-6. Export + verify: `npx tsx scripts/world-export-map.ts` then
+6. Export + verify: `npm run world:export` — this also VALIDATES the
+   map contract (required layers, spawn points, portal targets/arrival
+   spawns, stuck-map detection) and exits nonzero with fix-its. Then
    `npm run typecheck`.
 7. Ship: commit, push, and
    `railway run --service trivia-trainer npx tsx scripts/world-sync-assets.ts`

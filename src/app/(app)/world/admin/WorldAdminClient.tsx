@@ -23,6 +23,33 @@ type CatalogRow = {
 const TABS = ["shop", "dialogue", "maps", "runbooks"] as const;
 type Tab = (typeof TABS)[number];
 
+const OWNER_BADGE: Record<string, { label: string; cls: string }> = {
+  you: { label: "YOU", cls: "bg-accent-green" },
+  claude: { label: "CLAUDE", cls: "bg-accent-grape text-white" },
+  info: { label: "FYI", cls: "bg-accent-yellow" },
+};
+
+/** Render `backtick` spans as code chips. */
+function Inline({ text }: { text: string }) {
+  const parts = text.split("`");
+  return (
+    <>
+      {parts.map((p, i) =>
+        i % 2 === 1 ? (
+          <code
+            key={i}
+            className="mx-0.5 rounded-none border border-ink/40 bg-ink/10 px-1 py-px font-mono text-[11px]"
+          >
+            {p}
+          </code>
+        ) : (
+          <span key={i}>{p}</span>
+        )
+      )}
+    </>
+  );
+}
+
 async function putConfig(key: "cosmetics" | "dialog", value: unknown): Promise<string | null> {
   const res = await fetch("/api/world/admin/config", {
     method: "PUT",
@@ -264,12 +291,45 @@ export function WorldAdminClient({
           {runbooks
             .filter((r) => r.id === openBook)
             .map((r) => (
-              <pre
-                key={r.id}
-                className="overflow-x-auto whitespace-pre-wrap border-2 border-ink bg-ink/5 p-3 font-mono text-xs leading-relaxed"
-              >
-                {r.body}
-              </pre>
+              <div key={r.id} className="space-y-3">
+                <p className="font-mono text-[11px] text-ink/50">{r.tagline}</p>
+                {r.sections.map((sec, si) => {
+                  const badge = OWNER_BADGE[sec.owner];
+                  return (
+                    <div key={si} className="border-2 border-ink">
+                      <div className="flex items-center gap-2 border-b-2 border-ink bg-ink/5 px-3 py-1.5">
+                        <span
+                          className={`border-2 border-ink px-1.5 py-px font-mono text-[10px] font-bold ${badge.cls}`}
+                        >
+                          {badge.label}
+                        </span>
+                        <p className="text-sm font-black">{sec.heading}</p>
+                      </div>
+                      <div className="space-y-2 p-3">
+                        {sec.intro && (
+                          <p className="text-xs leading-relaxed text-ink/70">
+                            <Inline text={sec.intro} />
+                          </p>
+                        )}
+                        {sec.steps && (
+                          <ol className="space-y-1.5">
+                            {sec.steps.map((step, sti) => (
+                              <li key={sti} className="flex gap-2 text-xs leading-relaxed">
+                                <span className="mt-px shrink-0 border border-ink bg-card px-1 font-mono text-[10px] font-bold">
+                                  {sti + 1}
+                                </span>
+                                <span>
+                                  <Inline text={step} />
+                                </span>
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ))}
         </Card>
       )}

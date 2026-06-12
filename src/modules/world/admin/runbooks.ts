@@ -1,77 +1,131 @@
 /**
  * Process runbooks shown in /world/admin — Andrew's side of every world
- * workflow, kept where he'll actually look for them. The deep technical
- * versions live in docs/world-design.md; these are the operator's view.
+ * workflow, kept where he'll actually look for them. Structured data so
+ * the console can render real steps with YOU/CLAUDE badges; the deep
+ * technical versions live in docs/world-design.md.
+ *
+ * Inline `backticks` render as code chips in the console.
  */
 
-export type Runbook = { id: string; title: string; body: string };
+export type RunbookSection = {
+  heading: string;
+  /** Who does this part. Colors the section badge. */
+  owner: "you" | "claude" | "info";
+  intro?: string;
+  steps?: string[];
+};
+
+export type Runbook = {
+  id: string;
+  title: string;
+  tagline: string;
+  sections: RunbookSection[];
+};
 
 export const RUNBOOKS: Runbook[] = [
   {
     id: "new-map",
     title: "Add a new map",
-    body: `YOUR PART (in Tiled)
-
-1. Open assets-src/world.tiled-project in Tiled.
-2. For interiors: open maps/interior-template.tmx and immediately
-   "Save As" a NEW file in assets-src/runtime/world/maps/
-   (e.g. cafe-interior.tmx). Never build inside the template.
-3. Paint tile layers bottom-to-top. Any names are fine
-   (subfloor/floor/props...) EXCEPT "overhead", which is reserved for
-   things that draw above players (awnings, tall furniture tops).
-4. Add object layers (names exact):
-   - collision: rectangles over every solid thing + the walls
-   - spawns:    a point named "spawn" where players arrive
-   - npcs:      (optional) a point per NPC; name = its dialog/shop key
-   - portals:   (optional, Claude can do this part) a rectangle per
-     door; Name = target map id, Class = spawn point to arrive at
-5. Save. Done with Tiled.
-
-HAND OFF TO CLAUDE — say:
-  "New map saved at maps/<file>.tmx, call it <map-id>. The door
-   connects to <where on which map>."
-
-CLAUDE'S PART (so you know what happens next): registers the map in
-MAP_REGISTRY, wires portals + a return spawn on the source map, adds
-NPC dialog, exports, typechecks, commits, pushes, syncs assets to S3.`,
+    tagline: "one command scaffolds it — you only paint",
+    sections: [
+      {
+        heading: "Scaffold the map",
+        owner: "you",
+        intro:
+          "Never copy or save-as a template again. One command creates the file with every layer pre-named, the right tilesets loaded, a collision border, and a spawn point — and registers it with the game.",
+        steps: [
+          "In the repo: `npm run world:new-map -- cafe-interior --kind interior --label \"The Cafe\"`",
+          "Kinds: `interior` (40x30, I1–I6 tilesets) or `exterior` (50x50, outdoor tilesets, grass pre-filled). Custom size: `--size 60x40`",
+          "Too lazy to run a command? Just tell Claude \"scaffold me an interior map called cafe-interior\" — same result.",
+        ],
+      },
+      {
+        heading: "Paint it in Tiled",
+        owner: "you",
+        intro: "Open `assets-src/world.tiled-project` in Tiled, pick your new map. The layers already exist — paint into them, don't create new ones.",
+        steps: [
+          "Tile layers (bottom→top, already created): interiors `subfloor` → `floor` → `props`, exteriors `ground` → `props`. Put anything that should draw ABOVE players (awnings, treetops, tall furniture tops) on `overhead`.",
+          "`collision` layer: draw rectangles over everything solid. The map border is pre-drawn. Use the Rectangle tool — avoid single clicks (they make zero-size objects that collide with nothing).",
+          "`spawns` layer: a point named `spawn` already exists — drag it to where players should arrive (usually just inside the door).",
+          "`npcs` layer (optional): Insert Point where an NPC stands. Name = its dialog key (e.g. `barista`). Class = display name (e.g. `Barista`).",
+          "`portals` layer: leave it — Claude wires doors during handoff.",
+          "Save. That's it for Tiled.",
+        ],
+      },
+      {
+        heading: "Hand off",
+        owner: "you",
+        steps: [
+          "Tell Claude: \"cafe-interior is painted — the door connects to the cafe storefront on the neighborhood map\" (or wherever).",
+        ],
+      },
+      {
+        heading: "What happens next",
+        owner: "claude",
+        steps: [
+          "Wires portals both ways + a return spawn outside the door",
+          "Runs `npm run world:export` — this VALIDATES the map contract (layers, spawn, portal targets) and fails loudly with exact fix-its",
+          "Adds NPC dialog defaults (editable in the Dialogue tab after)",
+          "Typechecks, commits, pushes, syncs assets to S3 — live in minutes",
+        ],
+      },
+    ],
   },
   {
     id: "new-interactive",
-    title: "Add an interactive element (vendor, minigame…)",
-    body: `The shop is the reference implementation. The shape is always:
-
-1. An NPC point on the map (your part, in Tiled — see "Add a new map"
-   step 4) or an existing NPC.
-2. Scene-side: one entry in NPC_PANELS (WorldScene.ts) mapping the NPC
-   name to a panel id. Talking to it freezes the game and opens React.
-3. A modal component in src/modules/world/, rendered by WorldClient,
-   talking to API routes under /api/world/<thing>/.
-4. Anything tunable (prices, dialog, drop rates) gets defaults in code
-   and admin overrides via WorldConfig — then it's editable right here
-   in this console without a deploy.
-
-YOUR PART: describe the interaction ("the barista sells coffee buffs",
-"the arcade cabinet plays snake for tickets") and place the NPC point.
-Claude builds the rest following the shop's pattern.`,
+    title: "Add an interactive element",
+    tagline: "vendors, minigames, mailboxes — the shop is the template",
+    sections: [
+      {
+        heading: "Your part",
+        owner: "you",
+        steps: [
+          "Place an NPC point on the map (`npcs` layer — see Add a new map), or pick an existing NPC.",
+          "Describe the interaction to Claude: \"the barista sells coffee buffs\", \"the arcade cabinet plays snake for tickets\".",
+          "After it ships: tune its prices/dialog right here in the console — no deploy.",
+        ],
+      },
+      {
+        heading: "How Claude builds it (the invariant pattern)",
+        owner: "claude",
+        steps: [
+          "One entry in `NPC_PANELS` (WorldScene) — talking to the NPC freezes the game and opens a React panel",
+          "A modal in `src/modules/world/`, rendered by WorldClient, talking to `/api/world/<thing>/` routes",
+          "Anything tunable gets code defaults + WorldConfig overrides → it shows up in this console",
+          "Money always flows through the coin ledger in one transaction",
+        ],
+      },
+    ],
   },
   {
     id: "shipping",
-    title: "How things ship (and what edits skip the deploy)",
-    body: `TWO PIPELINES, know which one you're touching:
-
-CODE (scene logic, new features, catalog defaults)
-  → commit → push → Railway auto-builds (~3-5 min). Claude handles it.
-
-ASSETS (maps, tilesets, character parts)
-  → npx tsx scripts/world-export-map.ts
-  → railway run --service trivia-trainer npx tsx scripts/world-sync-assets.ts
-  → live on next page load, NO deploy needed. Claude handles it.
-
-NO PIPELINE AT ALL (this console)
-  Prices, item names, NPC dialog — saved straight to the database,
-  players see it on their next page load / shop open.
-
-DB migrations ship with code and run automatically on boot.
-Rollback: Railway dashboard → Deployments → last good → Redeploy.`,
+    title: "How things ship",
+    tagline: "three pipelines — know which one you're touching",
+    sections: [
+      {
+        heading: "This console (instant)",
+        owner: "info",
+        steps: [
+          "Prices, item names, NPC dialogue → saved to the database, live on the player's next page load. No deploy, no sync, no Claude.",
+        ],
+      },
+      {
+        heading: "Assets: maps, tilesets, character parts (minutes, no deploy)",
+        owner: "claude",
+        steps: [
+          "`npm run world:export` (also validates the map contract)",
+          "`railway run --service trivia-trainer npx tsx scripts/world-sync-assets.ts`",
+          "Live on next page load — the game fetches assets from S3.",
+        ],
+      },
+      {
+        heading: "Code: features, scene logic, catalog defaults (~5 min)",
+        owner: "claude",
+        steps: [
+          "Commit → push → Railway auto-builds. DB migrations run automatically on boot.",
+          "Rollback: Railway dashboard → Deployments → last good → Redeploy.",
+        ],
+      },
+    ],
   },
 ];

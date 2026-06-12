@@ -40,7 +40,17 @@ type TsRef = {
   imageH: number;
 };
 
-function exportMap(mapId: string, mapSrc: string) {
+type MapSummary = {
+  id: string;
+  tileLayers: string[];
+  objectLayers: string[];
+  spawns: string[];
+  portals: { target: string; spawn: string }[];
+  zeroSizeCollisions: number;
+  unnamedNpcs: number;
+};
+
+function exportMap(mapId: string, mapSrc: string): MapSummary {
   const xml = fs.readFileSync(mapSrc, "utf8");
 
   const mapAttrs = xml.match(/<map ([^>]+)>/)![1];
@@ -221,6 +231,75 @@ function exportMap(mapId: string, mapSrc: string) {
     console.log(`  tileset ${ts.name} firstgid=${ts.firstgid} → ${ts.image} (${mb(`${OUT_DIR}/${ts.image}`)} MB)`);
   const dropped = tilesets.filter((t) => !finalTilesets.includes(t)).map((t) => t.name);
   if (dropped.length) console.log(`  dropped (unused/dup, gids remapped): ${dropped.join(", ")}`);
+
+  // collect what the validator needs
+  const objLayers = layers.filter((l) => l.type === "objectgroup");
+  const layerObjects = (name: string) =>
+    ((objLayers.find((l) => l.name === name)?.objects as AnyLayer[]) ?? []);
+  return {
+    id: mapId,
+    tileLayers: layers.filter((l) => l.type === "tilelayer").map((l) => l.name as string),
+    objectLayers: objLayers.map((l) => l.name as string),
+    spawns: layerObjects("spawns").map((o) => o.name as string),
+    portals: layerObjects("portals").map((o) => ({
+      target: o.name as string,
+      spawn: (o.type as string) || "spawn",
+    })),
+    zeroSizeCollisions: layerObjects("collision").filter((o) => !o.width || !o.height).length,
+    unnamedNpcs: layerObjects("npcs").filter((o) => !o.name).length,
+  };
 }
 
-for (const m of MAP_REGISTRY) exportMap(m.id, m.tmx);
+// ── Export all maps, then validate the map contract + cross-map wiring ──
+const summaries = MAP_REGISTRY.map((m) => exportMap(m.id, m.tmx));
+
+const errors: string[] = [];
+const warnings: string[] = [];
+const byId = new Map(summaries.map((s) => [s.id, s]));
+
+for (const s of summaries) {
+  for (const required of ["collision", "spawns"]) {
+    if (!s.objectLayers.includes(required))
+      errors.push(`${s.id}: missing required object layer "${required}"`);
+  }
+  if (!s.spawns.includes("spawn"))
+    errors.push(`${s.id}: spawns layer has no point named "spawn" (the default arrival)`);
+  if (!s.tileLayers.includes("overhead"))
+    warnings.push(`${s.id}: no "overhead" tile layer — nothing will draw above players`);
+  if (s.zeroSizeCollisions)
+    warnings.push(
+      `${s.id}: ${s.zeroSizeCollisions} zero-size collision object(s) (stray click in Tiled?) — they collide with nothing`
+    );
+  if (s.unnamedNpcs)
+    warnings.push(`${s.id}: ${s.unnamedNpcs} unnamed npc point(s) — name = dialog/shop key, so they'll say "…"`);
+
+  for (const p of s.portals) {
+    if (!p.target) {
+      errors.push(`${s.id}: a portal rect has no name (name must be the target map id)`);
+      continue;
+    }
+    const target = byId.get(p.target);
+    if (!target) {
+      errors.push(`${s.id}: portal targets "${p.target}" which isn't in MAP_REGISTRY`);
+    } else if (!target.spawns.includes(p.spawn)) {
+      errors.push(
+        `${s.id}: portal → ${p.target} arrives at spawn "${p.spawn}", but ${p.target} has no such spawn point (has: ${target.spawns.join(", ") || "none"})`
+      );
+    }
+  }
+  // a map you can enter but never leave is probably a mistake
+  const reachable = summaries.some((o) => o.id !== s.id && o.portals.some((p) => p.target === s.id));
+  if (reachable && s.portals.length === 0)
+    warnings.push(`${s.id}: other maps portal INTO this map but it has no portal out (players get stuck)`);
+}
+
+if (warnings.length) {
+  console.log("\n⚠ warnings:");
+  for (const wmsg of warnings) console.log(`  - ${wmsg}`);
+}
+if (errors.length) {
+  console.error("\n✖ map contract errors (fix in Tiled, then re-export):");
+  for (const e of errors) console.error(`  - ${e}`);
+  process.exit(1);
+}
+console.log("\n✔ all maps pass the contract (layers, spawns, portal wiring)");
