@@ -24,12 +24,10 @@ polls, a shared vault, a group "pet", etc.). It is **deployed and live**.
 - **Email:** Resend, sending from `login@deliciouscommunications.com` (domain verified).
 
 ### Branches — important
-Railway deploys the **`claude/serene-feynman-e4tdza`** branch (it's the
-repo's default branch on GitHub). Throughout the build we kept **`main`**
-and `claude/serene-feynman-e4tdza` pointing at the **same commit** after
-every change. **When you push, push to both** (or switch Railway's deploy
-branch to `main` in service → Settings → Source, then just use `main`).
-Current HEAD both branches: see `git log --oneline -1`.
+Railway now deploys **`main`** (as of 2026-06-13). Just commit straight to
+`main` and push — that's the only branch that matters. The old deploy branch
+`claude/serene-feynman-e4tdza` is stale (far behind `main`) and is no longer
+watched; ignore it. Current HEAD: see `git log --oneline -1`.
 
 ---
 
@@ -171,8 +169,7 @@ works exactly as before.
 1. Edit code. Verify locally: `npx tsc --noEmit` and `npm run build`
    (the project rule is **no self-driven browser testing** — the owner
    tests in-browser; see CLAUDE.md).
-2. Commit. Push to **both** `main` and `claude/serene-feynman-e4tdza`
-   (or switch Railway to `main` and push once).
+2. Commit and push `main`.
 3. Railway auto-deploys the tracked branch on push. To force the latest
    commit + current env: `railway redeploy -s trivia-trainer -y --from-source`.
 4. Watch `railway logs -d --lines 40` for the healthy-boot sequence.
