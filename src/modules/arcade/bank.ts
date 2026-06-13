@@ -2,11 +2,40 @@ import { randomBytes } from "crypto";
 import type { Prisma } from "@prisma/client";
 import { HttpError } from "@/lib/session";
 import { HOUSE_EDGE, MIN_BET, MAX_BET, MAX_MULTIPLIER, MINES_TILES } from "./constants";
+import { getGameKnobsCached } from "@/lib/knobs";
 
 // Re-export the pure constants so existing server imports from "bank" keep
 // working; client components import them from "./constants" directly to
 // avoid bundling this module's `crypto` import.
 export { HOUSE_EDGE, MIN_BET, MAX_BET, MAX_MULTIPLIER, MINES_TILES };
+
+/**
+ * Live, admin-tunable economy (Economy tab → "Arcade house"). Defaults to the
+ * code constants and is refreshed from AppConfig in the background, debounced
+ * to one read per TTL window — so the coin games stay off a per-play DB hit
+ * while still honoring admin edits within ~15s. The constants above remain the
+ * client-side contract (UI bet bounds); the server enforces these live values.
+ */
+const live = {
+  houseEdge: HOUSE_EDGE,
+  minBet: MIN_BET,
+  maxBet: MAX_BET,
+  maxMultiplier: MAX_MULTIPLIER,
+};
+let lastKick = 0;
+function refreshEconomy() {
+  const now = Date.now();
+  if (now - lastKick < 15_000) return;
+  lastKick = now;
+  void getGameKnobsCached("arcade")
+    .then((v) => {
+      if (typeof v.houseEdge === "number") live.houseEdge = v.houseEdge;
+      if (typeof v.minBet === "number") live.minBet = v.minBet;
+      if (typeof v.maxBet === "number") live.maxBet = v.maxBet;
+      if (typeof v.maxMultiplier === "number") live.maxMultiplier = v.maxMultiplier;
+    })
+    .catch(() => {});
+}
 
 /**
  * Shared economic engine for the Arcade coin games (Limbo / Mines / Crash).
@@ -35,7 +64,7 @@ function uniform(): number {
 /** Floor to 2 decimals and clamp to the mint cap. Never returns < 1.00. */
 function clampMultiplier(x: number): number {
   const floored = Math.floor(x * 100) / 100;
-  return Math.max(1, Math.min(MAX_MULTIPLIER, floored));
+  return Math.max(1, Math.min(live.maxMultiplier, floored));
 }
 
 /**
@@ -44,6 +73,7 @@ function clampMultiplier(x: number): number {
  * edge to the payout multiplier instead (see the route).
  */
 export function rollLimbo(): number {
+  refreshEconomy();
   return clampMultiplier(1 / uniform());
 }
 
@@ -54,12 +84,13 @@ export function rollLimbo(): number {
  * cash-out simply pays stake × multiplier_at_cashout with no further cut.
  */
 export function rollCrashPoint(): number {
+  refreshEconomy();
   const u = uniform();
-  if (u >= 1 - HOUSE_EDGE) return 1.0; // instant bust, probability = edge
+  if (u >= 1 - live.houseEdge) return 1.0; // instant bust, probability = edge
   // Forgiveness floor: a non-instant round never crashes below 1.12×, so a
   // player watching always has a real window to react. (~9% of raw rolls
   // land in (1.00, 1.12) — those get bumped up; a small player-EV gift.)
-  return Math.max(1.12, clampMultiplier((1 - HOUSE_EDGE) / u));
+  return Math.max(1.12, clampMultiplier((1 - live.houseEdge) / u));
 }
 
 /**
@@ -69,11 +100,12 @@ export function rollCrashPoint(): number {
  * require at least one reveal before allowing a cash-out.
  */
 export function minesMultiplier(mineCount: number, safeRevealed: number): number {
+  refreshEconomy();
   let pSurvive = 1;
   for (let i = 0; i < safeRevealed; i++) {
     pSurvive *= (MINES_TILES - mineCount - i) / (MINES_TILES - i);
   }
-  return clampMultiplier((1 - HOUSE_EDGE) / pSurvive);
+  return clampMultiplier((1 - live.houseEdge) / pSurvive);
 }
 
 /** Pick `count` distinct tile indices in [0, MINES_TILES) for the mines. */
@@ -89,17 +121,20 @@ export function placeMines(count: number): number[] {
 
 /** Validate + coerce a bet. Throws HttpError(400) on anything out of range. */
 export function validateBet(bet: unknown): number {
+  refreshEconomy();
   if (typeof bet !== "number" || !Number.isInteger(bet)) {
     throw new HttpError(400, "Bet must be a whole number of coins.");
   }
-  if (bet < MIN_BET) throw new HttpError(400, `Minimum bet is ${MIN_BET} coin.`);
-  if (bet > MAX_BET) throw new HttpError(400, `Maximum bet is ${MAX_BET.toLocaleString()} coins.`);
+  if (bet < live.minBet) throw new HttpError(400, `Minimum bet is ${live.minBet} coin.`);
+  if (bet > live.maxBet)
+    throw new HttpError(400, `Maximum bet is ${live.maxBet.toLocaleString()} coins.`);
   return bet;
 }
 
 /** Final payout for a winning round, with the cap applied. */
 export function payout(stake: number, multiplier: number): number {
-  return Math.floor(stake * Math.min(multiplier, MAX_MULTIPLIER));
+  refreshEconomy();
+  return Math.floor(stake * Math.min(multiplier, live.maxMultiplier));
 }
 
 /**

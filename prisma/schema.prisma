@@ -1259,6 +1259,16 @@ model WorldConfig {
   updatedAt DateTime @updatedAt
 }
 
+// App-wide keyed JSON config, edited in /admin. Same shape as WorldConfig
+// but not world-namespaced: home for Discord-feed toggles, per-game tuning
+// knobs, promo-campaign overrides, and future feature flags. Code ships the
+// defaults; a row here overrides them, so admin edits take effect live.
+model AppConfig {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
 // Unlocked avatar cosmetics. Catalog (names/prices/colors) lives in
 // src/modules/world/cosmetics.ts; this row just records ownership.
 // kind = "outfit" today; future kinds (hairstyle…) reuse the table.

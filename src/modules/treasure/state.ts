@@ -1,10 +1,20 @@
 import { randomInt } from "crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { getGameKnobs } from "@/lib/knobs";
 
 export const GRID_SIZE = 10;
 export const BASE_POT = 500;
 export const EXTRA_DIG_COST = 500;
+
+/** Live, admin-tunable treasure economy (Economy tab → "Treasure hunt"). */
+export async function treasureKnobs(): Promise<{ basePot: number; extraDigCost: number }> {
+  const k = await getGameKnobs("treasure");
+  return {
+    basePot: typeof k.basePot === "number" ? k.basePot : BASE_POT,
+    extraDigCost: typeof k.extraDigCost === "number" ? k.extraDigCost : EXTRA_DIG_COST,
+  };
+}
 
 /** The treasure day rolls on UTC, matching the coin ledger's daily caps. */
 export function utcDay(): string {
@@ -25,7 +35,8 @@ export async function ensureTreasureDay(tx: Prisma.TransactionClient, day: strin
     where: { day: { lt: day } },
     orderBy: { day: "desc" },
   });
-  const pot = BASE_POT + (prev && prev.foundById === null ? prev.pot : 0);
+  const { basePot } = await treasureKnobs();
+  const pot = basePot + (prev && prev.foundById === null ? prev.pot : 0);
 
   try {
     return await tx.treasureDay.create({
@@ -88,7 +99,7 @@ export async function treasureState(viewerId: string): Promise<TreasureState> {
       avatarUrl: d.user.avatarUrl,
     })),
     myDigCount: digs.filter((d) => d.userId === viewerId).length,
-    extraDigCost: EXTRA_DIG_COST,
+    extraDigCost: (await treasureKnobs()).extraDigCost,
     foundBy: foundBy ? { id: foundBy.id, name: foundBy.displayName } : null,
     treasure: row.foundById ? { x: row.x, y: row.y } : null,
   };

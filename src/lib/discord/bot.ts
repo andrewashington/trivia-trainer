@@ -23,6 +23,13 @@ export function botConfig() {
   return { appId, publicKey, botToken, channelId, canPost: !!(botToken && channelId) };
 }
 
+/** How the outbox feed currently posts: bot, legacy webhook, or nothing. */
+export function feedMode(): "bot" | "webhook" | "off" {
+  if (botConfig().canPost) return "bot";
+  if (process.env.DISCORD_WEBHOOK_URL) return "webhook";
+  return "off";
+}
+
 /**
  * Verify an interaction request's Ed25519 signature. Node has no raw
  * Ed25519 key import, so wrap the 32-byte key in a SPKI DER header.

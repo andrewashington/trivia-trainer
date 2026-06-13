@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiHandler, parseBody } from "@/lib/api";
-import { claimKeyFor, findReward, rewardLedgerMeta } from "@/lib/coinRewards";
+import { claimKeyFor, findRewardEffective, rewardLedgerMeta } from "@/lib/coinRewards";
 import { db } from "@/lib/db";
 import { HttpError, requireUser } from "@/lib/session";
 
@@ -11,7 +11,7 @@ const Body = z.object({ key: z.string().min(1) });
 export const POST = apiHandler(async (req: Request) => {
   const user = await requireUser();
   const { key } = await parseBody(req, Body);
-  const reward = findReward(key);
+  const reward = await findRewardEffective(key);
   if (!reward) throw new HttpError(404, "No such reward.");
 
   // Daily campaigns fold the calendar day into the claim key, so each day is a

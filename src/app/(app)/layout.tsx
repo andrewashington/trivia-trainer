@@ -4,7 +4,7 @@ import { signOut } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { unreadCounts } from "@/lib/unread";
-import { COIN_REWARDS, claimKeyFor } from "@/lib/coinRewards";
+import { claimKeyFor, effectiveRewards } from "@/lib/coinRewards";
 import { Logo } from "@/components/Logo";
 import { AppDecor } from "@/components/AppDecor";
 import { MobileNav, SideNav } from "@/components/NavTabs";
@@ -39,13 +39,14 @@ export default async function AppLayout({
   const notifUnread = await db.notification.count({ where: { userId: user.id, readAt: null } });
   // Offer the first campaign this user can still claim in its current window
   // (one-time rewards once ever; daily rewards once per calendar day).
-  const claimKeys = COIN_REWARDS.map((r) => claimKeyFor(r));
+  const liveRewards = await effectiveRewards();
+  const claimKeys = liveRewards.map((r) => claimKeyFor(r));
   const claimedRows = await db.coinRewardClaim.findMany({
     where: { userId: user.id, rewardKey: { in: claimKeys } },
     select: { rewardKey: true },
   });
   const claimedKeys = new Set(claimedRows.map((c) => c.rewardKey));
-  const openReward = COIN_REWARDS.find((r) => !claimedKeys.has(claimKeyFor(r)));
+  const openReward = liveRewards.find((r) => !claimedKeys.has(claimKeyFor(r)));
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl">

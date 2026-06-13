@@ -6,9 +6,9 @@ import { emitOutbox } from "@/lib/outbox";
 import { HttpError, requireUser } from "@/lib/session";
 import { spendCoins, creditWinnings } from "@/modules/arcade/bank";
 import {
-  EXTRA_DIG_COST,
   GRID_SIZE,
   ensureTreasureDay,
+  treasureKnobs,
   treasureState,
   utcDay,
 } from "@/modules/treasure/state";
@@ -27,6 +27,7 @@ export const POST = apiHandler(async (req: Request) => {
   const user = await requireUser();
   const { x, y } = await parseBody(req, digInput);
   const day = utcDay();
+  const { extraDigCost } = await treasureKnobs();
 
   const result = await db.$transaction(async (tx) => {
     const row = await ensureTreasureDay(tx, day);
@@ -43,10 +44,10 @@ export const POST = apiHandler(async (req: Request) => {
       await spendCoins(
         tx,
         user.id,
-        EXTRA_DIG_COST,
+        extraDigCost,
         "treasure.extra_dig",
         "Bought an extra dig",
-        `An extra dig costs ${EXTRA_DIG_COST} coins.`,
+        `An extra dig costs ${extraDigCost} coins.`,
         { day }
       );
     }

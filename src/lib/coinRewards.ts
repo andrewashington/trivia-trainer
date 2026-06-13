@@ -68,6 +68,33 @@ export function findReward(key: string): CoinReward | undefined {
   return COIN_REWARDS.find((r) => r.key === key);
 }
 
+// ── Admin overrides ───────────────────────────────────────────────────
+// The active campaign set is editable in /admin (Promos tab) and stored in
+// AppConfig key "coin.rewards" as a full list with an `enabled` flag per
+// campaign. With no override the code array above is the live set. These
+// readers import db indirectly, so call them only from server code.
+
+export type PromoConfig = CoinReward & { enabled: boolean };
+
+/** Every campaign for the admin editor (override list, or code defaults). */
+export async function allPromos(): Promise<PromoConfig[]> {
+  const { getConfig } = await import("@/lib/appConfig");
+  const override = await getConfig<PromoConfig[]>("coin.rewards");
+  if (Array.isArray(override)) return override;
+  return COIN_REWARDS.map((r) => ({ ...r, enabled: true }));
+}
+
+/** The live, claimable campaigns (enabled only), in banner-priority order. */
+export async function effectiveRewards(): Promise<CoinReward[]> {
+  const promos = await allPromos();
+  return promos.filter((p) => p.enabled).map(({ enabled: _enabled, ...r }) => r);
+}
+
+/** Find a claimable (enabled) reward by key — the claim route's lookup. */
+export async function findRewardEffective(key: string): Promise<CoinReward | undefined> {
+  return (await effectiveRewards()).find((r) => r.key === key);
+}
+
 export function rewardLedgerMeta(reward: CoinReward): Prisma.InputJsonObject {
   return {
     label: reward.ledgerLabel,

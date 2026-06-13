@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { specFor } from "@/lib/discord/feed";
+import { getConfig } from "@/lib/appConfig";
 import type { OutboxEventType } from "@/lib/outbox";
 
 /**
@@ -50,8 +51,15 @@ async function drain() {
       orderBy: { createdAt: "asc" },
       take: BATCH,
     });
+    // Per-event mute list, edited in /admin (Discord tab). Read once per tick.
+    const disabled = new Set((await getConfig<{ disabled?: string[] }>("discord.feeds"))?.disabled ?? []);
     for (const row of rows) {
       try {
+        if (disabled.has(row.type)) {
+          await markProcessed(row.id);
+          attempts.delete(row.id);
+          continue;
+        }
         await postRow(row.id, row.type as OutboxEventType, row.payload);
         attempts.delete(row.id);
       } catch (err) {
