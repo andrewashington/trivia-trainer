@@ -189,6 +189,7 @@ export class WorldScene extends Phaser.Scene {
   private placed = new Map<string, PlacedFurniture>(); // ownedId → rendered piece
   private storedThisSession = new Set<string>(); // pieces picked up this session
   private atlasPromises = new Map<string, Promise<void>>(); // de-duped atlas loads
+  private loadingFurniture = false; // guards against overlapping furniture loads
   private mapWidthPx = 0;
   private mapHeightPx = 0;
   private buildGen = 0; // bumps each buildWorld; guards async furniture loads
@@ -244,6 +245,7 @@ export class WorldScene extends Phaser.Scene {
     this.placed = new Map();
     this.storedThisSession = new Set();
     this.atlasPromises = new Map();
+    this.loadingFurniture = false;
     this.wallRects = [];
     this.decorating = false;
     this.placingGhost = null;
@@ -666,15 +668,30 @@ export class WorldScene extends Phaser.Scene {
   /** Fetch and render the placed furniture for the house we just entered. */
   private async loadHouseFurniture() {
     if (!this.houseCtx) return;
+    if (this.loadingFurniture) return; // don't run two loaders over the shared loader
+    this.loadingFurniture = true;
     const gen = this.buildGen;
     try {
       const res = await fetch(`/api/world/house/items?plot=${this.houseCtx.plot}`);
       if (!res.ok) return;
       const data = (await res.json()) as { items: ScenePlacedItem[] };
       if (gen !== this.buildGen || !this.player) return; // map changed mid-fetch
+
+      // Batch-load every distinct atlas up front (one loader pass), then draw.
+      const keys = [...new Set(data.items.map((it) => it.spriteKey))];
+      await Promise.all(keys.map((k) => this.ensureAtlas(k)));
+      if (gen !== this.buildGen || !this.player) return;
+
       for (const it of data.items) {
-        await this.ensureAtlas(it.spriteKey);
-        if (gen !== this.buildGen || !this.player) return;
+        const parsed = parseSpriteKey(it.spriteKey);
+        if (!parsed) continue;
+        // A transient asset blip can leave the texture missing — retry once
+        // (forced, bypassing any failed cache entry) rather than silently
+        // dropping the piece.
+        if (!this.textures.exists(parsed.atlasKey)) {
+          await this.ensureAtlas(it.spriteKey, true);
+          if (gen !== this.buildGen || !this.player) return;
+        }
         this.addFurniture(it, it.x, it.y, it.rotation);
       }
       this.rebuildFurnitureColliders();
@@ -682,21 +699,32 @@ export class WorldScene extends Phaser.Scene {
       this.emitDecorateStats();
     } catch {
       // No décor or a flaky fetch — the empty room is fine.
+    } finally {
+      this.loadingFurniture = false;
     }
   }
 
-  /** Load a furniture atlas once (de-duped); resolves even if it 404s. */
-  private ensureAtlas(spriteKey: string): Promise<void> {
+  /**
+   * Load a furniture atlas once (de-duped). Resolves even if it 404s, but a
+   * FAILED load is not cached as success — the promise is dropped so a later
+   * attempt (or `force`) can retry instead of permanently skipping the piece.
+   */
+  private ensureAtlas(spriteKey: string, force = false): Promise<void> {
     const parsed = parseSpriteKey(spriteKey);
     if (!parsed) return Promise.resolve();
     const atlasKey = parsed.atlasKey;
     if (this.textures.exists(atlasKey)) return Promise.resolve();
-    const existing = this.atlasPromises.get(atlasKey);
-    if (existing) return existing;
+    if (!force) {
+      const existing = this.atlasPromises.get(atlasKey);
+      if (existing) return existing;
+    }
     const promise = new Promise<void>((resolve) => {
       const done = () => {
         this.load.off(`filecomplete-atlas-${atlasKey}`, done);
         this.load.off("loaderror", onErr);
+        // If the texture never landed, this was a failure — forget the
+        // promise so the next attempt actually re-fetches.
+        if (!this.textures.exists(atlasKey)) this.atlasPromises.delete(atlasKey);
         resolve();
       };
       const onErr = (file: { key?: string }) => {
