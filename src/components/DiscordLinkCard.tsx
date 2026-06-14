@@ -1,15 +1,126 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Field, Input } from "@/components/ui";
 
 /**
  * Link/unlink the signed-in user's Discord account. The code comes
  * from running /link in the Discord server (the bot replies with it
- * privately); redeeming it sets User.discordUserId.
+ * privately); redeeming it sets User.discordUserId. When linked, also
+ * exposes the DM notification opt-ins (DiscordNotifyPref).
  */
+
+type Prefs = {
+  dmTurn: boolean;
+  dmClaims: boolean;
+  dmStakes: boolean;
+  dmMentions: boolean;
+  dmDigest: boolean;
+  digestDaily: boolean;
+};
+
+const NOTIFY_ROWS: { key: keyof Prefs; label: string; help: string }[] = [
+  { key: "dmTurn", label: "Your turn", help: "Tanks / 20 Questions / Poker" },
+  { key: "dmClaims", label: "Claimed / outbid", help: "someone snags what you wanted" },
+  { key: "dmStakes", label: "Stakes resolving", help: "a bet you're in is coming due" },
+  { key: "dmMentions", label: "Replies & @mentions", help: "someone pings or replies to you" },
+  { key: "dmDigest", label: "Digest", help: "a periodic round-up DM" },
+];
+
+function NotifyPrefs() {
+  const [prefs, setPrefs] = useState<Prefs | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api<Prefs>("/api/me/discord/prefs")
+      .then((p) => alive && setPrefs(p))
+      .catch(() => alive && setStatus("Couldn't load notification settings."));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function save(next: Prefs) {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const saved = await api<Prefs>("/api/me/discord/prefs", { method: "PUT", body: next });
+      setPrefs(saved);
+      setStatus("Saved.");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!prefs) {
+    return <p className="font-mono text-[11px] text-ink/40">{status ?? "Loading notifications…"}</p>;
+  }
+
+  const toggle = (key: keyof Prefs) => save({ ...prefs, [key]: !prefs[key] });
+
+  return (
+    <div className="space-y-2 border-t-2 border-dashed border-ink/20 pt-3">
+      <p className="brutal-label">DM alerts</p>
+      <ul className="space-y-1">
+        {NOTIFY_ROWS.map((r) => {
+          const on = prefs[r.key];
+          return (
+            <li key={r.key}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => toggle(r.key)}
+                className={`flex w-full items-center justify-between gap-3 border-2 border-ink px-2 py-1 text-left ${
+                  on ? "bg-card" : "bg-ink/10 text-ink/40"
+                }`}
+              >
+                <span>
+                  <span className="text-sm font-bold">{r.label}</span>
+                  <span className="block font-mono text-[10px] text-ink/50">{r.help}</span>
+                </span>
+                <span
+                  className={`shrink-0 border-2 border-ink px-1.5 font-mono text-[9px] font-bold uppercase ${
+                    on ? "bg-accent-green" : "bg-card"
+                  }`}
+                >
+                  {on ? "on" : "off"}
+                </span>
+              </button>
+              {r.key === "dmDigest" && on && (
+                <div className="mt-1 flex gap-1 pl-2">
+                  {(["weekly", "daily"] as const).map((cadence) => {
+                    const active = (cadence === "daily") === prefs.digestDaily;
+                    return (
+                      <button
+                        key={cadence}
+                        type="button"
+                        disabled={busy}
+                        onClick={() => save({ ...prefs, digestDaily: cadence === "daily" })}
+                        className={`border-2 border-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
+                          active ? "bg-accent-blue text-white" : "bg-card"
+                        }`}
+                      >
+                        {cadence}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {status && <p className="font-mono text-[11px] text-ink/50">{status}</p>}
+    </div>
+  );
+}
+
 export function DiscordLinkCard({ linked }: { linked: boolean }) {
   const router = useRouter();
   const [code, setCode] = useState("");
@@ -59,6 +170,7 @@ export function DiscordLinkCard({ linked }: { linked: boolean }) {
             Connected{linkedAs ? ` as ${linkedAs}` : ""}. Buttons and slash commands in the
             server now act as you.
           </p>
+          <NotifyPrefs />
           <Button type="button" disabled={busy} onClick={onUnlink} className="w-full">
             {busy ? "Working…" : "Disconnect Discord"}
           </Button>

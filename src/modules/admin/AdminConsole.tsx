@@ -9,6 +9,7 @@ import { PromosPanel, type Promo } from "@/modules/admin/PromosPanel";
 import { DiscordPanel, type DiscordFeedEvent } from "@/modules/admin/DiscordPanel";
 import { EconomyPanel, type KnobGame } from "@/modules/admin/EconomyPanel";
 import { FeedbackList, type FeedbackItem } from "@/modules/admin/FeedbackList";
+import type { DiscordSettings } from "@/lib/discord/settings";
 
 type Member = { id: string; email: string; displayName: string; role: "member" | "admin"; coins: number };
 
@@ -17,7 +18,7 @@ export type AdminConsoleProps = {
   members: Member[];
   feedback: FeedbackItem[];
   promos: Promo[];
-  discord: { events: DiscordFeedEvent[]; disabled: string[]; mode: string };
+  discord: { events: DiscordFeedEvent[]; disabled: string[]; mode: string; settings: DiscordSettings };
   knobs: { games: KnobGame[]; overrides: Record<string, Record<string, unknown>> };
   stats: { circulation: number; memberCount: number; openFeedback: number; feedMode: string };
 };
@@ -78,6 +79,7 @@ export function AdminConsole(props: AdminConsoleProps) {
         <DiscordPanel
           events={props.discord.events}
           initialDisabled={props.discord.disabled}
+          initialSettings={props.discord.settings}
           mode={props.discord.mode}
         />
       )}

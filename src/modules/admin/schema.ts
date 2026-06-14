@@ -40,6 +40,23 @@ export const discordFeedsPut = z.object({
   disabled: z.array(z.string().min(1)).max(200),
 });
 
+// Discord feature settings (AppConfig "discord.settings"). tipsEnabled gates
+// coin transfers, so it's an explicit toggle; digest day/hour drive the digest.
+export const discordSettingsPut = z.object({
+  tipsEnabled: z.boolean(),
+  dropsEnabled: z.boolean(),
+  aiEnabled: z.boolean(),
+  digestDay: z.coerce.number().int().min(0).max(6),
+  digestHour: z.coerce.number().int().min(0).max(23),
+  aiModel: z.string().trim().max(100),
+});
+
+// The Discord admin tab saves the muted-event set and the feature settings together.
+export const discordAdminPut = z.object({
+  disabled: z.array(z.string().min(1)).max(200),
+  settings: discordSettingsPut,
+});
+
 // Knob overrides for one game: { [knobId]: number | boolean | number[] }.
 export const knobsPut = z.object({
   game: z.string().min(1).max(40),

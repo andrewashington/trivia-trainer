@@ -10,6 +10,7 @@ import { type FeedbackContext } from "@/modules/admin/FeedbackList";
 import { KNOB_REGISTRY } from "@/modules/admin/knobs";
 import { DISCORD_EVENTS } from "@/modules/admin/discordEvents";
 import { feedMode } from "@/lib/discord/bot";
+import { getDiscordSettings } from "@/lib/discord/settings";
 
 export const metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
@@ -19,19 +20,21 @@ export default async function AdminPage() {
   if (!user) redirect("/signin");
   if (user.role !== "admin") redirect("/");
 
-  const [members, feedback, promos, discordDisabled, knobOverrides] = await Promise.all([
-    db.user.findMany({
-      orderBy: { createdAt: "asc" },
-      select: { id: true, email: true, displayName: true, role: true, coins: true },
-    }),
-    db.feedback.findMany({
-      orderBy: [{ resolvedAt: "asc" }, { createdAt: "desc" }],
-      include: { user: { select: { displayName: true } } },
-    }),
-    allPromos(),
-    getConfig<{ disabled?: string[] }>("discord.feeds"),
-    getConfig<Record<string, Record<string, unknown>>>("knobs"),
-  ]);
+  const [members, feedback, promos, discordDisabled, knobOverrides, discordSettings] =
+    await Promise.all([
+      db.user.findMany({
+        orderBy: { createdAt: "asc" },
+        select: { id: true, email: true, displayName: true, role: true, coins: true },
+      }),
+      db.feedback.findMany({
+        orderBy: [{ resolvedAt: "asc" }, { createdAt: "desc" }],
+        include: { user: { select: { displayName: true } } },
+      }),
+      allPromos(),
+      getConfig<{ disabled?: string[] }>("discord.feeds"),
+      getConfig<Record<string, Record<string, unknown>>>("knobs"),
+      getDiscordSettings(),
+    ]);
 
   const feedbackItems = feedback.map((f) => ({
     id: f.id,
@@ -67,7 +70,12 @@ export default async function AdminPage() {
         members={members}
         feedback={feedbackItems}
         promos={promos}
-        discord={{ events: DISCORD_EVENTS, disabled: discordDisabled?.disabled ?? [], mode }}
+        discord={{
+          events: DISCORD_EVENTS,
+          disabled: discordDisabled?.disabled ?? [],
+          mode,
+          settings: discordSettings,
+        }}
         knobs={{ games: KNOB_REGISTRY, overrides: knobOverrides ?? {} }}
         stats={stats}
       />
