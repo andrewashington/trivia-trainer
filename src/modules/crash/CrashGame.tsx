@@ -31,15 +31,37 @@ type CashoutWin = {
   crashPoint?: number;
 };
 type CashoutResponse = CashoutBusted | CashoutWin;
+
+/**
+ * Phases:
+ *  - idle:   placing a bet
+ *  - live:   round climbing, stake at risk, can cash out
+ *  - cashed: player banked their winnings; the rocket keeps flying (purely
+ *            visual, crashPoint already known + settled) so they can watch
+ *            how high it *would* have gone. `done` flips when it finally
+ *            hits the crash point.
+ *  - bust:   let it ride and lost — settled at the crash point.
+ */
 type Phase =
   | { tag: "idle" }
   | { tag: "live"; roundId: string; stake: number; startedAtMs: number }
-  | { tag: "win"; multiplier: number; winnings: number; net: number; stake: number }
+  | {
+      tag: "cashed";
+      stake: number;
+      cashMultiplier: number;
+      winnings: number;
+      net: number;
+      startedAtMs: number;
+      crashPoint: number;
+      done: boolean;
+    }
   | { tag: "bust"; crashPoint: number; stake: number };
 type ChartPoint = { x: number; y: number };
 
 const BET_PRESETS = [10, 25, 50, 100, 250];
 const SERVER_CHECK_MS = 650;
+const SAMPLE_MS = 40; // throttle chart sampling (~25 pts/sec) regardless of frame rate
+const MAX_POINTS = 600; // ~24s of climb kept on screen before the window scrolls
 
 /**
  * Hype tiers — visuals escalate as the multiplier climbs.
@@ -117,48 +139,101 @@ function NyanOverlay() {
   );
 }
 
+const W = 320;
+const H = 128;
+const REF_LEVELS = [1.5, 2, 3, 5, 10, 25, 50, 100, 250, 500, 1000];
+
+type ChartPhase = "idle" | "live" | "cashed" | "bust";
+
+function svgPath(pts: { x: number; y: number }[]): string {
+  if (pts.length < 2) return "";
+  return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+}
+
+/**
+ * The live curve. Escalates with `tier`; once the player has cashed out the
+ * curve splits at their cash multiplier — green "banked" territory below,
+ * red "house" territory above — and a dashed line marks the crash point it's
+ * climbing toward.
+ */
 function CrashChart({
   points,
   phase,
+  done,
   tier,
+  cashMult,
+  crashTarget,
 }: {
   points: ChartPoint[];
-  phase: "idle" | "live" | "win" | "bust";
+  phase: ChartPhase;
+  done: boolean;
   tier: number;
+  cashMult: number | null;
+  crashTarget: number | null;
 }) {
-  const { path, dot, maxY } = useMemo(() => {
-    const w = 320;
-    const h = 128;
+  const climbing = phase === "live" || (phase === "cashed" && !done);
+
+  const geom = useMemo(() => {
     if (points.length < 2) {
-      return { path: "", dot: null as ChartPoint | null, maxY: 2 };
+      return { pre: "", post: "", preFill: "", dot: null as ChartPoint | null, star: null as ChartPoint | null, yMax: 2, refs: [] as { y: number; v: number }[] };
     }
     const x0 = points[0].x;
     const xMax = Math.max(1, points[points.length - 1].x - x0);
-    const yMax = Math.max(2, ...points.map((p) => p.y));
-    const mapped = points.map((p) => ({
-      x: ((p.x - x0) / xMax) * w,
-      y: h - ((p.y - 1) / (yMax - 1)) * (h - 16) - 8,
-    }));
-    return {
-      path: mapped.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" "),
-      dot: mapped[mapped.length - 1],
-      maxY: yMax,
-    };
-  }, [points]);
+    const yMax = Math.max(2, crashTarget ?? 0, ...points.map((p) => p.y));
+    const mapX = (x: number) => ((x - x0) / xMax) * W;
+    const mapY = (v: number) => H - ((v - 1) / (yMax - 1)) * (H - 16) - 8;
+    const mapped = points.map((p) => ({ x: mapX(p.x), y: mapY(p.y) }));
 
-  const live = phase === "live";
-  const nyan = live && tier >= 6;
-  const stroke = phase === "bust" ? "#FF4D2E" : nyan ? "url(#crash-rainbow)" : "#FFD60A";
+    // Split the curve at the cash-out multiplier (curve is monotonic in y-value).
+    let splitIdx = -1;
+    if (cashMult != null) {
+      splitIdx = points.findIndex((p) => p.y > cashMult);
+    }
+    let pre = mapped;
+    let post: { x: number; y: number }[] = [];
+    let star: ChartPoint | null = null;
+    if (splitIdx > 0) {
+      pre = mapped.slice(0, splitIdx);
+      post = mapped.slice(splitIdx - 1); // overlap one point for a seamless join
+      star = mapped[splitIdx - 1];
+    }
+
+    const refs = REF_LEVELS.filter((l) => l > 1 && l < yMax)
+      .slice(-4)
+      .map((v) => ({ v, y: mapY(v) }));
+
+    const preFillPts = pre.length >= 2 ? pre : [];
+    const preFill =
+      preFillPts.length >= 2
+        ? `${svgPath(preFillPts)} L ${preFillPts[preFillPts.length - 1].x.toFixed(1)} ${H} L ${preFillPts[0].x.toFixed(1)} ${H} Z`
+        : "";
+
+    return {
+      pre: svgPath(pre),
+      post: svgPath(post),
+      preFill,
+      dot: mapped[mapped.length - 1],
+      star,
+      yMax,
+      refs,
+      crashY: crashTarget != null ? mapY(crashTarget) : null,
+    };
+  }, [points, cashMult, crashTarget]);
+
+  const nyan = climbing && tier >= 6;
+  const busted = phase === "bust" || (phase === "cashed" && done);
+  // Color of the "live" portion of the curve.
+  const liveStroke = cashMult != null ? "#B6FF00" : busted ? "#FF4D2E" : nyan ? "url(#crash-rainbow)" : "#FFD60A";
 
   return (
     <div
       className={`relative overflow-hidden border-3 border-ink bg-ink shadow-brutal-sm ${
-        live && tier >= 3 ? (tier >= 5 ? "crash-shake-hard" : "crash-shake") : ""
-      } ${live && tier >= 4 ? "crash-fire-glow" : ""}`}
+        climbing && tier >= 3 ? (tier >= 5 ? "crash-shake-hard" : "crash-shake") : ""
+      } ${climbing && tier >= 4 ? "crash-fire-glow" : ""} ${busted ? "crash-flash" : ""}`}
     >
       <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(#ffffff22_1px,transparent_1px),linear-gradient(90deg,#ffffff22_1px,transparent_1px)] [background-size:32px_32px]" />
       {nyan && <NyanOverlay />}
-      <svg viewBox="0 0 320 128" className="relative block h-36 w-full" aria-hidden>
+      <svg viewBox={`0 0 ${W} ${H}`} className="relative block h-40 w-full" aria-hidden>
         <defs>
           <linearGradient id="crash-rainbow" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#FF4D2E" />
@@ -167,48 +242,102 @@ function CrashChart({
             <stop offset="75%" stopColor="#39C0FF" />
             <stop offset="100%" stopColor="#C77DFF" />
           </linearGradient>
+          <linearGradient id="crash-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#FFD60A" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="#FFD60A" stopOpacity="0.02" />
+          </linearGradient>
+          <linearGradient id="crash-area-safe" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#B6FF00" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#B6FF00" stopOpacity="0.02" />
+          </linearGradient>
         </defs>
-        <path d="M 0 120 L 320 120" stroke="#F4F1EA" strokeOpacity="0.35" strokeWidth="2" />
-        {path && (
-          <>
-            <path
-              d={`${path} L 320 128 L 0 128 Z`}
-              fill={phase === "bust" ? "#FF4D2E44" : nyan ? "#C77DFF33" : "#FFD60A33"}
-            />
-            <path
-              d={path}
-              fill="none"
-              stroke={stroke}
-              strokeWidth={nyan ? 7 : 5}
-              strokeLinecap="square"
-              strokeLinejoin="round"
-            />
-          </>
+
+        {/* reference multiplier gridlines */}
+        {geom.refs.map((r) => (
+          <g key={r.v}>
+            <line x1="0" y1={r.y} x2={W} y2={r.y} stroke="#F4F1EA" strokeOpacity="0.12" strokeWidth="1" strokeDasharray="2 4" />
+            <text x="3" y={r.y - 2} fill="#F4F1EA" fillOpacity="0.35" fontSize="8" fontFamily="monospace">
+              {r.v}x
+            </text>
+          </g>
+        ))}
+
+        <path d={`M 0 ${H - 8} L ${W} ${H - 8}`} stroke="#F4F1EA" strokeOpacity="0.3" strokeWidth="2" />
+
+        {/* crash-point target line (visible while watching the post-cashout climb) */}
+        {geom.crashY != null && crashTarget != null && (
+          <g>
+            <line x1="0" y1={geom.crashY} x2={W} y2={geom.crashY} stroke="#FF4D2E" strokeOpacity="0.8" strokeWidth="2" strokeDasharray="6 4" />
+            <text x={W - 4} y={geom.crashY - 3} fill="#FF4D2E" fontSize="9" fontFamily="monospace" fontWeight="bold" textAnchor="end">
+              crash {crashTarget.toFixed(2)}x
+            </text>
+          </g>
         )}
-        {dot && (
-          <g className={live ? "animate-pulse" : ""}>
-            <rect
-              x={dot.x - 5}
-              y={dot.y - 5}
-              width="10"
-              height="10"
-              fill={phase === "bust" ? "#FF4D2E" : "#B6FF00"}
-              stroke="#F4F1EA"
-              strokeWidth="2"
-            />
+
+        {/* filled area under the (banked, if cashed) portion of the curve */}
+        {geom.preFill && (
+          <path d={geom.preFill} fill={cashMult != null ? "url(#crash-area-safe)" : busted ? "#FF4D2E33" : "url(#crash-area)"} />
+        )}
+
+        {/* banked / live curve */}
+        {geom.pre && (
+          <path
+            d={geom.pre}
+            fill="none"
+            stroke={liveStroke}
+            strokeWidth={nyan ? 7 : cashMult != null ? 4 : 5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+
+        {/* post-cashout "house territory" — the part you let go of */}
+        {geom.post && (
+          <path
+            d={geom.post}
+            fill="none"
+            stroke={busted ? "#FF4D2E" : nyan ? "url(#crash-rainbow)" : "#FF7A5C"}
+            strokeWidth={nyan ? 7 : 5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray={done ? undefined : "1 7"}
+          />
+        )}
+
+        {/* cash-out marker */}
+        {geom.star && (
+          <g>
+            <line x1="0" y1={geom.star.y} x2={W} y2={geom.star.y} stroke="#B6FF00" strokeOpacity="0.5" strokeWidth="1.5" strokeDasharray="4 4" />
+            <circle cx={geom.star.x} cy={geom.star.y} r="6" fill="#B6FF00" stroke="#0E0E0E" strokeWidth="2" />
+            <text x={geom.star.x} y={geom.star.y + 3.5} fontSize="9" textAnchor="middle">💰</text>
+          </g>
+        )}
+
+        {/* rocket / explosion at the leading edge */}
+        {geom.dot && (
+          <g className={climbing ? "crash-tip" : ""}>
+            <text
+              x={geom.dot.x}
+              y={geom.dot.y + (busted ? 5 : 4)}
+              fontSize={busted ? 18 : 16}
+              textAnchor="middle"
+            >
+              {busted ? "💥" : tier >= 6 ? "🌈" : tier >= 4 ? "🔥" : "🚀"}
+            </text>
           </g>
         )}
       </svg>
+
       <div className="absolute left-2 top-2 border-2 border-paper bg-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-paper">
-        live curve
+        {phase === "cashed" && !done ? "watching…" : "live curve"}
       </div>
       <div className="absolute bottom-2 left-2 border-2 border-paper bg-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-paper/70">
         ceiling {MAX_MULTIPLIER.toLocaleString()}x
       </div>
       <div className="absolute bottom-2 right-2 border-2 border-paper bg-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-paper">
-        top {maxY.toFixed(2)}x
+        top {geom.yMax.toFixed(2)}x
       </div>
-      {live && tier >= 1 && (
+      {climbing && tier >= 1 && (
         <div
           className={`absolute right-2 top-2 border-2 border-paper px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
             tier >= 6
@@ -241,6 +370,7 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
   const rafRef = useRef<number | null>(null);
   const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clockOffsetRef = useRef(0);
+  const sampleRef = useRef(0);
   const phaseRef = useRef<Phase>(phase);
   phaseRef.current = phase;
 
@@ -259,6 +389,13 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
     }
   }, []);
 
+  const pushPoint = useCallback((m: number) => {
+    const now = Date.now();
+    if (now - sampleRef.current < SAMPLE_MS) return;
+    sampleRef.current = now;
+    setChartPoints((pts) => [...pts, { x: now, y: m }].slice(-MAX_POINTS));
+  }, []);
+
   const recordRound = useCallback((entry: HistoryEntry) => {
     setHistory((h) => [entry, ...h].slice(0, 12));
   }, []);
@@ -267,7 +404,7 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
     (crashPoint: number, stake: number, record = true) => {
       stopLoop();
       setLiveMultiplier(crashPoint);
-      setChartPoints((pts) => [...pts, { x: Date.now(), y: crashPoint }].slice(-80));
+      setChartPoints((pts) => [...pts, { x: Date.now(), y: crashPoint }].slice(-MAX_POINTS));
       setPhase({ tag: "bust", crashPoint, stake });
       if (record) recordRound({ crashPoint, cashedAt: null });
       router.refresh();
@@ -275,13 +412,28 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
     [recordRound, router, stopLoop]
   );
 
+  // The rocket reached the (already-known) crash point during the
+  // post-cashout watch. Freeze it and reveal how high it flew.
+  const finishWatch = useCallback(
+    (cur: Extract<Phase, { tag: "cashed" }>) => {
+      stopLoop();
+      setLiveMultiplier(cur.crashPoint);
+      setChartPoints((pts) => [...pts, { x: Date.now(), y: cur.crashPoint }].slice(-MAX_POINTS));
+      const next: Phase = { ...cur, done: true };
+      phaseRef.current = next;
+      setPhase(next);
+      recordRound({ crashPoint: cur.crashPoint, cashedAt: cur.cashMultiplier });
+    },
+    [recordRound, stopLoop]
+  );
+
   const checkServer = useCallback(async () => {
-    const current = phaseRef.current;
-    if (current.tag !== "live") return;
+    if (phaseRef.current.tag !== "live") return;
+    const stake = phaseRef.current.stake;
     try {
       const data = await api<GetResponse>("/api/crash");
       if (data.justBusted) {
-        settleBust(data.justBusted.crashPoint, current.stake);
+        settleBust(data.justBusted.crashPoint, stake);
         return;
       }
     } catch {
@@ -292,23 +444,31 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
     }
   }, [settleBust]);
 
-  const startLoop = useCallback(
-    (startedAtMs: number) => {
-      stopLoop();
-      const tick = () => {
-        const current = phaseRef.current;
-        if (current.tag !== "live") return;
-        const m = shownMultiplierAt(startedAtMs);
-        const now = Date.now();
-        setLiveMultiplier(m);
-        setChartPoints((pts) => [...pts, { x: now, y: m }].slice(-80));
-        rafRef.current = requestAnimationFrame(tick);
-      };
-      rafRef.current = requestAnimationFrame(tick);
-      checkTimerRef.current = setTimeout(checkServer, SERVER_CHECK_MS);
-    },
-    [checkServer, shownMultiplierAt, stopLoop]
-  );
+  // One RAF driver for both the live climb and the post-cashout watch.
+  const frame = useCallback(() => {
+    const cur = phaseRef.current;
+    if (cur.tag === "live") {
+      const m = shownMultiplierAt(cur.startedAtMs);
+      setLiveMultiplier(m);
+      pushPoint(m);
+      rafRef.current = requestAnimationFrame(frame);
+    } else if (cur.tag === "cashed" && !cur.done) {
+      const m = shownMultiplierAt(cur.startedAtMs);
+      if (m >= cur.crashPoint) {
+        finishWatch(cur);
+        return;
+      }
+      setLiveMultiplier(m);
+      pushPoint(m);
+      rafRef.current = requestAnimationFrame(frame);
+    }
+  }, [finishWatch, pushPoint, shownMultiplierAt]);
+
+  const startLoop = useCallback(() => {
+    stopLoop();
+    rafRef.current = requestAnimationFrame(frame);
+    checkTimerRef.current = setTimeout(checkServer, SERVER_CHECK_MS);
+  }, [checkServer, frame, stopLoop]);
 
   const beginLiveRound = useCallback(
     (round: ActiveRound, serverNow: number) => {
@@ -321,10 +481,11 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
         startedAtMs,
       };
       phaseRef.current = nextPhase;
+      sampleRef.current = 0;
       setLiveMultiplier(1);
       setChartPoints([{ x: Date.now(), y: 1 }]);
       setPhase(nextPhase);
-      startLoop(startedAtMs);
+      startLoop();
     },
     [startLoop]
   );
@@ -377,29 +538,42 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
       if (res.busted) {
         settleBust(res.crashPoint, current.stake);
       } else {
+        const crashPoint = res.crashPoint ?? res.multiplier;
         setLiveMultiplier(res.multiplier);
-        setChartPoints((pts) => [...pts, { x: Date.now(), y: res.multiplier }].slice(-80));
-        setPhase({
-          tag: "win",
-          multiplier: res.multiplier,
+        setChartPoints((pts) => [...pts, { x: Date.now(), y: res.multiplier }].slice(-MAX_POINTS));
+        const cashedPhase: Phase = {
+          tag: "cashed",
+          stake: current.stake,
+          cashMultiplier: res.multiplier,
           winnings: res.winnings,
           net: res.net,
-          stake: current.stake,
-        });
-        recordRound({
-          crashPoint: res.crashPoint ?? res.multiplier,
-          cashedAt: res.multiplier,
-        });
+          startedAtMs: current.startedAtMs,
+          crashPoint,
+          done: crashPoint <= res.multiplier,
+        };
+        phaseRef.current = cashedPhase;
+        setPhase(cashedPhase);
         confettiBurst();
         router.refresh();
+        if (cashedPhase.done) {
+          recordRound({ crashPoint, cashedAt: res.multiplier });
+        } else {
+          // Keep flying so the player can see how high it would have gone.
+          rafRef.current = requestAnimationFrame(frame);
+        }
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
-      if (phaseRef.current.tag === "live") startLoop(phaseRef.current.startedAtMs);
+      if (phaseRef.current.tag === "live") startLoop();
     } finally {
       setBusy(false);
     }
-  }, [recordRound, router, settleBust, shownMultiplierAt, startLoop, stopLoop]);
+  }, [frame, recordRound, router, settleBust, shownMultiplierAt, startLoop, stopLoop]);
+
+  const skipWatch = useCallback(() => {
+    const cur = phaseRef.current;
+    if (cur.tag === "cashed" && !cur.done) finishWatch(cur);
+  }, [finishWatch]);
 
   const playAgain = useCallback(() => {
     stopLoop();
@@ -410,22 +584,34 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
   }, [stopLoop]);
 
   const isLive = phase.tag === "live";
+  const watching = phase.tag === "cashed" && !phase.done;
   const clampedBet = Math.max(MIN_BET, Math.min(bet, coins));
   const liveStake = phase.tag === "live" ? phase.stake : 0;
   const liveValue = Math.floor(liveStake * liveMultiplier);
   const liveProfit = liveValue - liveStake;
-  const phaseKind = phase.tag === "live" || phase.tag === "win" || phase.tag === "bust" ? phase.tag : "idle";
-  const tier = isLive ? tierFor(liveMultiplier) : 0;
+
+  const chartPhase: ChartPhase = phase.tag === "live" ? "live" : phase.tag === "cashed" ? "cashed" : phase.tag === "bust" ? "bust" : "idle";
+  const cashMult = phase.tag === "cashed" ? phase.cashMultiplier : null;
+  const crashTarget = phase.tag === "cashed" && !phase.done ? phase.crashPoint : null;
+  const climbing = isLive || watching;
+  const tier = climbing ? tierFor(liveMultiplier) : 0;
 
   return (
     <div className="space-y-4">
       <style>{crashFx}</style>
       <Card
         className={`space-y-5 overflow-hidden bg-accent-rocket/10 ${
-          isLive && tier >= 6 ? "crash-nyan-card" : ""
+          climbing && tier >= 6 ? "crash-nyan-card" : ""
         }`}
       >
-        <CrashChart points={chartPoints} phase={phaseKind} tier={tier} />
+        <CrashChart
+          points={chartPoints}
+          phase={chartPhase}
+          done={phase.tag === "cashed" ? phase.done : false}
+          tier={tier}
+          cashMult={cashMult}
+          crashTarget={crashTarget}
+        />
 
         <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
           <div className="min-h-28">
@@ -461,21 +647,38 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
               </div>
             )}
 
-            {phase.tag === "win" && (
+            {phase.tag === "cashed" && (
               <div className="animate-pop-in">
-                <div
-                  className={`font-display text-6xl font-bold ${
-                    phase.multiplier >= 100 ? "crash-rainbow-text" : "text-accent-green"
-                  }`}
-                >
-                  {phase.multiplier.toFixed(2)}x
+                {/* Locked-in winnings — banked the moment they cashed. */}
+                <div className="mb-2 inline-block border-3 border-ink bg-accent-green px-4 py-2 font-display text-xl font-bold shadow-brutal">
+                  CASHED @ {phase.cashMultiplier.toFixed(2)}x · +{phase.net}
                 </div>
-                <div className="mt-2 inline-block border-3 border-ink bg-accent-green px-4 py-2 font-display text-xl font-bold shadow-brutal">
-                  CASHED OUT +{phase.net}
-                </div>
-                <p className="mt-2 font-mono text-sm text-ink/60">
-                  {phase.winnings} coins returned on a {phase.stake} coin stake
-                </p>
+
+                {!phase.done ? (
+                  // Still flying — ghost multiplier shows what it would be worth now.
+                  <div>
+                    <div className={`font-display text-6xl font-bold tabular-nums leading-none opacity-60 ${valueClass(liveMultiplier)}`}>
+                      {liveMultiplier.toFixed(2)}x
+                    </div>
+                    <p className="mt-1 font-mono text-xs text-ink/50">
+                      if you&apos;d held: {Math.floor(phase.stake * liveMultiplier)} coins · still climbing…
+                    </p>
+                  </div>
+                ) : (
+                  // The watch is over — reveal the crash and the road not taken.
+                  <div>
+                    <div className="font-display text-5xl font-bold text-accent-red">
+                      💥 {phase.crashPoint.toFixed(2)}x
+                    </div>
+                    <p className="mt-2 font-mono text-sm text-ink/60">
+                      {phase.crashPoint >= phase.cashMultiplier * 2
+                        ? `It mooned. Holding to the top would've paid ${Math.floor(
+                            phase.stake * phase.crashPoint
+                          )} — you left ${Math.floor(phase.stake * phase.crashPoint) - phase.winnings} on the table.`
+                        : `Smart bail — it only reached ${phase.crashPoint.toFixed(2)}x. You banked ${phase.winnings}.`}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -505,6 +708,15 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
               Cash Out
             </Button>
           )}
+
+          {watching && (
+            <Button
+              onClick={skipWatch}
+              className="w-full py-5 text-lg sm:w-40 bg-paper text-ink"
+            >
+              Skip ▸
+            </Button>
+          )}
         </div>
 
         {error && (
@@ -513,12 +725,12 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
           </p>
         )}
 
-        {phase.tag === "win" || phase.tag === "bust" ? (
+        {(phase.tag === "bust" || (phase.tag === "cashed" && phase.done)) ? (
           <div className="flex flex-wrap items-center gap-3">
             <Button onClick={playAgain}>Play Again</Button>
             <span className="ml-auto font-mono text-xs text-ink/50">balance {coins}</span>
           </div>
-        ) : !isLive ? (
+        ) : !climbing ? (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2">
               {BET_PRESETS.map((v) => (
@@ -575,8 +787,8 @@ export function CrashGame({ initialCoins }: { initialCoins: number }) {
         <HistoryStrip history={history} />
 
         <p className="font-mono text-[10px] uppercase text-ink/35">
-          Cash out before the crash · tiny house edge · never crashes under 1.12x · ceiling{" "}
-          {MAX_MULTIPLIER.toLocaleString()}x
+          Cash out before the crash · tiny house edge · floor 1.00x · ceiling{" "}
+          {MAX_MULTIPLIER.toLocaleString()}x · bail early to watch how high it would&apos;ve flown
         </p>
       </Card>
     </div>
@@ -614,10 +826,20 @@ const crashFx = `
   0%, 100% { opacity: 0.15; transform: scale(0.8); }
   50% { opacity: 1; transform: scale(1.3); }
 }
+@keyframes crash-flash-kf {
+  0% { box-shadow: inset 0 0 0 9999px rgba(255, 77, 46, 0.55); }
+  100% { box-shadow: inset 0 0 0 9999px rgba(255, 77, 46, 0); }
+}
+@keyframes crash-tip-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
 .crash-shake { animation: crash-shake 0.18s linear infinite; }
 .crash-shake-hard { animation: crash-shake-hard 0.14s linear infinite; }
 .crash-throb { animation: crash-throb 0.5s ease-in-out infinite; }
 .crash-fire-glow { box-shadow: 0 0 24px 4px rgba(255, 77, 46, 0.55); }
+.crash-flash { animation: crash-flash-kf 0.5s ease-out 1; }
+.crash-tip { animation: crash-tip-pulse 0.7s ease-in-out infinite; }
 .crash-rainbow-text {
   background: linear-gradient(90deg, #ff4d2e, #ffd60a, #b6ff00, #39c0ff, #c77dff, #ff4d2e);
   background-size: 200% 100%;

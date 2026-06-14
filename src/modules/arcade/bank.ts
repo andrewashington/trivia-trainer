@@ -78,19 +78,19 @@ export function rollLimbo(): number {
 }
 
 /**
- * Crash point C with P(C ≥ x) = (1 − HOUSE_EDGE)/x. With probability
- * HOUSE_EDGE the round busts instantly at 1.00× (the edge); otherwise it
- * busts at (1 − edge)/u. The edge lives in the distribution here, so a
- * cash-out simply pays stake × multiplier_at_cashout with no further cut.
+ * Crash point C with P(C ≥ x) = (1 − HOUSE_EDGE)/x — the standard crash
+ * distribution. With probability HOUSE_EDGE the round busts instantly at the
+ * 1.00× floor (this is where the edge is collected); otherwise it busts at
+ * (1 − edge)/u, clamped to [1.00×, MAX_MULTIPLIER]. The edge lives entirely
+ * in the distribution, so a cash-out pays stake × multiplier with no further
+ * cut. The true minimum crash is therefore 1.00× — `clampMultiplier` never
+ * returns below it — and the UI advertises exactly that (no false floor).
  */
 export function rollCrashPoint(): number {
   refreshEconomy();
   const u = uniform();
   if (u >= 1 - live.houseEdge) return 1.0; // instant bust, probability = edge
-  // Forgiveness floor: a non-instant round never crashes below 1.12×, so a
-  // player watching always has a real window to react. (~9% of raw rolls
-  // land in (1.00, 1.12) — those get bumped up; a small player-EV gift.)
-  return Math.max(1.12, clampMultiplier((1 - live.houseEdge) / u));
+  return clampMultiplier((1 - live.houseEdge) / u);
 }
 
 /**
