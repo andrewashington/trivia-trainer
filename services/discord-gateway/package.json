@@ -1,0 +1,17 @@
+{
+  "name": "discord-gateway",
+  "private": true,
+  "version": "1.0.0",
+  "description": "UDM+ Discord @mention listener sidecar — forwards mentions to the app (see services/discord-gateway/server.js)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.0"
+  }
+}
