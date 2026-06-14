@@ -35,6 +35,8 @@ export const CARD_IDS = {
   status: 6,
   buttons: 7,
   link: 8,
+  /** Base for any interactive rows beyond the first (kept clear of 1–8). */
+  extraRowBase: 16,
 } as const;
 
 type Emoji = { id?: string; name?: string; animated?: boolean };
@@ -121,15 +123,23 @@ export async function postV2(
   return { messageId: json.id };
 }
 
-/** Edit a Components V2 message in place. The V2 flag is re-sent (it's irreversible). */
+/**
+ * Edit a Components V2 message in place. The V2 flag is re-sent (it's
+ * irreversible). Pass `attachments` to retain existing uploads — a CV2 PATCH
+ * that omits the attachments array DROPS the message's attachments, which would
+ * break a card whose mediaGallery references the uploaded PNG.
+ */
 export async function editV2(
   channelId: string,
   messageId: string,
-  components: object[]
+  components: object[],
+  attachments?: { id: string }[]
 ): Promise<void> {
+  const body: Record<string, unknown> = { flags: IS_COMPONENTS_V2, components };
+  if (attachments) body.attachments = attachments;
   await discordApi(`/channels/${channelId}/messages/${messageId}`, {
     method: "PATCH",
-    body: { flags: IS_COMPONENTS_V2, components },
+    body,
   });
 }
 
@@ -195,7 +205,13 @@ export async function postCardV2(opts: {
   ];
   if (opts.statusLine) inner.push(withId(CARD_IDS.status, textDisplay(opts.statusLine)));
   if (opts.components?.length) {
-    inner.push(withId(CARD_IDS.buttons, opts.components[0] as object), ...opts.components.slice(1));
+    // The first interactive row is the live-editable one (CARD_IDS.buttons);
+    // any extras get ids well clear of the fixed 1–8 so a tracked card never
+    // leaves a child without an explicit id (which would let Discord auto-number
+    // it into a collision).
+    opts.components.forEach((c, i) =>
+      inner.push(withId(i === 0 ? CARD_IDS.buttons : CARD_IDS.extraRowBase + i, c as object))
+    );
   }
   if (base) inner.push(withId(CARD_IDS.link, actionRow(linkButton("Open in UDM+", `${base}${opts.spec.path}`))));
 

@@ -1,6 +1,12 @@
 import { db } from "@/lib/db";
 import { discordApi, botConfig } from "@/lib/discord/bot";
-import { editV2, patchCardComponents, textDisplay, CARD_IDS } from "@/lib/discord/components";
+import {
+  editV2,
+  patchCardComponents,
+  textDisplay,
+  mediaGallery,
+  CARD_IDS,
+} from "@/lib/discord/components";
 
 /**
  * Live-edit support for posted cards. A `DiscordMessageRef` ties an entity
@@ -46,7 +52,10 @@ export async function editTrackedMessage(
     const res = await discordApi(`/channels/${ref.channelId}/messages/${ref.messageId}`, {
       method: "GET",
     });
-    const msg = (await res.json()) as { components?: object[] };
+    const msg = (await res.json()) as {
+      components?: object[];
+      attachments?: { id: string; filename?: string }[];
+    };
     const replacements: Record<number, object | null> = {};
     if (patch.status !== undefined) {
       replacements[CARD_IDS.status] = { ...textDisplay(patch.status), id: CARD_IDS.status };
@@ -54,8 +63,19 @@ export async function editTrackedMessage(
     if (patch.buttons !== undefined) {
       replacements[CARD_IDS.buttons] = patch.buttons;
     }
+    // Re-bind the card image to the retained upload via attachment://<name>: on
+    // GET, Discord rewrites the mediaGallery url to a signed/expiring CDN link,
+    // and a CV2 PATCH that omits `attachments` drops the upload entirely. Resend
+    // the canonical attachment:// reference and keep the attachment with its id.
+    const att = msg.attachments?.[0];
+    if (att) {
+      replacements[CARD_IDS.media] = {
+        ...mediaGallery([{ url: `attachment://${att.filename ?? "card.png"}` }]),
+        id: CARD_IDS.media,
+      };
+    }
     const next = patchCardComponents(msg.components ?? [], replacements);
-    await editV2(ref.channelId, ref.messageId, next);
+    await editV2(ref.channelId, ref.messageId, next, att ? [{ id: att.id }] : undefined);
   } catch (err) {
     // A deleted message / closed channel shouldn't break the originating action.
     console.error(`[discord] editTrackedMessage failed for ${kind}:${refId}`, err);
