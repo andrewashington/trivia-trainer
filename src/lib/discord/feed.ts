@@ -1,5 +1,6 @@
 import type { OutboxEventType } from "@/lib/outbox";
 import type { IconName } from "@/components/icons";
+import { feedContribution } from "@/lib/discord/registry";
 
 /**
  * Phase-1 Discord feed: which outbox events get announced, and how.
@@ -85,6 +86,9 @@ const btn = (style: number, label: string, custom_id: string) => ({
  * posting as the bot — webhook messages can't carry components.
  */
 export function componentsFor(type: OutboxEventType, payload: Payload): object[] | null {
+  // Feature-contributed buttons win; core cards fall through to the switch.
+  const contrib = feedContribution(type)?.components?.(payload);
+  if (contrib) return contrib;
   switch (type) {
     case "event.created": {
       const id = str(payload, "eventId");
@@ -147,6 +151,9 @@ function formatPrice(cents: number | null | undefined): string {
  * shouty kickers.
  */
 export function specFor(type: OutboxEventType, payload: Payload): CardSpec | null {
+  // Feature-contributed cards win; core cards fall through to the switch.
+  const contrib = feedContribution(type)?.spec?.(payload);
+  if (contrib) return contrib;
   switch (type) {
     case "recipe.created":
       return {
@@ -278,6 +285,33 @@ export function specFor(type: OutboxEventType, payload: Payload): CardSpec | nul
         actorId: str(payload, "addedBy"),
         path: "/",
       };
+    default:
+      return null;
+  }
+}
+
+/**
+ * Which posted cards should be tracked (as a DiscordMessageRef) so they can be
+ * live-edited later. Poll / listing / event cards carry interactive buttons
+ * whose state changes (vote tally, CLAIMED, RSVP counts) we rewrite in place.
+ */
+export function trackRefFor(
+  type: OutboxEventType,
+  payload: Payload
+): { kind: string; refId: string } | null {
+  switch (type) {
+    case "poll.created": {
+      const id = str(payload, "pollId");
+      return id ? { kind: "poll", refId: id } : null;
+    }
+    case "listing.created": {
+      const id = str(payload, "listingId");
+      return id ? { kind: "listing", refId: id } : null;
+    }
+    case "event.created": {
+      const id = str(payload, "eventId");
+      return id ? { kind: "event", refId: id } : null;
+    }
     default:
       return null;
   }

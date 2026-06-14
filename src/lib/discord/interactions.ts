@@ -3,6 +3,10 @@ import type { User } from "@prisma/client";
 import { db } from "@/lib/db";
 import { DISCORD_API, botConfig } from "@/lib/discord/bot";
 import { withOutbox } from "@/lib/outbox";
+import { ensureFeatures, commandHandler, componentHandler } from "@/lib/discord/registry";
+import { editTrackedMessage } from "@/lib/discord/messageState";
+import { actionRow, button, CARD_IDS } from "@/lib/discord/components";
+import { rsvpStatus, claimedStatus, pollStatus } from "@/lib/discord/cardStatus";
 
 /**
  * Interaction dispatcher for the Discord bot. Phase 1: /link and
@@ -23,20 +27,41 @@ import { withOutbox } from "@/lib/outbox";
 
 const EPHEMERAL = 64;
 
-type Interaction = {
+/**
+ * Discord interaction payload. Fields beyond phase-1's needs (channel_id,
+ * guild_id, id, resolved, target_id, message) are optional and used by
+ * registry-contributed feature handlers (AI Concierge, economy) — they don't
+ * change the existing dispatch. Exported so feature modules share one shape.
+ */
+export type Interaction = {
   type: number;
+  id?: string;
   token?: string;
-  data?: { name?: string; custom_id?: string; values?: string[]; options?: CommandOption[] };
+  channel_id?: string;
+  guild_id?: string;
+  app_permissions?: string;
+  data?: {
+    name?: string;
+    custom_id?: string;
+    values?: string[];
+    options?: CommandOption[];
+    /** Context-menu target id (type 2/3 commands). */
+    target_id?: string;
+    /** Resolved entities (e.g. messages for a message context menu). */
+    resolved?: { messages?: Record<string, ResolvedMessage> };
+  };
+  message?: { id?: string };
   member?: { user?: DiscordUser };
   user?: DiscordUser;
 };
-type CommandOption = {
+export type CommandOption = {
   name: string;
   type: number;
   value?: string | number | boolean;
   options?: CommandOption[];
 };
 type DiscordUser = { id: string; username?: string; global_name?: string | null };
+type ResolvedMessage = { id: string; content?: string; author?: DiscordUser };
 
 function optValue(options: CommandOption[] | undefined, name: string): string | undefined {
   const v = options?.find((o) => o.name === name)?.value;
@@ -64,6 +89,8 @@ function ephemeralReply(content: string) {
 export async function handleInteraction(interaction: Interaction): Promise<object> {
   if (interaction.type === 1) return { type: 1 }; // PING → PONG
 
+  await ensureFeatures(); // populate the registry so feature handlers are consultable
+
   const discordUser = interaction.member?.user ?? interaction.user;
   if (!discordUser?.id) return ephemeralReply("Couldn't tell who you are. Try again.");
 
@@ -79,6 +106,10 @@ export async function handleInteraction(interaction: Interaction): Promise<objec
         "Your Discord isn't linked to UDM+ yet — run `/link` and enter the code on your profile page first."
       );
     }
+    // Feature-contributed commands (AI Concierge, economy, …) win; core
+    // commands fall through to the switch.
+    const fh = commandHandler(name);
+    if (fh) return fh(user, interaction);
     const options = interaction.data?.options;
     switch (name) {
       case "events":
@@ -102,6 +133,8 @@ export async function handleInteraction(interaction: Interaction): Promise<objec
       }
       case "polls":
         return handlePolls();
+      case "poll":
+        return handlePollQuick(optValue(options, "question"), optValue(options, "options"));
       case "marketplace":
         return handleMarketplace();
       case "ideas":
@@ -154,6 +187,10 @@ async function handleComponent(
   values: string[] | undefined
 ): Promise<object> {
   const [head, ...rest] = customId.split(":");
+  // Feature-contributed component handlers (concierge:*, drop:*, coinflip:*, …)
+  // win; core buttons fall through to the switch.
+  const ch = componentHandler(head);
+  if (ch) return ch(user, rest, values);
   switch (head) {
     case "rsvp":
       return handleRsvp(user, rest[0], rest[1]);
@@ -189,6 +226,12 @@ async function handleRsvp(user: User, status: string, eventId: string): Promise<
       payload: { eventId: event.id, eventTitle: event.title, userId: user.id, status: r.status },
     })
   );
+
+  // Update the channel card's RSVP tally in place (fire-and-forget; the ack
+  // must land inside Discord's 3s window).
+  const counts = await db.rsvp.groupBy({ by: ["status"], where: { eventId: event.id }, _count: true });
+  const c = (s: string) => counts.find((x) => x.status === s)?._count ?? 0;
+  void editTrackedMessage("event", event.id, { status: rsvpStatus(c("going"), c("maybe"), c("no")) });
 
   const verb = status === "going" ? "You're in" : status === "maybe" ? "Penciled in as maybe" : "Marked as out";
   return ephemeralReply(`${verb} for **${event.title}**.`);
@@ -269,10 +312,48 @@ async function handlePollBallot(user: User, pollId: string, values: string[]): P
     })
   );
 
+  // Update the poll card's running tally in place (fire-and-forget).
+  const voters = await db.pollVote.findMany({
+    where: { pollId: poll.id },
+    distinct: ["userId"],
+    select: { userId: true },
+  });
+  void editTrackedMessage("poll", poll.id, { status: pollStatus(voters.length) });
+
   // Replace the ephemeral select with a confirmation.
   return {
     type: 7,
     data: { content: `Ballot cast for **${poll.question}** ✓`, components: [] },
+  };
+}
+
+/**
+ * /poll quick — a native Discord poll (the platform's own poll object), posted
+ * publicly in the channel for fast votes. The custom button-poll (/polls) stays
+ * for anonymous / sealed / scale polls. Native polls cap at 10 answers ≤55 chars.
+ */
+function handlePollQuick(question: string | undefined, optionsRaw: string | undefined): object {
+  const q = (question ?? "").trim();
+  if (!q) return ephemeralReply("Give the poll a question.");
+  const answers = (optionsRaw ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 10)
+    .map((text) => ({ poll_media: { text: text.slice(0, 55) } }));
+  if (answers.length < 2) return ephemeralReply("Give at least 2 options, comma-separated.");
+  // type 4 WITHOUT the ephemeral flag → the poll lands publicly in the channel.
+  return {
+    type: 4,
+    data: {
+      poll: {
+        question: { text: q.slice(0, 300) },
+        answers,
+        duration: 24, // hours
+        allow_multiselect: false,
+        layout_type: 1,
+      },
+    },
   };
 }
 
@@ -302,20 +383,17 @@ async function handleClaim(user: User, listingId: string): Promise<object> {
 
   if (!won) return ephemeralReply(`Too slow — **${listing.title}** is already claimed.`);
 
-  // Winner: disable the button on the card itself so the channel sees it.
-  return {
-    type: 7,
-    data: {
-      components: [
-        {
-          type: 1,
-          components: [
-            { type: 2, style: 2, label: `Claimed by ${user.displayName}`, custom_id: "noop", disabled: true },
-          ],
-        },
-      ],
-    },
+  // Winner: mark the channel card CLAIMED and disable its button in place
+  // (fire-and-forget; works on the new V2 cards, no-ops on legacy ones).
+  const disabledRow = {
+    ...actionRow(button(2, `Claimed by ${user.displayName}`, "noop", { disabled: true })),
+    id: CARD_IDS.buttons,
   };
+  void editTrackedMessage("listing", listing.id, {
+    status: claimedStatus(user.displayName),
+    buttons: disabledRow,
+  });
+  return ephemeralReply(`You claimed **${listing.title}** 🎉`);
 }
 
 class ClaimLost extends Error {}

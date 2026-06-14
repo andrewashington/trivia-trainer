@@ -4,9 +4,10 @@
  *   npm run discord:register                  # uses local .env
  *   railway run npm run discord:register      # uses prod env vars
  *
- * Bulk-overwrites the application's GLOBAL command list (global commands
- * can take up to ~1 hour to propagate on first registration; usually
- * minutes). Needs DISCORD_APP_ID and DISCORD_BOT_TOKEN.
+ * Bulk-overwrites the application's command list. With DISCORD_GUILD_ID set it
+ * registers to that guild (instant propagation — best for iteration); without
+ * it, registers globally (can take ~1h on first registration). Needs
+ * DISCORD_APP_ID and DISCORD_BOT_TOKEN.
  */
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
@@ -65,6 +66,15 @@ const COMMANDS = [
     ],
   },
   { name: "polls", description: "Open polls, with vote buttons", type: 1 },
+  {
+    name: "poll",
+    description: "Quick native poll",
+    type: 1,
+    options: [
+      { name: "question", description: "What are we deciding?", type: 3, required: true, max_length: 300 },
+      { name: "options", description: "Answers, comma-separated (2–10)", type: 3, required: true },
+    ],
+  },
   { name: "marketplace", description: "What's for sale, with claim buttons", type: 1 },
   { name: "ideas", description: "Top open ideas, with upvote buttons", type: 1 },
   { name: "recipes", description: "Latest cookbook additions", type: 1 },
@@ -100,7 +110,12 @@ async function main() {
     process.exit(1);
   }
 
-  const res = await fetch(`https://discord.com/api/v10/applications/${appId}/commands`, {
+  const guildId = process.env.DISCORD_GUILD_ID;
+  const endpoint = guildId
+    ? `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`
+    : `https://discord.com/api/v10/applications/${appId}/commands`;
+
+  const res = await fetch(endpoint, {
     method: "PUT",
     headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify(COMMANDS),
@@ -110,7 +125,10 @@ async function main() {
     process.exit(1);
   }
   const registered = (await res.json()) as { name: string }[];
-  console.log(`Registered ${registered.length} commands: ${registered.map((c) => c.name).join(", ")}`);
+  const scope = guildId ? `guild ${guildId}` : "global";
+  console.log(
+    `Registered ${registered.length} commands (${scope}): ${registered.map((c) => c.name).join(", ")}`
+  );
 }
 
 void main();

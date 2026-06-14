@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { specFor } from "@/lib/discord/feed";
 import { getConfig } from "@/lib/appConfig";
+import { botConfig } from "@/lib/discord/bot";
+import { ensureFeatures } from "@/lib/discord/registry";
 import type { OutboxEventType } from "@/lib/outbox";
 
 /**
@@ -46,6 +48,7 @@ async function drain() {
   if (draining) return;
   draining = true;
   try {
+    await ensureFeatures(); // load any feature-contributed cards before posting
     const rows = await db.outboxEvent.findMany({
       where: { processedAt: null },
       orderBy: { createdAt: "asc" },
@@ -100,13 +103,36 @@ async function postRow(id: string, type: OutboxEventType, payload: unknown) {
 
   // Lazy imports keep next/og out of the module graph until a card is
   // actually needed.
-  const [{ renderCardPng }, { postCardToDiscord }, { componentsFor }] = await Promise.all([
+  const [{ renderCardPng }, { componentsFor, trackRefFor }] = await Promise.all([
     import("@/lib/discord/card"),
-    import("@/lib/discord/webhook"),
     import("@/lib/discord/feed"),
   ]);
   const png = await renderCardPng(spec, actorName);
-  await postCardToDiscord(spec, actorName, png, componentsFor(type, p));
+  const components = componentsFor(type, p);
+
+  if (botConfig().canPost) {
+    // Bot mode: rich Components V2 card — the brutalist PNG inside an accent
+    // container with live buttons. Track poll/listing/event cards so their
+    // state (vote tally, CLAIMED, RSVP counts) can be edited in place later.
+    const [{ postCardV2 }, { initialStatusFor }] = await Promise.all([
+      import("@/lib/discord/components"),
+      import("@/lib/discord/cardStatus"),
+    ]);
+    const track = trackRefFor(type, p);
+    await postCardV2({
+      spec,
+      png,
+      components,
+      actorName,
+      statusLine: track ? initialStatusFor(type) : undefined,
+      kind: track?.kind,
+      refId: track?.refId,
+    });
+  } else {
+    // Webhook fallback: legacy embed + PNG (plain webhooks can't carry components).
+    const { postCardToDiscord } = await import("@/lib/discord/webhook");
+    await postCardToDiscord(spec, actorName, png, components);
+  }
   await markProcessed(id);
   // Stay far below Discord's per-webhook rate limit when batching.
   await new Promise((r) => setTimeout(r, 750));
