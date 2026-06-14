@@ -75,6 +75,14 @@ const COMMANDS = [
       { name: "options", description: "Answers, comma-separated (2–10)", type: 3, required: true },
     ],
   },
+  {
+    name: "udm",
+    description: "Ask UDM+ anything — a question, or to make / do something",
+    type: 1,
+    options: [
+      { name: "message", description: "What do you want?", type: 3, required: true, max_length: 400 },
+    ],
+  },
   { name: "marketplace", description: "What's for sale, with claim buttons", type: 1 },
   { name: "ideas", description: "Top open ideas, with upvote buttons", type: 1 },
   { name: "recipes", description: "Latest cookbook additions", type: 1 },

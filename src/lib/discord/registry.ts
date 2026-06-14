@@ -102,6 +102,6 @@ let loaded = false;
 export async function ensureFeatures(): Promise<void> {
   if (loaded) return;
   loaded = true;
-  // Wave 1: await import("@/lib/discord/features/concierge");
+  await import("@/lib/discord/features/assistant"); // /udm catch-all assistant
   // Wave 3: await import("@/lib/discord/features/economy");
 }
