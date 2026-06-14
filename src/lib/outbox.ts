@@ -79,7 +79,12 @@ export type OutboxEventType =
   | "poker.table.created"
   | "poker.hand.finished"
   | "twentyq.created"
-  | "twentyq.solved";
+  | "twentyq.solved"
+  | "discord.tip.sent"
+  | "discord.drop.created"
+  | "discord.drop.claimed"
+  | "discord.coinflip.created"
+  | "discord.coinflip.settled";
 
 /**
  * Write a domain event (and apply any coin award it earns) on an open

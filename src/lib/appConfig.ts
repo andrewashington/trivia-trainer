@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
  * effect without a deploy, and a missing row means "today's behavior".
  */
 
-export type AppConfigKey = "discord.feeds" | "coin.rewards" | "knobs";
+export type AppConfigKey = "discord.feeds" | "coin.rewards" | "knobs" | "discord.settings";
 
 export async function getConfig<T>(key: AppConfigKey): Promise<T | null> {
   const row = await db.appConfig.findUnique({ where: { key } });

@@ -1448,3 +1448,86 @@ model TwentyQuestionsEntry {
 
   @@index([gameId, createdAt])
 }
+
+// ── Discord expansion (additive) ─────────────────────────────────────────────
+// All Discord-expansion tables use a bare `userId String` (no relation to User)
+// so the User model stays a conflict-free hotspot. See docs/discord-build-spec.md.
+
+// Live-editable posted messages (poll cards, leaderboards, drops, games) so a
+// card can be edited in place after the underlying entity changes.
+model DiscordMessageRef {
+  id        String   @id @default(cuid())
+  kind      String // "poll" | "listing" | "leaderboard" | "drop" | "coinflip" | "digest"
+  refId     String // the entity id this message mirrors
+  channelId String
+  messageId String
+  createdAt DateTime @default(now())
+
+  @@unique([kind, refId])
+  @@index([messageId])
+}
+
+// Per-user DM notification opt-ins + cached DM channel.
+model DiscordNotifyPref {
+  userId      String   @id
+  dmTurn      Boolean  @default(true) // your turn (Tanks/20Q/Poker)
+  dmClaims    Boolean  @default(true) // outbid / claimed
+  dmStakes    Boolean  @default(true) // stake resolving soon
+  dmMentions  Boolean  @default(true) // comment reply / @mention
+  dmDigest    Boolean  @default(false) // periodic digest
+  digestDaily Boolean  @default(false) // true=daily, false=weekly
+  dmChannelId String? // cached DM channel id
+  updatedAt   DateTime @updatedAt
+}
+
+// AI Concierge: a pending draft awaiting the user's "Post it".
+model DiscordDraft {
+  id        String    @id @default(cuid())
+  userId    String
+  kind      String // "poll" | "idea" | "event" | "recipe" | "wishlist" | "countdown" | "listing" | "stake"
+  data      Json // validated draft fields for that kind
+  channelId String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  postedAt  DateTime?
+
+  @@index([userId, createdAt]) // also used for the per-user daily AI cap
+}
+
+// In-chat coin drop: first-come or split among N claimers.
+model DiscordDrop {
+  id        String   @id @default(cuid())
+  channelId String
+  messageId String?
+  amount    Int
+  kind      String   @default("first") // "first" | "split"
+  maxClaims Int      @default(1)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  claims DiscordDropClaim[]
+}
+
+model DiscordDropClaim {
+  dropId String
+  userId String
+  at     DateTime @default(now())
+
+  drop DiscordDrop @relation(fields: [dropId], references: [id], onDelete: Cascade)
+
+  @@id([dropId, userId])
+}
+
+// Coinflip duel (zero-sum, winner takes both antes).
+model DiscordCoinflip {
+  id           String   @id @default(cuid())
+  channelId    String
+  messageId    String?
+  challengerId String
+  opponentId   String? // null = open challenge
+  ante         Int
+  status       String   @default("open") // open | settled | cancelled | expired
+  winnerId     String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
