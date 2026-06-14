@@ -1,8 +1,16 @@
 # Arcade modules — feature inventory
 
-Refactor-scoping reference for everything in the **Arcade** nav category
-(`src/modules/registry.ts`, category `"arcade"`, icon `gamepad`, tagline
-"Fun & games"). Six modules: Ideas, Polls, Reveal, Stakes, Pet, Snake.
+> ⚠️ **Partial & partly stale (snapshot ~2026-06-10).** The category system
+> has since changed: **Ideas, Polls, Reveal** (plus Tiers and Smash-or-Pass)
+> now live in the **Forum** category, *not* Arcade, and the Arcade has grown
+> to ~17 modules (the World, Pet, Stakes, and ~14 games). For the **live**
+> module → category map, read [`src/modules/registry.ts`](../src/modules/registry.ts).
+> The per-module deep-dives below (Ideas, Polls, Reveal, Stakes, Pet, Snake)
+> are still accurate as feature references.
+
+Refactor-scoping reference, originally scoped to the old **Arcade** nav
+category (`src/modules/registry.ts`). Covers six modules in depth: Ideas,
+Polls, Reveal, Stakes, Pet, Snake.
 
 Current as of 2026-06-10 (post forfeit-wheel removal and the arcade
 reconciliation pass: Reveal's `oracle` type was cut — anonymous scale

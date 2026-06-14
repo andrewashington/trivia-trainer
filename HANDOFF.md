@@ -3,9 +3,10 @@
 Read this first if you're an agent (or human) picking this project up.
 For the product/architecture overview see [README.md](README.md); for the
 full deploy walkthrough see [DEPLOY.md](DEPLOY.md); for working agreements
-see [CLAUDE.md](CLAUDE.md). This file is the **current state + runbook**.
+see [AGENTS.md](AGENTS.md) (imported by `CLAUDE.md`). This file is the
+**current state + runbook**.
 
-_Last updated: 2026-06-10._
+_Last updated: 2026-06-14._
 
 ---
 
@@ -73,10 +74,11 @@ resolve an item in the Admin page and re-run to clear its card.
    direct presigned PUT — a policy allowing `PUT/GET/HEAD` from the live
    origin(s). **If uploads start failing with a CORS/preflight error after
    the app URL/domain changes, re-apply CORS:** edit the origins in
-   `scripts/set-bucket-cors.ts` and run `railway run npx tsx
-   scripts/set-bucket-cors.ts` (uses the prod S3_* creds). Currently
-   allows `https://udm-plus.up.railway.app` + the
-   `deliciouscommunications.com` apex/www. Credentials come from the
+   `scripts/set-bucket-cors.ts` and run `railway run -s trivia-trainer npx
+   tsx scripts/set-bucket-cors.ts` (uses the prod S3_* creds) — list the
+   live origin(s) the browser loads the app from: the
+   `trivia-trainer-production.up.railway.app` Railway URL plus any custom
+   domain (e.g. the `deliciouscommunications.com` apex/www). Credentials come from the
    Railway API (`bucketS3Credentials` query) or the bucket's Connect tab,
    not the repo.
 2. **Add the friends.** Sign in as admin → avatar menu → **Admin** → add
@@ -124,6 +126,11 @@ The CLI is installed (`railway`, v5.8.0) and **linked** to this project on
 this machine. The auth token is per-user; if `railway whoami` says
 unauthorized, run `railway login` (interactive, opens a browser).
 
+> **Always pass `-s trivia-trainer`.** The CLI may be linked to a *different*
+> service by default, so a bare `railway run` / `railway variables` can
+> target the wrong service (or hit local MinIO for storage instead of the
+> prod bucket). Every command below is service-scoped on purpose.
+
 ```bash
 # from the repo root
 railway status                                   # confirm project/env/service
@@ -168,7 +175,7 @@ works exactly as before.
 
 1. Edit code. Verify locally: `npx tsc --noEmit` and `npm run build`
    (the project rule is **no self-driven browser testing** — the owner
-   tests in-browser; see CLAUDE.md).
+   tests in-browser; see AGENTS.md).
 2. Commit and push `main`.
 3. Railway auto-deploys the tracked branch on push. To force the latest
    commit + current env: `railway redeploy -s trivia-trainer -y --from-source`.
@@ -207,9 +214,18 @@ admin, never sample data.
 ## Architecture pointers (where things live)
 
 - **Module registry:** `src/modules/registry.ts` — every feature + its
-  category (Quests/Shelf/Stash/Arcade), icon, accent, intro/tips. Add a
+  category (Quests/Shelf/Stash/Forum/Arcade), icon, accent, intro/tips. Add a
   module = new folder under `src/modules/<key>` + `src/app/api/...` + one
   registry entry.
+- **Coins & live knobs:** in-app currency in `src/lib/coins.ts` /
+  `coinRewards.ts`; game odds, payouts, multipliers, and promos are tuned at
+  runtime from the Admin console (stored in `AppConfig`, hot-cached via
+  `src/lib/knobs.ts` / `appConfig.ts`). Don't hard-code game odds.
+- **The World:** tile-based isometric world (Tiled maps, avatars, furniture,
+  shop) under `src/modules/world` — see `docs/world-design.md`. World CLI
+  helpers: `npm run world:*`; source assets in `assets-src/`.
+- **Shared blocks:** `src/modules/comments` (attachable comment threads) and
+  `src/modules/gamechat` (in-game chat) — reuse, don't reimplement.
 - **Shell/nav:** `src/components/NavTabs.tsx` (sidebar + mobile tabs),
   `src/app/(app)/layout.tsx` (header, onboarding, feedback button).
 - **Per-tab heroes:** `src/components/Hero.tsx` + each page computes its
@@ -234,6 +250,6 @@ admin, never sample data.
 
 - **No self-driven browser testing.** Verify with `tsc` + build + the
   dev-server compile log, then hand off. The owner does all in-browser
-  testing. (Codified in CLAUDE.md and the owner's memory.)
+  testing. (Codified in AGENTS.md and the owner's memory.)
 - **Allowlist-only membership.** Admins add members; there is no signup.
 - **`VAULT_KEY` is forever.** Don't rotate it post-launch.

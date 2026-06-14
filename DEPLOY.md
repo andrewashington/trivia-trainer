@@ -6,6 +6,11 @@ account created automatically on first boot). Render works the same way.
 
 The whole thing takes ~30 minutes. Go phase by phase.
 
+> **Already deployed?** This is the from-scratch "stand up a fresh instance"
+> guide. For the **live** UDM+ instance — its current state, real env vars,
+> Railway service name, and CLI runbook — see [HANDOFF.md](HANDOFF.md). The
+> live deploy auto-updates on every push to `main`.
+
 ---
 
 ## What you need
@@ -15,8 +20,9 @@ The whole thing takes ~30 minutes. Go phase by phase.
 - An **email sender** so magic-link sign-in works. Two options:
   - **Resend** (resend.com) + a domain you own — best, most reliable.
   - **Gmail SMTP** (an app password) — zero cost, no domain needed.
-- *(Optional)* **Cloudflare R2** for file/photo uploads (Files tab,
-  Market photos, recipe photos). Skip it and everything else still works.
+- *(Optional)* an **S3-compatible bucket** for file/photo uploads (Files tab,
+  Market photos, recipe photos) — a **Railway Bucket** (simplest, no signup)
+  or Cloudflare R2 / Backblaze B2. Skip it and everything else still works.
 
 ---
 
@@ -193,7 +199,7 @@ triggers a CORS preflight). Without CORS the upload fails even though the
 env vars are correct. Allow `PUT/GET/HEAD` from the app's origin, e.g.:
 
 ```json
-[{ "AllowedOrigins": ["https://trivia-trainer-production.up.railway.app"],
+[{ "AllowedOrigins": ["https://your-app.up.railway.app"],
    "AllowedMethods": ["PUT","GET","HEAD"], "AllowedHeaders": ["*"],
    "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3600 }]
 ```

@@ -1,5 +1,13 @@
 # UDM+ module backlog
 
+> ⚠️ **Historical (≈2025).** Several of these shipped — **Polls, Map,
+> Photobook ("Photo Albums"), and Countdowns** are live modules now, and the
+> platform has ~34 modules in total (see [README.md](../README.md) and
+> `src/modules/registry.ts`). The **live** backlog is the in-app **Ideas**
+> module (group suggestion box with voting), not this file. Kept for the
+> still-unbuilt ideas below (Tabs & Splits, Quotes Board, Game Night
+> Leaderboard, Book Club, Weather Ribbon).
+
 Ten candidate modules that fit the platform (each is a folder + a
 registry entry + a few API routes — no shell changes). Ordered roughly
 by bang-for-buck. External services listed are free or nearly free at
