@@ -75,14 +75,20 @@ async function main() {
     if (!rows.length) break;
 
     const vectors = await embedTexts(rows.map((r) => r.content));
+    // Batch the embedding upserts (one statement, not one per segment).
+    const valueRows = [];
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
       const embedding = vectors[i];
       if (!embedding) continue;
       const vec = `[${embedding.join(",")}]`; // pgvector text literal
+      valueRows.push(
+        Prisma.sql`(${rows[i].id}, ${model}, ${embedding.length}, ${vec}::vector, ${rows[i].content_hash})`,
+      );
+    }
+    if (valueRows.length) {
       await db.$executeRaw`
         INSERT INTO discord_archive.segment_embeddings (segment_id, model, dimensions, embedding, content_hash)
-        VALUES (${row.id}, ${model}, ${embedding.length}, ${vec}::vector, ${row.content_hash})
+        VALUES ${Prisma.join(valueRows)}
         ON CONFLICT (segment_id) DO UPDATE SET
           model = EXCLUDED.model,
           dimensions = EXCLUDED.dimensions,
@@ -90,7 +96,7 @@ async function main() {
           content_hash = EXCLUDED.content_hash
       `;
     }
-    total += vectors.length;
+    total += valueRows.length;
     console.log(`[archive] embedded ${total} segments so far with ${model}`);
   }
 
@@ -194,13 +200,16 @@ async function rebuildSegments() {
     `;
   }
 
+  // Prune stale segments (boundaries that shifted). Diff in JS and delete only
+  // the few removed ids in chunks — `id <> ALL($huge_array)` is pathologically
+  // slow at tens of thousands of segments.
+  const keep = new Set(ids);
+  const existing = await db.$queryRaw`SELECT id FROM discord_archive.message_segments`;
+  const stale = existing.map((r) => r.id).filter((id) => !keep.has(id));
   let pruned = 0;
-  if (ids.length) {
-    pruned = await db.$executeRaw`
-      DELETE FROM discord_archive.message_segments WHERE id <> ALL(${ids})
-    `;
-  } else {
-    pruned = await db.$executeRaw`DELETE FROM discord_archive.message_segments`;
+  for (let i = 0; i < stale.length; i += 1000) {
+    const chunk = stale.slice(i, i + 1000);
+    pruned += await db.$executeRaw`DELETE FROM discord_archive.message_segments WHERE id = ANY(${chunk})`;
   }
 
   return { upserted: segments.length, pruned };
