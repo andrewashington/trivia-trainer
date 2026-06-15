@@ -98,6 +98,7 @@ async function handleMention(input: {
       text: input.text,
       sourceMessage: input.sourceMessage,
       recentMessages,
+      channelId: input.channelId,
     });
     await postChannel(input.channelId, `<@${input.discordUserId}> ${reply}`);
   } catch (err) {

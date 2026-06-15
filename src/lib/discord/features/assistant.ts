@@ -33,7 +33,7 @@ async function handleUdm(user: User, interaction: Interaction): Promise<object> 
     let content: string;
     try {
       const recentMessages = channelId ? await fetchRecentMessages(channelId, 18) : [];
-      content = await runAssistant({ userId: user.id, text, recentMessages });
+      content = await runAssistant({ userId: user.id, text, recentMessages, channelId });
     } catch (err) {
       console.error("[discord] /udm failed", err);
       content = "Something broke on my end — try again.";

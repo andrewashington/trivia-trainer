@@ -75,3 +75,112 @@ export async function chatJSON<T>(opts: {
     return await call(); // one retry
   }
 }
+
+function headers(key: string) {
+  const referer = (process.env.AUTH_URL ?? "https://udm-plus.up.railway.app").replace(/\/$/, "");
+  return {
+    Authorization: `Bearer ${key}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": referer,
+    "X-Title": "UDM+ Discord assistant",
+  };
+}
+
+export type ToolSpec = {
+  name: string;
+  description: string;
+  /** JSON Schema for the tool's arguments. */
+  parameters: Record<string, unknown>;
+};
+
+type ChatMsg =
+  | { role: "system" | "user"; content: string }
+  | {
+      role: "assistant";
+      content: string | null;
+      tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string } }[];
+    }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+/**
+ * Agentic tool-calling loop (OpenAI-compatible, via OpenRouter). The model may
+ * call read/write tools, we run them and feed the results back, repeating up to
+ * `maxSteps` until it returns a plain-text answer. On the final step tools are
+ * withheld so the model must produce text. Returns the model's final text.
+ */
+export async function runToolLoop(opts: {
+  system: string;
+  user: string;
+  tools: ToolSpec[];
+  execute: (name: string, args: Record<string, unknown>) => Promise<string>;
+  model?: string;
+  maxSteps?: number;
+  maxTokens?: number;
+}): Promise<string> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error("OPENROUTER_API_KEY not configured");
+  const model = opts.model || process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+  const maxSteps = opts.maxSteps ?? 5;
+  const maxTokens = opts.maxTokens ?? 900;
+  const toolsPayload = opts.tools.map((t) => ({
+    type: "function",
+    function: { name: t.name, description: t.description, parameters: t.parameters },
+  }));
+
+  const messages: ChatMsg[] = [
+    { role: "system", content: opts.system },
+    { role: "user", content: opts.user },
+  ];
+
+  for (let step = 0; step < maxSteps; step++) {
+    const lastStep = step === maxSteps - 1;
+    const body: Record<string, unknown> = { model, messages, max_tokens: maxTokens };
+    if (!lastStep) {
+      body.tools = toolsPayload;
+      body.tool_choice = "auto";
+    }
+    const res = await fetch(ENDPOINT, { method: "POST", headers: headers(key), body: JSON.stringify(body) });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`OpenRouter ${res.status}: ${t.slice(0, 300)}`);
+    }
+    const json = (await res.json()) as {
+      choices?: {
+        message?: {
+          content?: string | null;
+          tool_calls?: { id: string; function: { name: string; arguments: string } }[];
+        };
+      }[];
+    };
+    const msg = json.choices?.[0]?.message;
+    if (!msg) return "";
+    const toolCalls = msg.tool_calls ?? [];
+
+    messages.push({
+      role: "assistant",
+      content: msg.content ?? null,
+      ...(toolCalls.length
+        ? { tool_calls: toolCalls.map((tc) => ({ id: tc.id, type: "function" as const, function: tc.function })) }
+        : {}),
+    });
+
+    if (!toolCalls.length) return (msg.content ?? "").trim();
+
+    for (const tc of toolCalls) {
+      let args: Record<string, unknown> = {};
+      try {
+        args = JSON.parse(tc.function.arguments || "{}");
+      } catch {
+        /* leave empty */
+      }
+      let result: string;
+      try {
+        result = await opts.execute(tc.function.name, args);
+      } catch (e) {
+        result = `Error: ${e instanceof Error ? e.message : "tool failed"}`;
+      }
+      messages.push({ role: "tool", tool_call_id: tc.id, content: result.slice(0, 1500) });
+    }
+  }
+  return ""; // exhausted steps without a text answer
+}
