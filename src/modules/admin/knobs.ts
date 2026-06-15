@@ -154,7 +154,7 @@ export const KNOB_REGISTRY: KnobGroup[] = [
         id: "aiDailyLimit",
         label: "AI daily limit",
         type: "int",
-        default: 20,
+        default: 500,
         min: 0,
         max: 10_000,
         help: "Concierge drafts + /ask answers one person can trigger per day.",
