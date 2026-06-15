@@ -125,6 +125,16 @@ function interleaveCategories(markets: MarketView[]) {
   return out;
 }
 
+type SpotlightCard = {
+  key: string;
+  label: string;
+  icon: "fire" | "clock" | "sparkles" | "chart-bar-big" | "trophy" | "notebook";
+  market: MarketView;
+  detail: string;
+  dark?: boolean;
+  yellow?: boolean;
+};
+
 export function BookBoard({
   initialMarkets,
   initialBets,
@@ -177,7 +187,7 @@ export function BookBoard({
     return sort === "hot" && category === "All" ? interleaveCategories(sorted) : sorted;
   }, [filtered, sort, category]);
 
-  const spotlights = useMemo(() => {
+  const spotlightCards = useMemo<SpotlightCard[]>(() => {
     const priced = displayedMarkets
       .map((market) => ({ market, prices: parsePrices(market.outcomePrices) }))
       .filter((x): x is { market: MarketView; prices: [number, number] } => !!x.prices);
@@ -196,7 +206,59 @@ export function BookBoard({
       })
       .filter((x) => x.price > 0.01)
       .sort((a, b) => a.price - b.price)[0];
-    return { hot, soon, moonshot };
+
+    const cards: SpotlightCard[] = [];
+    if (hot) {
+      cards.push({
+        key: `hot:${hot.market.id}`,
+        label: "Hot ticket",
+        icon: "fire",
+        market: hot.market,
+        detail: `24h ${compactMoney(hot.market.volume24hr)} · liq ${compactMoney(hot.market.liquidity)}`,
+        yellow: true,
+      });
+    }
+    if (soon) {
+      cards.push({
+        key: `soon:${soon.market.id}`,
+        label: "Closing bell",
+        icon: "clock",
+        market: soon.market,
+        detail: `closes ${fmtDate(soon.market.endDate)}`,
+      });
+    }
+    if (moonshot) {
+      cards.push({
+        key: `moon:${moonshot.market.id}`,
+        label: "Moonshot",
+        icon: "sparkles",
+        market: moonshot.market,
+        detail: `${moonshot.side} · odds ${oddsLabel(moonshot.price)} · pays ${payout(stake, moonshot.price).toLocaleString()}`,
+        dark: true,
+      });
+    }
+
+    const used = new Set(cards.map((card) => card.market.id));
+    const categoryLeaders = new Map<string, MarketView>();
+    for (const market of displayedMarkets) {
+      if (used.has(market.id)) continue;
+      const key = market.category ?? "Other";
+      const current = categoryLeaders.get(key);
+      if (!current || marketVolume(market) > marketVolume(current)) {
+        categoryLeaders.set(key, market);
+      }
+    }
+    for (const [name, market] of categoryLeaders) {
+      cards.push({
+        key: `cat:${name}:${market.id}`,
+        label: `${name} line`,
+        icon: name === "Sports" ? "trophy" : name === "Crypto" || name === "Business" ? "chart-bar-big" : "notebook",
+        market,
+        detail: `24h ${compactMoney(market.volume24hr)} · closes ${fmtDate(market.endDate)}`,
+      });
+      if (cards.length >= 12) break;
+    }
+    return cards;
   }, [displayedMarkets]);
 
   async function refresh() {
@@ -364,46 +426,31 @@ export function BookBoard({
           <EmptyState icon="notebook" title="No lines on the board" hint="Refresh The Book or try a broader search." />
         ) : (
           <>
-            <div className="grid gap-3 md:grid-cols-3">
-              {spotlights.hot && (
-                <div className="border-3 border-ink bg-accent-yellow p-3 shadow-brutal-sm">
-                  <p className="brutal-label !mb-1 flex items-center gap-1">
-                    <PixelIcon name="fire" size={13} /> Hot ticket
-                  </p>
-                  <p className="line-clamp-2 font-display text-lg font-bold leading-tight">
-                    {spotlights.hot.market.question}
-                  </p>
-                  <p className="mt-2 font-mono text-[10px] uppercase text-ink/55">
-                    24h {compactMoney(spotlights.hot.market.volume24hr)} · liq {compactMoney(spotlights.hot.market.liquidity)}
-                  </p>
-                </div>
-              )}
-              {spotlights.soon && (
-                <div className="border-3 border-ink bg-card p-3 shadow-brutal-sm">
-                  <p className="brutal-label !mb-1 flex items-center gap-1">
-                    <PixelIcon name="clock" size={13} /> Closing bell
-                  </p>
-                  <p className="line-clamp-2 font-display text-lg font-bold leading-tight">
-                    {spotlights.soon.market.question}
-                  </p>
-                  <p className="mt-2 font-mono text-[10px] uppercase text-ink/55">
-                    closes {fmtDate(spotlights.soon.market.endDate)}
-                  </p>
-                </div>
-              )}
-              {spotlights.moonshot && (
-                <div className="border-3 border-ink bg-ink p-3 text-white shadow-brutal-sm">
-                  <p className="brutal-label !mb-1 flex items-center gap-1 !text-white/65">
-                    <PixelIcon name="sparkles" size={13} /> Moonshot
-                  </p>
-                  <p className="line-clamp-2 font-display text-lg font-bold leading-tight">
-                    {spotlights.moonshot.side} · {spotlights.moonshot.market.question}
-                  </p>
-                  <p className="mt-2 font-mono text-[10px] uppercase text-white/55">
-                    odds {oddsLabel(spotlights.moonshot.price)} · pays {payout(stake, spotlights.moonshot.price).toLocaleString()}
-                  </p>
-                </div>
-              )}
+            <div className="group overflow-hidden border-3 border-ink bg-paper shadow-brutal-sm">
+              <div className="flex w-max animate-marquee gap-3 p-3 [animation-duration:52s] group-hover:[animation-play-state:paused]">
+                {[...spotlightCards, ...spotlightCards].map((card, i) => (
+                  <div
+                    key={`${card.key}:${i}`}
+                    className={`w-72 shrink-0 border-3 border-ink p-3 shadow-brutal-sm ${
+                      card.dark
+                        ? "bg-ink text-white"
+                        : card.yellow
+                          ? "bg-accent-yellow text-ink"
+                          : "bg-card text-ink"
+                    }`}
+                  >
+                    <p className={`brutal-label !mb-1 flex items-center gap-1 ${card.dark ? "!text-white/65" : ""}`}>
+                      <PixelIcon name={card.icon} size={13} /> {card.label}
+                    </p>
+                    <p className="line-clamp-2 font-display text-lg font-bold leading-tight">
+                      {card.market.question}
+                    </p>
+                    <p className={`mt-2 font-mono text-[10px] uppercase ${card.dark ? "text-white/55" : "text-ink/55"}`}>
+                      {card.detail}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <ul className="space-y-5">
