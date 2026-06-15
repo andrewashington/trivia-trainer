@@ -19,7 +19,26 @@ export function GayMeter({ initialPercent }: { initialPercent: number | null }) 
   const [display, setDisplay] = useState<number>(initialPercent ?? 0);
   const [finalPercent, setFinalPercent] = useState<number | null>(initialPercent);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function share() {
+    if (finalPercent == null) return;
+    const b = bracketFor(finalPercent);
+    const text = `The UDM+ meter says I'm ${finalPercent}% gay today — "${b.label}". 🌈 Beat that.`;
+    const url = typeof window !== "undefined" ? `${window.location.origin}/howgay` : "";
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: "How Gay?", text, url });
+      } else {
+        await navigator.clipboard.writeText(`${text} ${url}`.trim());
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+      }
+    } catch {
+      /* user dismissed the share sheet — nothing to do */
+    }
+  }
 
   useEffect(() => {
     return () => {
@@ -115,9 +134,18 @@ export function GayMeter({ initialPercent }: { initialPercent: number | null }) 
       </button>
 
       {phase === "revealed" && (
-        <p className="font-mono text-[11px] text-ink/40">
-          Same number until midnight — pressing harder doesn&apos;t help.
-        </p>
+        <>
+          <button
+            type="button"
+            onClick={share}
+            className="w-full border-3 border-ink bg-card px-6 py-3 font-display text-lg font-bold uppercase tracking-wide shadow-brutal transition-all hover:-translate-y-0.5 active:translate-x-1 active:translate-y-1 active:shadow-brutal-pressed"
+          >
+            {copied ? "Copied! ✓" : "Share my reading"}
+          </button>
+          <p className="font-mono text-[11px] text-ink/40">
+            Same number until midnight — pressing harder doesn&apos;t help.
+          </p>
+        </>
       )}
       {error && <p className="font-mono text-xs text-accent-red">{error}</p>}
     </div>
