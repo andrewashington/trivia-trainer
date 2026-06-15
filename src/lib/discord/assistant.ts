@@ -535,8 +535,11 @@ async function route(input: AssistantInput): Promise<string> {
         console.error("[discord] searchArchiveMessages failed", err);
         return [];
       });
+      // Only pay for the rerank call when there's a real surplus to prune —
+      // reranking 13→12 is latency for nothing. Need a few extra to be worth it.
+      const RERANK_MIN_SURPLUS = 4;
       const hits =
-        settings.aiRerank && raw.length > limit
+        settings.aiRerank && raw.length >= limit + RERANK_MIN_SURPLUS
           ? await rerankHits(query, raw, limit, settings.aiModel || undefined)
           : raw.slice(0, limit);
       if (!hits.length) return "No archived messages matched.";
