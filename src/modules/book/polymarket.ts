@@ -2,29 +2,52 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
 const GAMMA = "https://gamma-api.polymarket.com";
-const SYNC_LIMIT = 700;
+const SYNC_LIMIT = 900;
 const EVENT_PAGE_SIZE = 100;
-const TOPICAL_EVENT_LIMIT = 30;
+// Hottest-overall pull. Polymarket's top volume is ~65% politics/geopolitics, so
+// this alone swamps the board — the per-topic shelves + category balancing below
+// are what restore variety.
+const GLOBAL_EVENT_LIMIT = 240;
 
-const TOPICAL_SHELVES = [
-  "sports",
-  "nba",
-  "nfl",
-  "mlb",
-  "soccer",
-  "tennis",
-  "crypto",
-  "tech",
-  "ai",
-  "science",
-  "music",
-  "movies",
-  "business",
-  "finance",
-  "politics",
-  "world",
-  "elections",
-] as const;
+// Per-topic shelves (real Gamma tag slugs, probed to confirm they return data).
+// Under-served categories — tech, culture, sports variety incl. the World Cup —
+// get the fattest limits; politics is intentionally thin because the global pull
+// already over-supplies it. An unknown/empty slug just returns nothing, harmless.
+const TOPICAL_SHELVES: { slug: string; limit: number }[] = [
+  // Tech
+  { slug: "tech", limit: 60 },
+  { slug: "ai", limit: 60 },
+  { slug: "elon-musk", limit: 30 },
+  { slug: "openai", limit: 25 },
+  { slug: "space", limit: 20 },
+  // Culture
+  { slug: "pop-culture", limit: 60 },
+  { slug: "movies", limit: 40 },
+  { slug: "music", limit: 40 },
+  { slug: "celebrities", limit: 40 },
+  { slug: "awards", limit: 20 },
+  { slug: "esports", limit: 30 },
+  // Sports (the World Cup lives under soccer / world-cup / fifa-world-cup)
+  { slug: "world-cup", limit: 60 },
+  { slug: "fifa-world-cup", limit: 40 },
+  { slug: "soccer", limit: 50 },
+  { slug: "nfl", limit: 30 },
+  { slug: "nba", limit: 30 },
+  { slug: "tennis", limit: 25 },
+  { slug: "ufc", limit: 25 },
+  { slug: "f1", limit: 20 },
+  // Crypto / Business / Science
+  { slug: "crypto", limit: 40 },
+  { slug: "bitcoin", limit: 25 },
+  { slug: "business", limit: 30 },
+  { slug: "economy", limit: 30 },
+  { slug: "finance", limit: 25 },
+  { slug: "science", limit: 40 },
+  // World / Politics — thin on purpose; the global pull carries these
+  { slug: "world", limit: 30 },
+  { slug: "geopolitics", limit: 25 },
+  { slug: "politics", limit: 20 },
+];
 
 type RawMarket = Record<string, unknown>;
 type RawEvent = Record<string, unknown>;
@@ -137,18 +160,57 @@ function tagLabels(v: unknown): string[] | null {
   return tags?.length ? [...new Set(tags)] : null;
 }
 
+// Canonical category per tag, by EXACT (normalized) label match. Exact-set
+// lookup — not substring — so "ukraine" never reads as "ai" and "warriors"
+// never reads as "war". Hyphens are normalized to spaces so a tag_slug
+// ("world-cup", "pop-culture", "elon-musk") matches the same entry as its label.
+const CATEGORY_TAGS: Record<string, string[]> = {
+  Sports: [
+    "sports", "nba", "nfl", "mlb", "nhl", "soccer", "tennis", "fifa", "football",
+    "baseball", "basketball", "ufc", "mma", "boxing", "f1", "formula 1", "golf",
+    "hockey", "olympics", "epl", "premier league", "la liga", "champions league",
+    "world cup", "fifa world cup", "cricket", "nascar",
+  ],
+  Crypto: ["crypto", "bitcoin", "ethereum", "solana", "crypto prices", "memecoins", "dogecoin", "altcoins"],
+  Tech: [
+    "tech", "technology", "ai", "artificial intelligence", "openai", "elon musk",
+    "spacex", "space", "semiconductors", "nvidia", "apple", "google", "software", "gadgets",
+  ],
+  Culture: [
+    "culture", "pop culture", "music", "movies", "movie", "film", "tv", "television",
+    "streaming", "entertainment", "celebrity", "celebrities", "awards", "oscars",
+    "grammys", "emmys", "box office", "esports", "gaming", "kpop",
+  ],
+  Business: [
+    "business", "finance", "economy", "economic policy", "fed", "rates", "stocks",
+    "ipos", "earnings", "jobs", "inflation", "gdp", "markets",
+  ],
+  Politics: [
+    "politics", "elections", "election", "global elections", "world elections",
+    "main election", "trump", "congress", "senate", "primary",
+  ],
+  World: [
+    "world", "geopolitics", "international affairs", "iran", "israel", "ukraine",
+    "russia", "china", "middle east", "gaza", "ceasefire", "iran ceasefire", "nato",
+    "north korea", "oil", "peace deal", "war",
+  ],
+  Science: ["science", "climate", "weather", "nasa", "health", "covid", "physics", "biology"],
+};
+
+const TAG_TO_CATEGORY: Map<string, string> = (() => {
+  const m = new Map<string, string>();
+  // First writer wins, so order CATEGORY_TAGS by priority for shared keys
+  // (e.g. "space" → Tech before Science).
+  for (const [category, tags] of Object.entries(CATEGORY_TAGS)) {
+    for (const tag of tags) if (!m.has(tag)) m.set(tag, category);
+  }
+  return m;
+})();
+
 function canonicalCategory(v: string | null): string | null {
-  const s = v?.toLowerCase().trim();
+  const s = v?.toLowerCase().trim().replace(/-/g, " ");
   if (!s) return null;
-  if (["sports", "nba", "nfl", "mlb", "nhl", "soccer", "tennis", "fifa", "football", "baseball", "basketball"].includes(s)) return "Sports";
-  if (["crypto", "bitcoin", "ethereum", "solana"].includes(s)) return "Crypto";
-  if (["tech", "technology", "ai", "openai", "artificial intelligence"].includes(s)) return "Tech";
-  if (["culture", "music", "movies", "movie", "film", "television", "tv", "entertainment", "celebrity"].includes(s)) return "Culture";
-  if (["business", "finance", "fed", "rates", "economy", "stocks", "ipos"].includes(s)) return "Business";
-  if (["politics", "elections", "election"].includes(s)) return "Politics";
-  if (["world", "international affairs", "geopolitics"].includes(s)) return "World";
-  if (["science", "space", "weather", "climate"].includes(s)) return "Science";
-  return null;
+  return TAG_TO_CATEGORY.get(s) ?? null;
 }
 
 function categoryFrom(tags: string[] | null, fallback: string | null, sourceTag: string | null): string | null {
@@ -223,15 +285,76 @@ export function normalizeMarket(m: RawMarket): NormalizedBookMarket | null {
   };
 }
 
+/**
+ * Pick markets so the board stays varied instead of being a wall of politics.
+ * Markets are grouped by canonical category, each group sorted hottest-first,
+ * then drawn round-robin (one per category per pass) with a soft per-category
+ * cap. So the head of the board alternates politics / sports / tech / culture,
+ * and no single category can take more than ~`capRatio` of the slots until the
+ * smaller categories are exhausted.
+ */
+function selectBalanced(markets: NormalizedBookMarket[], limit: number): NormalizedBookMarket[] {
+  const cap = Math.max(80, Math.ceil(limit * 0.22));
+  const groups = new Map<string, NormalizedBookMarket[]>();
+  for (const m of markets) {
+    const key = m.category ?? "Other";
+    const group = groups.get(key) ?? [];
+    group.push(m);
+    groups.set(key, group);
+  }
+  const byVolume = (a: NormalizedBookMarket, b: NormalizedBookMarket) =>
+    (b.volume24hr ?? 0) - (a.volume24hr ?? 0) || (b.volume ?? 0) - (a.volume ?? 0);
+  for (const group of groups.values()) group.sort(byVolume);
+
+  // Hottest categories lead each pass; uncategorized ("Other") always goes last.
+  const order = [...groups.entries()]
+    .sort((a, b) => {
+      if (a[0] === "Other") return 1;
+      if (b[0] === "Other") return -1;
+      return (b[1][0]?.volume24hr ?? 0) - (a[1][0]?.volume24hr ?? 0);
+    })
+    .map(([key]) => key);
+
+  const out: NormalizedBookMarket[] = [];
+  const taken = new Map(order.map((k) => [k, 0]));
+  for (let pass = 0, progressed = true; out.length < limit && progressed; pass += 1) {
+    progressed = false;
+    for (const key of order) {
+      if (out.length >= limit) break;
+      const group = groups.get(key)!;
+      const t = taken.get(key)!;
+      if (group[pass] && t < cap) {
+        out.push(group[pass]);
+        taken.set(key, t + 1);
+        progressed = true;
+      }
+    }
+  }
+  // If every category hit its cap but we're still short, top up by raw volume so
+  // we never under-fill the board.
+  if (out.length < limit) {
+    const seen = new Set(out.map((m) => m.polymarketId));
+    for (const m of markets.slice().sort(byVolume)) {
+      if (out.length >= limit) break;
+      if (!seen.has(m.polymarketId)) {
+        out.push(m);
+        seen.add(m.polymarketId);
+      }
+    }
+  }
+  return out;
+}
+
 export async function fetchPolymarketMarkets(limit = SYNC_LIMIT): Promise<NormalizedBookMarket[]> {
+  const globalCount = Math.min(GLOBAL_EVENT_LIMIT, limit);
   const payload: unknown[] = [];
-  for (let offset = 0; offset < Math.min(240, limit); offset += EVENT_PAGE_SIZE) {
+  for (let offset = 0; offset < globalCount; offset += EVENT_PAGE_SIZE) {
     const url = new URL(`${GAMMA}/events`);
     url.searchParams.set("active", "true");
     url.searchParams.set("closed", "false");
     url.searchParams.set("order", "volume24hr");
     url.searchParams.set("ascending", "false");
-    url.searchParams.set("limit", String(Math.min(EVENT_PAGE_SIZE, Math.min(240, limit) - offset)));
+    url.searchParams.set("limit", String(Math.min(EVENT_PAGE_SIZE, globalCount - offset)));
     url.searchParams.set("offset", String(offset));
 
     const res = await fetch(url, { next: { revalidate: 60 } });
@@ -242,32 +365,32 @@ export async function fetchPolymarketMarkets(limit = SYNC_LIMIT): Promise<Normal
   }
 
   await Promise.all(
-    TOPICAL_SHELVES.map(async (tagSlug) => {
+    TOPICAL_SHELVES.map(async ({ slug, limit: shelfLimit }) => {
       const url = new URL(`${GAMMA}/events`);
       url.searchParams.set("active", "true");
       url.searchParams.set("closed", "false");
       url.searchParams.set("order", "volume24hr");
       url.searchParams.set("ascending", "false");
-      url.searchParams.set("tag_slug", tagSlug);
-      url.searchParams.set("limit", String(TOPICAL_EVENT_LIMIT));
+      url.searchParams.set("tag_slug", slug);
+      url.searchParams.set("limit", String(shelfLimit));
       const res = await fetch(url, { next: { revalidate: 60 } });
       if (!res.ok) return;
       const page = await res.json();
       if (!Array.isArray(page)) return;
-      payload.push(...page.map((event) => ({ ...(event as RawEvent), __sourceTag: tagSlug })));
+      payload.push(...page.map((event) => ({ ...(event as RawEvent), __sourceTag: slug })));
     })
   );
 
   const seen = new Set<string>();
-  return extractMarkets(payload)
+  const deduped = extractMarkets(payload)
     .map(normalizeMarket)
     .filter((m): m is NormalizedBookMarket => {
       if (!m || seen.has(m.polymarketId)) return false;
       seen.add(m.polymarketId);
       return true;
-    })
-    .sort((a, b) => (b.volume24hr ?? 0) - (a.volume24hr ?? 0) || (b.volume ?? 0) - (a.volume ?? 0))
-    .slice(0, limit);
+    });
+
+  return selectBalanced(deduped, limit);
 }
 
 export async function fetchPolymarketMarketBySlug(slug: string): Promise<NormalizedBookMarket | null> {
