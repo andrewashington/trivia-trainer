@@ -476,18 +476,25 @@ export type TimeMachineHit = {
 
 /** "On this day, N years ago…" — densest bursts matching today's MM-DD (MT). */
 export async function getTimeMachine(limit = 4): Promise<TimeMachineHit[]> {
+  // Compute the MT year once in a subquery so DISTINCT ON / ORDER BY reference
+  // the same column alias. (Repeating the AT TIME ZONE expression inline makes
+  // each ${STATS_TZ} a *separate* bound parameter, which Postgres treats as a
+  // non-matching DISTINCT ON vs ORDER BY expression — error 42P10.)
   const rows = await db.$queryRaw<
     { year: number; date: string; name: string | null; content: string; message_count: number }[]
   >`
-    SELECT DISTINCT ON (extract(year FROM (s.start_at AT TIME ZONE ${STATS_TZ}::text)))
-      extract(year FROM (s.start_at AT TIME ZONE ${STATS_TZ}::text))::int AS year,
-      to_char((s.start_at AT TIME ZONE ${STATS_TZ}::text)::date, 'YYYY-MM-DD') AS date,
-      c.name, s.content, s.message_count
-    FROM discord_archive.message_segments s
-    LEFT JOIN discord_archive.channels c ON c.id = s.channel_id
-    WHERE to_char(s.start_at AT TIME ZONE ${STATS_TZ}::text, 'MM-DD')
-        = to_char((now() AT TIME ZONE ${STATS_TZ}::text), 'MM-DD')
-    ORDER BY extract(year FROM (s.start_at AT TIME ZONE ${STATS_TZ}::text)) DESC, s.message_count DESC
+    SELECT DISTINCT ON (yr) yr AS year, date, name, content, message_count
+    FROM (
+      SELECT
+        extract(year FROM (s.start_at AT TIME ZONE ${STATS_TZ}::text))::int AS yr,
+        to_char((s.start_at AT TIME ZONE ${STATS_TZ}::text)::date, 'YYYY-MM-DD') AS date,
+        c.name, s.content, s.message_count
+      FROM discord_archive.message_segments s
+      LEFT JOIN discord_archive.channels c ON c.id = s.channel_id
+      WHERE to_char(s.start_at AT TIME ZONE ${STATS_TZ}::text, 'MM-DD')
+          = to_char((now() AT TIME ZONE ${STATS_TZ}::text), 'MM-DD')
+    ) q
+    ORDER BY yr DESC, message_count DESC
     LIMIT ${limit}
   `;
   return rows.map((r) => ({
