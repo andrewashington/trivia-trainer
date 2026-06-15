@@ -218,6 +218,53 @@ const EXPAND_WINDOW_HOURS = 4; // pull neighbor segments within ±this of a hit
 const EXPAND_EACH_SIDE = 2; // up to this many neighbors before + after a hit
 const EXPAND_CHAR_BUDGET = 3200; // cap stitched text per hit
 const RRF_K = 60; // Reciprocal Rank Fusion constant (standard default)
+const MMR_LAMBDA = 0.7; // MMR: weight on relevance vs. diversity (1 = pure relevance)
+
+function tokenize(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2),
+  );
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0;
+  let inter = 0;
+  for (const t of a) if (b.has(t)) inter++;
+  return inter / (a.size + b.size - inter);
+}
+
+/**
+ * Maximal Marginal Relevance. Friend-group chat is full of near-duplicate
+ * bursts ("lol same" ×8); pure relevance returns eight angles on one moment.
+ * MMR greedily picks the next candidate that's relevant AND different from
+ * what's already chosen, so the bot gets distinct moments. Diversity is
+ * lexical (token Jaccard over segment text) — cheap, no vectors to refetch.
+ */
+function mmrSelect(candidates: { hit: RawSegmentHit; rrf: number }[], k: number): RawSegmentHit[] {
+  if (candidates.length <= 1) return candidates.map((c) => c.hit);
+  const maxRrf = Math.max(...candidates.map((c) => c.rrf)) || 1;
+  const pool = candidates.map((c) => ({ hit: c.hit, rel: c.rrf / maxRrf, tok: tokenize(c.hit.text) }));
+  const chosen: typeof pool = [];
+  while (pool.length && chosen.length < k) {
+    let bestIdx = 0;
+    let bestScore = -Infinity;
+    for (let i = 0; i < pool.length; i++) {
+      let maxSim = 0;
+      for (const c of chosen) maxSim = Math.max(maxSim, jaccard(pool[i].tok, c.tok));
+      const score = MMR_LAMBDA * pool[i].rel - (1 - MMR_LAMBDA) * maxSim;
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = i;
+      }
+    }
+    chosen.push(pool.splice(bestIdx, 1)[0]);
+  }
+  return chosen.map((c) => c.hit);
+}
 
 export async function searchArchiveMessages(opts: {
   query: string;
@@ -315,10 +362,12 @@ export async function searchArchiveMessages(opts: {
   fuse(semanticHits);
   fuse(keywordHits);
 
-  const ranked = [...fused.values()]
-    .sort((a, b) => b.rrf - a.rrf || Date.parse(b.hit.at) - Date.parse(a.hit.at))
-    .slice(0, limit)
-    .map((r) => r.hit);
+  // Order by fused relevance, then re-select with MMR so the returned set is
+  // relevant AND diverse (no eight-near-identical-bursts).
+  const byRelevance = [...fused.values()].sort(
+    (a, b) => b.rrf - a.rrf || Date.parse(b.hit.at) - Date.parse(a.hit.at),
+  );
+  const ranked = mmrSelect(byRelevance, limit);
 
   return expandHits(ranked);
 }

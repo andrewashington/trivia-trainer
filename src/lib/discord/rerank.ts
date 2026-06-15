@@ -27,7 +27,7 @@ export async function rerankHits(
     const { ids } = await chatJSON({
       system:
         "You rank archived group-chat snippets by how well each helps answer the user's question. Judge actual relevance, not keyword overlap. Return only indices.",
-      user: `QUESTION: ${query}\n\nSNIPPETS:\n${list}\n\nReturn JSON {"ids":[...]} listing the up-to-${keep} most relevant snippet indices, most relevant first. Omit snippets that don't help.`,
+      user: `QUESTION: ${query}\n\nSNIPPETS:\n${list}\n\nReturn JSON {"ids":[...]} listing the up-to-${keep} most relevant snippet indices, most relevant first. Omit snippets that don't help. If several snippets say essentially the same thing, keep only the best one — prefer a diverse set that covers different moments/angles.`,
       schema: RankSchema,
       model,
       maxTokens: 200,
