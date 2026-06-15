@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 import { Badge, Button, Card, EmptyState, Input } from "@/components/ui";
-import { PixelIcon } from "@/components/icons";
+import { PixelIcon, type IconName } from "@/components/icons";
 import { MIN_BET, MAX_BET } from "@/modules/arcade/constants";
 
 type MarketView = {
@@ -66,6 +66,37 @@ function compactMoney(n: number | null) {
 
 function tagList(v: unknown): string[] {
   return Array.isArray(v) ? v.map(String).filter(Boolean).slice(0, 4) : [];
+}
+
+// Each canonical category gets its own loud accent — drives the card header
+// gradient so you can read the "shelf" at a glance without reading a word.
+const CATEGORY_COLOR: Record<string, string> = {
+  Sports: "#0B9E63",
+  Crypto: "#FF9F1C",
+  Tech: "#00CFE8",
+  Culture: "#FF6FB5",
+  Business: "#16C2A3",
+  Politics: "#9B5DE5",
+  World: "#38BDF8",
+  Science: "#B5E631",
+};
+
+function categoryColor(cat: string | null) {
+  return (cat && CATEGORY_COLOR[cat]) || "#243B8F";
+}
+
+// Diagonal brutalist hatch reused on headers + probability bars for texture.
+const STRIPES =
+  "repeating-linear-gradient(45deg, rgba(0,0,0,0.10) 0, rgba(0,0,0,0.10) 6px, transparent 6px, transparent 12px)";
+
+// Read the shape of the line straight off the odds: a near-lock, a favorite,
+// a lean, or a genuine coin toss — each with its own chip color + icon.
+function oddsTier(yes: number, no: number): { label: string; icon: IconName; bg: string; fg: string } {
+  const top = Math.max(yes, no);
+  if (top >= 0.85) return { label: "Near lock", icon: "lock", bg: "bg-ink", fg: "text-white" };
+  if (top >= 0.68) return { label: "Favorite", icon: "crown", bg: "bg-accent-green", fg: "text-ink" };
+  if (top >= 0.58) return { label: "Leaning", icon: "chart-bar-big", bg: "bg-accent-yellow", fg: "text-ink" };
+  return { label: "Coin toss", icon: "scale", bg: "bg-accent-cyan", fg: "text-ink" };
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -156,6 +187,23 @@ export function BookBoard({
   const [notice, setNotice] = useState<string | null>(null);
   const [view, setView] = useState<"lines" | "open" | "settled">("lines");
   const [lastSlip, setLastSlip] = useState<{ question: string; outcome: string; stake: number; payout: number } | null>(null);
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const cardRefs = useRef<Map<string, HTMLLIElement>>(new Map());
+
+  // Probability bars grow from a 50/50 split on first paint for a little drama.
+  useEffect(() => setMounted(true), []);
+
+  // Ribbon → board: hop to the market a spotlight card points at and flash it.
+  function focusMarket(id: string) {
+    setView("lines");
+    requestAnimationFrame(() => {
+      cardRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    setFlashId(null);
+    requestAnimationFrame(() => setFlashId(id));
+    window.setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), 1500);
+  }
 
   const openBets = bets.filter((b) => b.status === "open");
   const resolvedBets = bets.filter((b) => b.status !== "open").slice(0, 8);
@@ -325,19 +373,26 @@ export function BookBoard({
       </Card>
 
       {lastSlip && (
-        <div className="animate-pop-in border-3 border-ink bg-accent-yellow p-4 shadow-brutal">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+        <div className="relative animate-pop-in overflow-hidden border-3 border-ink bg-accent-yellow p-4 shadow-brutal">
+          <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: STRIPES }} />
+          <div className="relative flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
               <p className="brutal-label flex items-center gap-1.5">
-                <PixelIcon name="notebook" size={14} /> Ticket printed
+                <PixelIcon name="party-popper" size={14} /> Ticket printed
               </p>
               <p className="font-display text-xl font-bold">
                 {lastSlip.outcome} for {lastSlip.stake} coins
               </p>
+              <p className="mt-0.5 line-clamp-1 font-mono text-[10px] uppercase text-ink/55">{lastSlip.question}</p>
             </div>
-            <p className="border-2 border-ink bg-card px-3 py-1 font-display text-xl font-bold shadow-brutal-sm">
-              Pays {lastSlip.payout.toLocaleString()}
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="border-2 border-ink bg-card px-3 py-1 font-display text-xl font-bold shadow-brutal-sm">
+                Pays {lastSlip.payout.toLocaleString()}
+              </p>
+              <span className="animate-stamp-in border-3 border-accent-red px-2 py-1 font-display text-sm font-bold uppercase text-accent-red">
+                Live
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -426,30 +481,40 @@ export function BookBoard({
           <EmptyState icon="notebook" title="No lines on the board" hint="Refresh The Book or try a broader search." />
         ) : (
           <>
-            <div className="group overflow-hidden border-3 border-ink bg-paper shadow-brutal-sm">
-              <div className="flex w-max animate-marquee gap-3 p-3 [animation-duration:52s] group-hover:[animation-play-state:paused]">
-                {[...spotlightCards, ...spotlightCards].map((card, i) => (
-                  <div
-                    key={`${card.key}:${i}`}
-                    className={`w-72 shrink-0 border-3 border-ink p-3 shadow-brutal-sm ${
-                      card.dark
-                        ? "bg-ink text-white"
-                        : card.yellow
-                          ? "bg-accent-yellow text-ink"
-                          : "bg-card text-ink"
-                    }`}
-                  >
-                    <p className={`brutal-label !mb-1 flex items-center gap-1 ${card.dark ? "!text-white/65" : ""}`}>
-                      <PixelIcon name={card.icon} size={13} /> {card.label}
-                    </p>
-                    <p className="line-clamp-2 font-display text-lg font-bold leading-tight">
-                      {card.market.question}
-                    </p>
-                    <p className={`mt-2 font-mono text-[10px] uppercase ${card.dark ? "text-white/55" : "text-ink/55"}`}>
-                      {card.detail}
-                    </p>
-                  </div>
-                ))}
+            <div>
+              <p className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase text-ink/45">
+                <PixelIcon name="bullseye-arrow" size={12} /> Tap any card to jump to its line
+              </p>
+              <div className="group overflow-hidden border-3 border-ink bg-paper shadow-brutal-sm">
+                <div className="flex w-max animate-marquee gap-3 p-3 [animation-duration:52s] group-hover:[animation-play-state:paused]">
+                  {[...spotlightCards, ...spotlightCards].map((card, i) => (
+                    <button
+                      key={`${card.key}:${i}`}
+                      type="button"
+                      onClick={() => focusMarket(card.market.id)}
+                      className={`group/spot relative w-72 shrink-0 overflow-hidden border-3 border-ink p-3 text-left shadow-brutal-sm transition-transform duration-100 hover:-translate-y-0.5 hover:shadow-brutal ${
+                        card.dark
+                          ? "bg-ink text-white"
+                          : card.yellow
+                            ? "bg-accent-yellow text-ink"
+                            : "bg-card text-ink"
+                      }`}
+                    >
+                      <p className={`brutal-label !mb-1 flex items-center gap-1 ${card.dark ? "!text-white/65" : ""}`}>
+                        <PixelIcon name={card.icon} size={13} /> {card.label}
+                      </p>
+                      <p className="line-clamp-2 font-display text-lg font-bold leading-tight">
+                        {card.market.question}
+                      </p>
+                      <p className={`mt-2 font-mono text-[10px] uppercase ${card.dark ? "text-white/55" : "text-ink/55"}`}>
+                        {card.detail}
+                      </p>
+                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 bg-ink/90 font-display text-lg font-bold text-white opacity-0 transition-opacity duration-150 group-hover/spot:opacity-100">
+                        <PixelIcon name="bullseye-arrow" size={16} /> Tap to bet
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -458,92 +523,143 @@ export function BookBoard({
               const prices = parsePrices(market.outcomePrices);
               if (!prices) return null;
               const [yes, no] = prices;
+              const color = categoryColor(market.category);
+              const tier = oddsTier(yes, no);
               return (
-                <li key={market.id}>
-                  <Card className="overflow-hidden !p-0">
-                    <div className="grid md:grid-cols-[280px_minmax(0,1fr)]">
-                      {market.image && (
-                        <div className="relative min-h-48 border-b-3 border-ink bg-ink md:border-b-0 md:border-r-3">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={market.image}
-                            alt=""
-                            className="absolute inset-0 h-full w-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-transparent to-transparent" />
-                          <Badge className="absolute bottom-3 left-3 bg-card text-ink">
-                            {market.category ?? "Polymarket"}
-                          </Badge>
+                <li
+                  key={market.id}
+                  ref={(el) => {
+                    if (el) cardRefs.current.set(market.id, el);
+                    else cardRefs.current.delete(market.id);
+                  }}
+                  className={`scroll-mt-24 ${flashId === market.id ? "animate-flash" : ""}`}
+                >
+                  <Card className="overflow-hidden !p-0 transition-[transform,box-shadow] duration-150 hover:-translate-y-1 hover:shadow-brutal-lg">
+                    {/* Category-colored header band — the image lives here now as a
+                        small thumbnail instead of dominating a 280px column. */}
+                    <div
+                      className="relative flex items-center gap-3 border-b-3 border-ink p-3"
+                      style={{ backgroundImage: `linear-gradient(120deg, ${color} 0%, ${color} 48%, #F4F1EA 150%)` }}
+                    >
+                      <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: STRIPES }} />
+                      {market.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={market.image}
+                          alt=""
+                          className="relative h-14 w-14 shrink-0 rounded-md border-2 border-ink object-cover shadow-brutal-sm"
+                        />
+                      ) : (
+                        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-md border-2 border-ink bg-card shadow-brutal-sm">
+                          <PixelIcon name="notebook" size={22} />
                         </div>
                       )}
-                      <div className="flex min-h-64 flex-col gap-5 p-5">
-                        <div>
-                          {!market.image && <Badge>{market.category ?? "Polymarket"}</Badge>}
-                          <p className="mt-2 font-display text-2xl font-bold leading-tight sm:text-3xl">
-                            {market.question}
-                          </p>
-                          {market.eventTitle && market.eventTitle !== market.question && (
-                            <p className="mt-1 font-mono text-[10px] font-bold uppercase text-ink/45">
-                              from {market.eventTitle}
-                            </p>
-                          )}
-                          <p className="mt-2 font-mono text-[11px] uppercase text-ink/45">
-                            closes {fmtDate(market.endDate)}
-                          </p>
-                          {market.description && (
-                            <p className="mt-3 line-clamp-2 text-sm font-bold text-ink/60">
-                              {market.description}
-                            </p>
-                          )}
-                          <div className="mt-3 flex flex-wrap gap-1.5">
-                            <Badge className="bg-paper text-ink">24h {compactMoney(market.volume24hr)}</Badge>
-                            <Badge className="bg-paper text-ink">vol {compactMoney(market.volume)}</Badge>
-                            <Badge className="bg-paper text-ink">liq {compactMoney(market.liquidity)}</Badge>
-                            {market.spread !== null && (
-                              <Badge className="bg-paper text-ink">
-                                spread {Math.round(market.spread * 100)}%
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {tagList(market.tags).map((tag) => (
-                              <span key={tag} className="font-mono text-[10px] font-bold uppercase text-ink/45">
-                                #{tag}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
+                      <div className="relative flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                        <Badge className="bg-card text-ink">{market.category ?? "Polymarket"}</Badge>
+                        <span
+                          className={`inline-flex items-center gap-1 border-2 border-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase shadow-brutal-sm ${tier.bg} ${tier.fg}`}
+                        >
+                          <PixelIcon name={tier.icon} size={11} /> {tier.label}
+                        </span>
+                        <span className="ml-auto font-mono text-[10px] font-bold uppercase text-ink/60">
+                          closes {fmtDate(market.endDate)}
+                        </span>
+                      </div>
+                    </div>
 
-                        <div className="mt-auto grid gap-3 sm:grid-cols-2">
-                          {([
-                            ["Yes", yes, "bg-accent-green text-ink", "Take this side"],
-                            ["No", no, "bg-accent-red text-white", "Fade it"],
-                          ] as const).map(([outcome, price, cls, label]) => (
+                    <div className="flex flex-col gap-4 p-5">
+                      <div>
+                        <p className="font-display text-2xl font-bold leading-tight sm:text-3xl">
+                          {market.question}
+                        </p>
+                        {market.eventTitle && market.eventTitle !== market.question && (
+                          <p className="mt-1 font-mono text-[10px] font-bold uppercase text-ink/45">
+                            from {market.eventTitle}
+                          </p>
+                        )}
+                        {market.description && (
+                          <p className="mt-2 line-clamp-2 text-sm font-bold text-ink/55">
+                            {market.description}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Probability bar — the headline visual. Yes/No split,
+                          hatched, animating out from 50/50 on first paint. */}
+                      <div className="relative flex h-8 w-full overflow-hidden border-3 border-ink shadow-brutal-sm">
+                        <div
+                          className="relative flex items-center justify-start overflow-hidden bg-accent-green transition-[width] duration-700 ease-out"
+                          style={{ width: `${(mounted ? yes : 0.5) * 100}%` }}
+                        >
+                          <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: STRIPES }} />
+                          <span className="relative whitespace-nowrap px-2 font-mono text-[11px] font-bold uppercase text-ink">
+                            Yes {oddsLabel(yes)}
+                          </span>
+                        </div>
+                        <div
+                          className="relative flex items-center justify-end overflow-hidden border-l-3 border-ink bg-accent-red transition-[width] duration-700 ease-out"
+                          style={{ width: `${(mounted ? no : 0.5) * 100}%` }}
+                        >
+                          <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: STRIPES }} />
+                          <span className="relative whitespace-nowrap px-2 font-mono text-[11px] font-bold uppercase text-white">
+                            No {oddsLabel(no)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge className="bg-paper text-ink">24h {compactMoney(market.volume24hr)}</Badge>
+                        <Badge className="bg-paper text-ink">vol {compactMoney(market.volume)}</Badge>
+                        <Badge className="bg-paper text-ink">liq {compactMoney(market.liquidity)}</Badge>
+                        {market.spread !== null && (
+                          <Badge className="bg-paper text-ink">spread {Math.round(market.spread * 100)}%</Badge>
+                        )}
+                        {tagList(market.tags).map((tag) => (
+                          <span key={tag} className="font-mono text-[10px] font-bold uppercase text-ink/40">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {([
+                          ["Yes", yes, "bg-accent-green text-ink", "Take this side"],
+                          ["No", no, "bg-accent-red text-white", "Fade it"],
+                        ] as const).map(([outcome, price, cls, label]) => {
+                          const favored = price === Math.max(yes, no) && yes !== no;
+                          const busy = busyKey === `${market.id}:${outcome}`;
+                          return (
                             <button
                               key={outcome}
                               onClick={() => placeBet(market, outcome, price)}
                               disabled={busyKey !== null || stake > coins}
-                              className={`brutal-press border-3 border-ink p-4 text-left shadow-brutal disabled:opacity-50 ${cls}`}
+                              className={`group/bet brutal-press relative overflow-hidden border-3 border-ink p-4 text-left shadow-brutal disabled:opacity-50 ${cls}`}
                             >
-                              <span className="block font-mono text-[10px] font-bold uppercase opacity-75">
+                              <span className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-white/30 opacity-0 transition-opacity group-hover/bet:opacity-100 group-hover/bet:animate-sheen" />
+                              {favored && (
+                                <span className="absolute right-2 top-2 flex items-center gap-0.5 border-2 border-ink bg-card px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase text-ink shadow-brutal-sm">
+                                  <PixelIcon name="crown" size={9} /> favored
+                                </span>
+                              )}
+                              <span className="relative block font-mono text-[10px] font-bold uppercase opacity-75">
                                 {label}
                               </span>
-                              <span className="block font-display text-4xl font-bold leading-none">
+                              <span className="relative block font-display text-4xl font-bold leading-none">
                                 {outcome}
                               </span>
-                              <span className="mt-2 block font-mono text-xs uppercase opacity-80">
+                              <span className="relative mt-2 block font-mono text-xs uppercase opacity-80">
                                 odds {oddsLabel(price)}
                               </span>
-                              <span className="mt-1 block font-display text-xl font-bold">
-                                pays {payout(stake, price).toLocaleString()}
+                              <span className="relative mt-1 block font-display text-xl font-bold">
+                                {busy ? "printing…" : `pays ${payout(stake, price).toLocaleString()}`}
                               </span>
                             </button>
-                          ))}
-                        </div>
-                        <p className="font-mono text-[10px] uppercase text-ink/35">
-                          Current stake: {stake.toLocaleString()} coins. Odds lock when the slip prints.
-                        </p>
+                          );
+                        })}
                       </div>
+                      <p className="font-mono text-[10px] uppercase text-ink/35">
+                        Current stake: {stake.toLocaleString()} coins. Odds lock when the slip prints.
+                      </p>
                     </div>
                   </Card>
                 </li>
