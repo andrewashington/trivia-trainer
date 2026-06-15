@@ -121,6 +121,9 @@ export async function runToolLoop(opts: {
   maxToolResult?: number;
   /** Sampling temperature, if you want tighter/looser output than the default. */
   temperature?: number;
+  /** Prior conversation turns (oldest→newest), injected before the current user
+   * message so the model has real multi-turn memory. */
+  history?: { role: "user" | "assistant"; content: string }[];
 }): Promise<string> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("OPENROUTER_API_KEY not configured");
@@ -135,6 +138,7 @@ export async function runToolLoop(opts: {
 
   const messages: ChatMsg[] = [
     { role: "system", content: opts.system },
+    ...(opts.history ?? []).map((h) => ({ role: h.role, content: h.content })),
     { role: "user", content: opts.user },
   ];
 

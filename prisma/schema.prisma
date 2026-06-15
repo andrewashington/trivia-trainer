@@ -1531,3 +1531,30 @@ model DiscordCoinflip {
   expiresAt    DateTime
   createdAt    DateTime @default(now())
 }
+
+/// Durable facts the assistant has been told to remember ("VIII's real name is
+/// Scott"). Loaded into the assistant's context so it can enhance answers.
+model DiscordMemory {
+  id            String   @id @default(cuid())
+  fact          String // self-contained statement to remember
+  subject       String? // optional free-text subject/tag (e.g. "VIII", "andre", "cabin")
+  subjectUserId String? // optional UDM+ user the fact is about
+  createdById   String // who taught it
+  active        Boolean  @default(true) // soft-deletable via "forget"
+  createdAt     DateTime @default(now())
+
+  @@index([active, createdAt])
+}
+
+/// One assistant exchange (user message + reply) per channel, so the assistant
+/// has reliable multi-turn memory independent of Discord's channel history.
+model DiscordTurn {
+  id            String   @id @default(cuid())
+  channelId     String
+  userId        String
+  userText      String
+  assistantText String
+  createdAt     DateTime @default(now())
+
+  @@index([channelId, createdAt])
+}
