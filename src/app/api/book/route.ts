@@ -3,6 +3,7 @@ import { apiHandler } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { syncBookMarkets } from "@/modules/book/polymarket";
+import { loadDiverseMarkets } from "@/modules/book/board";
 import { settleDueBookBets } from "@/modules/book/settle";
 
 export const GET = apiHandler(async (req: Request) => {
@@ -48,22 +49,27 @@ export const GET = apiHandler(async (req: Request) => {
     ]);
   }
 
+  // A search or a specific category wants depth on that slice; the default
+  // ("All", no query) wants breadth — a category-balanced spread of the board.
+  const filtered = !!q || (!!category && category !== "All");
   const [markets, bets, me] = await Promise.all([
-    db.bookMarket.findMany({
-      where: {
-        active: true,
-        closed: false,
-        ...(q ? { question: { contains: q, mode: "insensitive" as const } } : {}),
-        ...(category && category !== "All" ? { category } : {}),
-      },
-      orderBy:
-        sort === "soon"
-          ? [{ endDate: "asc" }, { volume24hr: "desc" }]
-          : sort === "liquid"
-            ? [{ liquidity: "desc" }, { volume24hr: "desc" }]
-            : [{ volume24hr: "desc" }, { volume: "desc" }, { liquidity: "desc" }],
-      take: 240,
-    }),
+    filtered
+      ? db.bookMarket.findMany({
+          where: {
+            active: true,
+            closed: false,
+            ...(q ? { question: { contains: q, mode: "insensitive" as const } } : {}),
+            ...(category && category !== "All" ? { category } : {}),
+          },
+          orderBy:
+            sort === "soon"
+              ? [{ endDate: "asc" }, { volume24hr: "desc" }]
+              : sort === "liquid"
+                ? [{ liquidity: "desc" }, { volume24hr: "desc" }]
+                : [{ volume24hr: "desc" }, { volume: "desc" }, { liquidity: "desc" }],
+          take: 240,
+        })
+      : loadDiverseMarkets(600),
     db.bookBet.findMany({
       where: { userId: user.id },
       include: { market: true },

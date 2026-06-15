@@ -2,51 +2,41 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
 const GAMMA = "https://gamma-api.polymarket.com";
-const SYNC_LIMIT = 900;
+// Storage isn't the constraint — diversity is. We pull broadly across every
+// topic and keep essentially everything; the board (board.ts) is what balances
+// what's shown. So this cap is just a sanity backstop, not a target.
+const SYNC_LIMIT = 5000;
 const EVENT_PAGE_SIZE = 100;
-// Hottest-overall pull. Polymarket's top volume is ~65% politics/geopolitics, so
-// this alone swamps the board — the per-topic shelves + category balancing below
-// are what restore variety.
-const GLOBAL_EVENT_LIMIT = 240;
+// A modest cross-category "what's hot right now" pull. Kept small on purpose —
+// Polymarket's raw top-volume is a wall of politics, and we don't want to lead
+// with that. The per-topic shelves below do the real work.
+const GLOBAL_EVENT_LIMIT = 200;
+// How deep we paginate each topical shelf (per slug). Generous — we want the
+// long tail of each category, not just its few highest-volume markets.
+const PER_SHELF_MAX = 300;
 
-// Per-topic shelves (real Gamma tag slugs, probed to confirm they return data).
-// Under-served categories — tech, culture, sports variety incl. the World Cup —
-// get the fattest limits; politics is intentionally thin because the global pull
-// already over-supplies it. An unknown/empty slug just returns nothing, harmless.
-const TOPICAL_SHELVES: { slug: string; limit: number }[] = [
+// Every topic we can rationally name, as Gamma tag slugs. Unknown/empty slugs
+// just return nothing, so casting a wide net is free — the valid ones each get
+// paginated PER_SHELF_MAX deep. Grouped only for readability.
+const TOPICAL_SHELVES: string[] = [
   // Tech
-  { slug: "tech", limit: 60 },
-  { slug: "ai", limit: 60 },
-  { slug: "elon-musk", limit: 30 },
-  { slug: "openai", limit: 25 },
-  { slug: "space", limit: 20 },
+  "tech", "ai", "openai", "elon-musk", "space", "spacex", "nvidia", "apple",
+  "semiconductors", "self-driving", "robotics",
   // Culture
-  { slug: "pop-culture", limit: 60 },
-  { slug: "movies", limit: 40 },
-  { slug: "music", limit: 40 },
-  { slug: "celebrities", limit: 40 },
-  { slug: "awards", limit: 20 },
-  { slug: "esports", limit: 30 },
+  "pop-culture", "movies", "music", "celebrities", "awards", "oscars", "grammys",
+  "esports", "gaming", "tv", "streaming", "kpop", "box-office",
   // Sports (the World Cup lives under soccer / world-cup / fifa-world-cup)
-  { slug: "world-cup", limit: 60 },
-  { slug: "fifa-world-cup", limit: 40 },
-  { slug: "soccer", limit: 50 },
-  { slug: "nfl", limit: 30 },
-  { slug: "nba", limit: 30 },
-  { slug: "tennis", limit: 25 },
-  { slug: "ufc", limit: 25 },
-  { slug: "f1", limit: 20 },
-  // Crypto / Business / Science
-  { slug: "crypto", limit: 40 },
-  { slug: "bitcoin", limit: 25 },
-  { slug: "business", limit: 30 },
-  { slug: "economy", limit: 30 },
-  { slug: "finance", limit: 25 },
-  { slug: "science", limit: 40 },
-  // World / Politics — thin on purpose; the global pull carries these
-  { slug: "world", limit: 30 },
-  { slug: "geopolitics", limit: 25 },
-  { slug: "politics", limit: 20 },
+  "sports", "world-cup", "fifa-world-cup", "soccer", "epl", "champions-league",
+  "la-liga", "nfl", "nba", "mlb", "nhl", "tennis", "ufc", "boxing", "f1", "golf",
+  "cricket", "olympics",
+  // Crypto
+  "crypto", "bitcoin", "ethereum", "solana",
+  // Business / Science
+  "business", "economy", "finance", "fed", "stocks", "earnings",
+  "science", "climate", "health", "weather",
+  // World / Politics (still included — just no longer the whole board)
+  "world", "geopolitics", "israel", "iran", "ukraine", "russia", "china",
+  "politics", "elections", "trump",
 ];
 
 type RawMarket = Record<string, unknown>;
@@ -286,111 +276,67 @@ export function normalizeMarket(m: RawMarket): NormalizedBookMarket | null {
 }
 
 /**
- * Pick markets so the board stays varied instead of being a wall of politics.
- * Markets are grouped by canonical category, each group sorted hottest-first,
- * then drawn round-robin (one per category per pass) with a soft per-category
- * cap. So the head of the board alternates politics / sports / tech / culture,
- * and no single category can take more than ~`capRatio` of the slots until the
- * smaller categories are exhausted.
+ * Page through `${GAMMA}/events` for one query (the global pull, or a single
+ * tag shelf), up to `maxEvents`. Stops early on a short/empty page or any
+ * non-OK response — one bad shelf must never sink the whole sync. Shelf events
+ * are stamped with `__sourceTag` so normalizeMarket can categorize even when an
+ * event carries no usable tags of its own.
  */
-function selectBalanced(markets: NormalizedBookMarket[], limit: number): NormalizedBookMarket[] {
-  const cap = Math.max(80, Math.ceil(limit * 0.22));
-  const groups = new Map<string, NormalizedBookMarket[]>();
-  for (const m of markets) {
-    const key = m.category ?? "Other";
-    const group = groups.get(key) ?? [];
-    group.push(m);
-    groups.set(key, group);
-  }
-  const byVolume = (a: NormalizedBookMarket, b: NormalizedBookMarket) =>
-    (b.volume24hr ?? 0) - (a.volume24hr ?? 0) || (b.volume ?? 0) - (a.volume ?? 0);
-  for (const group of groups.values()) group.sort(byVolume);
-
-  // Hottest categories lead each pass; uncategorized ("Other") always goes last.
-  const order = [...groups.entries()]
-    .sort((a, b) => {
-      if (a[0] === "Other") return 1;
-      if (b[0] === "Other") return -1;
-      return (b[1][0]?.volume24hr ?? 0) - (a[1][0]?.volume24hr ?? 0);
-    })
-    .map(([key]) => key);
-
-  const out: NormalizedBookMarket[] = [];
-  const taken = new Map(order.map((k) => [k, 0]));
-  for (let pass = 0, progressed = true; out.length < limit && progressed; pass += 1) {
-    progressed = false;
-    for (const key of order) {
-      if (out.length >= limit) break;
-      const group = groups.get(key)!;
-      const t = taken.get(key)!;
-      if (group[pass] && t < cap) {
-        out.push(group[pass]);
-        taken.set(key, t + 1);
-        progressed = true;
-      }
-    }
-  }
-  // If every category hit its cap but we're still short, top up by raw volume so
-  // we never under-fill the board.
-  if (out.length < limit) {
-    const seen = new Set(out.map((m) => m.polymarketId));
-    for (const m of markets.slice().sort(byVolume)) {
-      if (out.length >= limit) break;
-      if (!seen.has(m.polymarketId)) {
-        out.push(m);
-        seen.add(m.polymarketId);
-      }
-    }
-  }
-  return out;
-}
-
-export async function fetchPolymarketMarkets(limit = SYNC_LIMIT): Promise<NormalizedBookMarket[]> {
-  const globalCount = Math.min(GLOBAL_EVENT_LIMIT, limit);
-  const payload: unknown[] = [];
-  for (let offset = 0; offset < globalCount; offset += EVENT_PAGE_SIZE) {
+async function fetchEventPages(maxEvents: number, tagSlug?: string): Promise<unknown[]> {
+  const out: unknown[] = [];
+  for (let offset = 0; offset < maxEvents; offset += EVENT_PAGE_SIZE) {
     const url = new URL(`${GAMMA}/events`);
     url.searchParams.set("active", "true");
     url.searchParams.set("closed", "false");
     url.searchParams.set("order", "volume24hr");
     url.searchParams.set("ascending", "false");
-    url.searchParams.set("limit", String(Math.min(EVENT_PAGE_SIZE, globalCount - offset)));
+    url.searchParams.set("limit", String(Math.min(EVENT_PAGE_SIZE, maxEvents - offset)));
     url.searchParams.set("offset", String(offset));
+    if (tagSlug) url.searchParams.set("tag_slug", tagSlug);
 
     const res = await fetch(url, { next: { revalidate: 60 } });
-    if (!res.ok) throw new Error(`Polymarket sync failed (${res.status})`);
+    if (!res.ok) break;
     const page = await res.json();
     if (!Array.isArray(page) || page.length === 0) break;
-    payload.push(...page);
+    out.push(...(tagSlug ? page.map((e) => ({ ...(e as RawEvent), __sourceTag: tagSlug })) : page));
+    if (page.length < EVENT_PAGE_SIZE) break; // shelf exhausted
   }
+  return out;
+}
 
+/** Run async tasks with a bounded concurrency so we don't fan out 60 fetches at once. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let cursor = 0;
   await Promise.all(
-    TOPICAL_SHELVES.map(async ({ slug, limit: shelfLimit }) => {
-      const url = new URL(`${GAMMA}/events`);
-      url.searchParams.set("active", "true");
-      url.searchParams.set("closed", "false");
-      url.searchParams.set("order", "volume24hr");
-      url.searchParams.set("ascending", "false");
-      url.searchParams.set("tag_slug", slug);
-      url.searchParams.set("limit", String(shelfLimit));
-      const res = await fetch(url, { next: { revalidate: 60 } });
-      if (!res.ok) return;
-      const page = await res.json();
-      if (!Array.isArray(page)) return;
-      payload.push(...page.map((event) => ({ ...(event as RawEvent), __sourceTag: slug })));
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (cursor < items.length) {
+        const i = cursor++;
+        out[i] = await fn(items[i]);
+      }
     })
   );
+  return out;
+}
+
+export async function fetchPolymarketMarkets(limit = SYNC_LIMIT): Promise<NormalizedBookMarket[]> {
+  // A modest hot pull plus a deep page-through of every topic shelf, run with
+  // bounded concurrency. We keep everything that normalizes to a binary market.
+  const payload: unknown[] = [...(await fetchEventPages(GLOBAL_EVENT_LIMIT))];
+  const shelves = await mapLimit(TOPICAL_SHELVES, 8, (slug) =>
+    fetchEventPages(PER_SHELF_MAX, slug).catch(() => [] as unknown[])
+  );
+  for (const shelf of shelves) payload.push(...shelf);
 
   const seen = new Set<string>();
-  const deduped = extractMarkets(payload)
+  return extractMarkets(payload)
     .map(normalizeMarket)
     .filter((m): m is NormalizedBookMarket => {
       if (!m || seen.has(m.polymarketId)) return false;
       seen.add(m.polymarketId);
       return true;
-    });
-
-  return selectBalanced(deduped, limit);
+    })
+    .slice(0, limit);
 }
 
 export async function fetchPolymarketMarketBySlug(slug: string): Promise<NormalizedBookMarket | null> {
@@ -403,12 +349,19 @@ export async function fetchPolymarketMarketBySlug(slug: string): Promise<Normali
 }
 
 export async function upsertMarkets(markets: NormalizedBookMarket[]) {
-  for (const m of markets) {
-    await db.bookMarket.upsert({
-      where: { polymarketId: m.polymarketId },
-      update: toDb(m),
-      create: toDb(m),
-    });
+  // Chunked concurrency — a few thousand sequential upserts would stall the
+  // page load that triggers the sync; 20 in flight keeps it to a few seconds.
+  const CHUNK = 20;
+  for (let i = 0; i < markets.length; i += CHUNK) {
+    await Promise.all(
+      markets.slice(i, i + CHUNK).map((m) =>
+        db.bookMarket.upsert({
+          where: { polymarketId: m.polymarketId },
+          update: toDb(m),
+          create: toDb(m),
+        })
+      )
+    );
   }
 }
 

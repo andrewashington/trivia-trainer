@@ -355,7 +355,7 @@ export function BookBoard({
       if (!market.category) continue;
       counts.set(market.category, (counts.get(market.category) ?? 0) + 1);
     }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   }, [markets]);
 
   const displayedMarkets = useMemo(() => {
@@ -614,7 +614,7 @@ export function BookBoard({
                 Refresh
               </Button>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="flex flex-wrap gap-2 pb-1">
               <button
                 type="button"
                 onClick={() => setCategory("All")}

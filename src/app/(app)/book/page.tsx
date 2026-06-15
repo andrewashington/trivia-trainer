@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui";
 import { BookBoard } from "@/modules/book/BookBoard";
 import { settleDueBookBets } from "@/modules/book/settle";
 import { syncBookMarkets } from "@/modules/book/polymarket";
+import { loadDiverseMarkets } from "@/modules/book/board";
 
 export const metadata = { title: "The Book" };
 export const dynamic = "force-dynamic";
@@ -35,11 +36,7 @@ export default async function BookPage() {
   if (activeCount < 300 || richCount < 180 || stale) await syncBookMarkets().catch(() => 0);
 
   const [markets, bets, me] = await Promise.all([
-    db.bookMarket.findMany({
-      where: { active: true, closed: false },
-      orderBy: [{ volume24hr: "desc" }, { volume: "desc" }, { liquidity: "desc" }],
-      take: 240,
-    }),
+    loadDiverseMarkets(600),
     db.bookBet.findMany({
       where: { userId: user.id },
       include: { market: true },
