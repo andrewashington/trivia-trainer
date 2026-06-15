@@ -57,14 +57,14 @@ const TOOL_DEFS: ToolSpec[] = [
   {
     name: "search_messages",
     description:
-      "Search the group's archived Discord message history across channels. Use for old topics, decisions, quotes, summaries, or anything that needs recall beyond the recent channel context.",
+      "Search the group's archived Discord history across channels. Returns whole CONVERSATION SEGMENTS (bursts of messages, stitched with nearby context), not single lines — so each result is a self-contained snippet of who said what. Use for old topics, decisions, quotes, summaries, or anything needing recall beyond recent channel context. For a broad 'gather everything we've said about X' ask, raise limit to pull more segments.",
     parameters: {
       type: "object",
       properties: {
         query: { type: "string", description: "What to search for." },
         channelId: { type: "string", description: "Optional Discord channel id to scope the search." },
-        authorId: { type: "string", description: "Optional Discord user id to scope by author." },
-        limit: { type: "integer", description: "Max results, default 12, max 30." },
+        authorId: { type: "string", description: "Optional Discord user id to scope to segments a given person took part in." },
+        limit: { type: "integer", description: "Max segments to return, default 12, max 30. Go higher for broad/all-time questions." },
       },
       required: ["query"],
     },
@@ -382,10 +382,12 @@ async function route(input: AssistantInput): Promise<string> {
         return [];
       });
       if (!hits.length) return "No archived messages matched.";
+      // Each hit is a conversation segment (a burst of messages), already
+      // stitched with nearby context — h.text is multi-line "author: line" rows.
       return hits
-        .map((h) => `[${h.at}] ${h.author} in ${h.channelId}: ${h.text.slice(0, 500)}`)
-        .join("\n")
-        .slice(0, 2500);
+        .map((h) => `[${h.at} · ${h.channelId}]\n${h.text}`)
+        .join("\n\n=====\n\n")
+        .slice(0, 4000);
     }
     const runner = TOOL_RUNNERS[name];
     if (runner) return runner(input.userId, args);

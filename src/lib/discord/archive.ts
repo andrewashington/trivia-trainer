@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
@@ -26,14 +26,15 @@ export type ArchiveMessageInput = {
   editedAt?: Date | null;
 };
 
+// A search hit is a conversation SEGMENT (a burst of consecutive messages), not
+// a single message — that's the unit that actually carries meaning. `text` is
+// the whole burst, already formatted as "author: line" rows.
 export type ArchiveSearchHit = {
-  messageId: string;
+  segmentId: string;
   channelId: string;
-  authorId: string;
-  author: string;
-  userId: string | null;
   text: string;
   at: string;
+  messageCount: number;
   score: number;
   source: "keyword" | "semantic";
 };
@@ -43,7 +44,7 @@ export function archiveEnabled(): boolean {
 }
 
 export function embeddingsEnabled(): boolean {
-  return process.env.DISCORD_EMBEDDINGS_ENABLED === "true" && !!process.env.OPENAI_API_KEY;
+  return process.env.DISCORD_EMBEDDINGS_ENABLED === "true" && !!process.env.OPENROUTER_API_KEY;
 }
 
 export function verifyGatewaySignature(raw: string, provided: string, secret: string): boolean {
@@ -197,40 +198,21 @@ export async function removeArchiveReaction(input: { messageId: string; emoji: s
   });
 }
 
-export function contentHash(content: string): string {
-  return createHash("sha256").update(content).digest("hex");
-}
+// One row out of the segment search SQL, before neighbor expansion.
+type RawSegmentHit = {
+  segmentId: string;
+  channelId: string;
+  text: string;
+  at: string;
+  endAt: string;
+  messageCount: number;
+  score: number;
+  source: "keyword" | "semantic";
+};
 
-export async function messagesNeedingEmbeddings(limit: number, model: string) {
-  return db.$queryRaw<{ id: string; content: string }[]>`
-    SELECT m.id, m.content
-    FROM discord_archive.messages m
-    LEFT JOIN discord_archive.message_embeddings e ON e.message_id = m.id
-    WHERE m.deleted_at IS NULL
-      AND m.is_bot = false
-      AND length(trim(m.content)) >= 8
-      AND (e.message_id IS NULL OR e.model <> ${model})
-    ORDER BY m.sent_at ASC
-    LIMIT ${limit}
-  `;
-}
-
-export async function upsertMessageEmbedding(input: {
-  messageId: string;
-  model: string;
-  embedding: number[];
-  content: string;
-}) {
-  await db.$executeRaw`
-    INSERT INTO discord_archive.message_embeddings (message_id, model, dimensions, embedding, content_hash)
-    VALUES (${input.messageId}, ${input.model}, ${input.embedding.length}, ${input.embedding}, ${contentHash(input.content)})
-    ON CONFLICT (message_id) DO UPDATE SET
-      model = EXCLUDED.model,
-      dimensions = EXCLUDED.dimensions,
-      embedding = EXCLUDED.embedding,
-      content_hash = EXCLUDED.content_hash
-  `;
-}
+const EXPAND_WINDOW_HOURS = 4; // pull neighbor segments within ±this of a hit
+const EXPAND_EACH_SIDE = 2; // up to this many neighbors before + after a hit
+const EXPAND_CHAR_BUDGET = 2200; // cap stitched text per hit
 
 export async function searchArchiveMessages(opts: {
   query: string;
@@ -249,62 +231,137 @@ export async function searchArchiveMessages(opts: {
   const after = opts.after ?? null;
   const before = opts.before ?? null;
 
-  const keywordHits = await db.$queryRaw<ArchiveSearchHit[]>`
+  // Keyword search over segment content (full burst), not single messages.
+  const keywordHits = await db.$queryRaw<RawSegmentHit[]>`
     WITH q AS (SELECT websearch_to_tsquery('english', ${query}) AS tsq)
     SELECT
-      m.id AS "messageId",
-      m.channel_id AS "channelId",
-      m.author_id AS "authorId",
-      m.author_name AS author,
-      m.user_id AS "userId",
-      m.content AS text,
-      m.sent_at::text AS at,
-      ts_rank(m.content_tsv, q.tsq)::double precision AS score,
+      s.id AS "segmentId",
+      s.channel_id AS "channelId",
+      s.content AS text,
+      s.start_at::text AS at,
+      s.end_at::text AS "endAt",
+      s.message_count AS "messageCount",
+      ts_rank(s.content_tsv, q.tsq)::double precision AS score,
       'keyword'::text AS source
-    FROM discord_archive.messages m, q
-    WHERE m.deleted_at IS NULL
-      AND m.is_bot = false
-      AND m.content_tsv @@ q.tsq
-      AND (${channelId}::text IS NULL OR m.channel_id = ${channelId})
-      AND (${authorId}::text IS NULL OR m.author_id = ${authorId})
-      AND (${after}::timestamptz IS NULL OR m.sent_at >= ${after})
-      AND (${before}::timestamptz IS NULL OR m.sent_at <= ${before})
-    ORDER BY score DESC, m.sent_at DESC
+    FROM discord_archive.message_segments s, q
+    WHERE s.content_tsv @@ q.tsq
+      AND (${channelId}::text IS NULL OR s.channel_id = ${channelId})
+      AND (${after}::timestamptz IS NULL OR s.end_at >= ${after})
+      AND (${before}::timestamptz IS NULL OR s.start_at <= ${before})
+      AND (${authorId}::text IS NULL OR EXISTS (
+        SELECT 1 FROM discord_archive.messages m
+        WHERE m.channel_id = s.channel_id AND m.author_id = ${authorId}
+          AND m.sent_at BETWEEN s.start_at AND s.end_at
+      ))
+    ORDER BY score DESC, s.start_at DESC
     LIMIT ${limit}
   `;
 
-  let semanticHits: ArchiveSearchHit[] = [];
+  let semanticHits: RawSegmentHit[] = [];
   if (opts.queryEmbedding?.length) {
-    semanticHits = await db.$queryRaw<ArchiveSearchHit[]>`
+    // pgvector: `<=>` is cosine distance (0 = identical), so similarity = 1 - dist.
+    // Order by raw distance ascending so the HNSW index can serve the query.
+    const vec = `[${opts.queryEmbedding.join(",")}]`;
+    semanticHits = await db.$queryRaw<RawSegmentHit[]>`
       SELECT
-        m.id AS "messageId",
-        m.channel_id AS "channelId",
-        m.author_id AS "authorId",
-        m.author_name AS author,
-        m.user_id AS "userId",
-        m.content AS text,
-        m.sent_at::text AS at,
-        discord_archive.cosine_similarity(e.embedding, ${opts.queryEmbedding}) AS score,
+        s.id AS "segmentId",
+        s.channel_id AS "channelId",
+        s.content AS text,
+        s.start_at::text AS at,
+        s.end_at::text AS "endAt",
+        s.message_count AS "messageCount",
+        (1 - (e.embedding <=> ${vec}::vector))::double precision AS score,
         'semantic'::text AS source
-      FROM discord_archive.message_embeddings e
-      JOIN discord_archive.messages m ON m.id = e.message_id
-      WHERE m.deleted_at IS NULL
-        AND m.is_bot = false
-        AND (${channelId}::text IS NULL OR m.channel_id = ${channelId})
-        AND (${authorId}::text IS NULL OR m.author_id = ${authorId})
-        AND (${after}::timestamptz IS NULL OR m.sent_at >= ${after})
-        AND (${before}::timestamptz IS NULL OR m.sent_at <= ${before})
-      ORDER BY score DESC, m.sent_at DESC
+      FROM discord_archive.segment_embeddings e
+      JOIN discord_archive.message_segments s ON s.id = e.segment_id
+      WHERE (${channelId}::text IS NULL OR s.channel_id = ${channelId})
+        AND (${after}::timestamptz IS NULL OR s.end_at >= ${after})
+        AND (${before}::timestamptz IS NULL OR s.start_at <= ${before})
+        AND (${authorId}::text IS NULL OR EXISTS (
+          SELECT 1 FROM discord_archive.messages m
+          WHERE m.channel_id = s.channel_id AND m.author_id = ${authorId}
+            AND m.sent_at BETWEEN s.start_at AND s.end_at
+        ))
+      ORDER BY e.embedding <=> ${vec}::vector
       LIMIT ${limit}
     `;
   }
 
-  const merged = new Map<string, ArchiveSearchHit>();
+  const merged = new Map<string, RawSegmentHit>();
   for (const hit of [...semanticHits, ...keywordHits]) {
-    const existing = merged.get(hit.messageId);
-    if (!existing || hit.score > existing.score) merged.set(hit.messageId, hit);
+    const existing = merged.get(hit.segmentId);
+    if (!existing || hit.score > existing.score) merged.set(hit.segmentId, hit);
   }
-  return [...merged.values()]
+  const ranked = [...merged.values()]
     .sort((a, b) => b.score - a.score || Date.parse(b.at) - Date.parse(a.at))
     .slice(0, limit);
+
+  return expandHits(ranked);
+}
+
+/**
+ * Read-time neighbor expansion. We deliberately embed tight, topically-focused
+ * bursts (clean vectors → good recall), then stitch each hit back together with
+ * its surrounding same-channel segments here — so an async conversation that
+ * sprawled across a workday comes back whole, without muddying the embedding.
+ * Hits whose expanded windows overlap collapse into one (highest score wins).
+ */
+async function expandHits(hits: RawSegmentHit[]): Promise<ArchiveSearchHit[]> {
+  if (!hits.length) return [];
+
+  const out: ArchiveSearchHit[] = [];
+  const usedSegments = new Set<string>();
+
+  for (const hit of hits) {
+    if (usedSegments.has(hit.segmentId)) continue; // already swallowed by a stronger hit's window
+
+    const neighbors = await db.$queryRaw<{ segmentId: string; text: string; at: string }[]>`
+      (
+        SELECT s.id AS "segmentId", s.content AS text, s.start_at::text AS at
+        FROM discord_archive.message_segments s
+        WHERE s.channel_id = ${hit.channelId}
+          AND s.start_at < ${hit.at}::timestamptz
+          AND s.end_at >= ${hit.at}::timestamptz - (${EXPAND_WINDOW_HOURS} || ' hours')::interval
+        ORDER BY s.start_at DESC
+        LIMIT ${EXPAND_EACH_SIDE}
+      )
+      UNION ALL
+      (
+        SELECT s.id AS "segmentId", s.content AS text, s.start_at::text AS at
+        FROM discord_archive.message_segments s
+        WHERE s.channel_id = ${hit.channelId}
+          AND s.start_at > ${hit.at}::timestamptz
+          AND s.start_at <= ${hit.endAt}::timestamptz + (${EXPAND_WINDOW_HOURS} || ' hours')::interval
+        ORDER BY s.start_at ASC
+        LIMIT ${EXPAND_EACH_SIDE}
+      )
+    `;
+
+    const pieces = [{ segmentId: hit.segmentId, text: hit.text, at: hit.at }, ...neighbors]
+      .filter((p) => !usedSegments.has(p.segmentId))
+      .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+
+    let text = "";
+    let count = 0;
+    for (const p of pieces) {
+      const next = text ? `${text}\n— — —\n${p.text}` : p.text;
+      if (next.length > EXPAND_CHAR_BUDGET && text) break;
+      text = next;
+      count++;
+      usedSegments.add(p.segmentId);
+    }
+
+    out.push({
+      segmentId: hit.segmentId,
+      channelId: hit.channelId,
+      text,
+      at: hit.at,
+      messageCount: hit.messageCount,
+      score: hit.score,
+      source: hit.source,
+    });
+    void count;
+  }
+
+  return out;
 }
