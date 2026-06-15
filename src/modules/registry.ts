@@ -599,6 +599,22 @@ export const modules: ModuleDef[] = [
     ],
   },
   {
+    key: "book",
+    label: "The Book",
+    icon: "notebook",
+    category: "arcade",
+    navOrder: 29,
+    href: "/book",
+    accentBg: "bg-accent-book",
+    intro:
+      "Polymarket odds, UDM coins. Print a tiny betting slip on the real world and let reality grade it later.",
+    tips: [
+      "Pick Yes or No on a live line and stake a few coins",
+      "Your odds lock when the slip prints — later price swings don't rewrite it",
+      "When Polymarket resolves, The Book pays winners and refunds weird voids",
+    ],
+  },
+  {
     key: "discordstats",
     label: "Discord Stats",
     icon: "users",

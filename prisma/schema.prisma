@@ -112,6 +112,7 @@ model User {
   arcadeRounds       ArcadeRound[]
   minesGames         MinesGame[]
   crashRounds        CrashRound[]
+  bookBets           BookBet[]
   worldOwnedItems    WorldOwnedItem[]
   worldCosmetics     WorldOwnedCosmetic[]
   worldHouse         WorldHouse?
@@ -1233,6 +1234,53 @@ model CrashRound {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
+}
+
+// ============ The Book: play-money bets on public Polymarket markets ============
+// Cached Polymarket market metadata. We only offer simple binary markets; bets
+// snapshot the odds at placement so later price movement never rewrites a bet.
+model BookMarket {
+  id              String    @id @default(cuid())
+  polymarketId    String    @unique
+  slug            String?   @unique
+  question        String
+  category        String?
+  image           String?
+  outcomes        Json
+  outcomePrices   Json
+  conditionId     String?
+  clobTokenIds    Json?
+  endDate         DateTime?
+  active          Boolean   @default(true)
+  closed          Boolean   @default(false)
+  resolvedOutcome String?
+  lastSyncedAt    DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  bets BookBet[]
+
+  @@index([active, closed, endDate])
+  @@index([lastSyncedAt])
+}
+
+model BookBet {
+  id              String    @id @default(cuid())
+  userId          String
+  marketId        String
+  outcome         String
+  stake           Int
+  price           Float
+  potentialPayout Int
+  status          String    @default("open") // "open" | "won" | "lost" | "void"
+  settledAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  market BookMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@index([marketId, status])
 }
 
 // ============ The World: decorative game world / coin sink ============
