@@ -169,6 +169,15 @@ export const KNOB_REGISTRY: KnobGroup[] = [
         help: "Default archived Discord messages returned to the AI search tool.",
       },
       {
+        id: "botCoinDailyBudget",
+        label: "Bot coin budget / day",
+        type: "int",
+        default: 1000,
+        min: 0,
+        max: 100_000,
+        help: "Total coins the AI can grant or dock across everyone per day (0 disables the power).",
+      },
+      {
         id: "rewardPerMessage",
         label: "Reward per message",
         type: "int",

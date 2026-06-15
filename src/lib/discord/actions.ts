@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { withOutbox } from "@/lib/outbox";
+import { creditWinnings, spendCoins } from "@/modules/arcade/bank";
+import { getGameKnobsCached } from "@/lib/knobs";
 import { editTrackedMessage } from "@/lib/discord/messageState";
 import { actionRow, button, CARD_IDS } from "@/lib/discord/components";
 import { rsvpStatus, claimedStatus, pollStatus } from "@/lib/discord/cardStatus";
@@ -395,6 +397,59 @@ const createMapPin: Runner = async (userId, args) => {
   return `📍 Pin dropped: **${pin.name}**.`;
 };
 
+/**
+ * The bot's coin power: grant (+) or dock (−) coins from a member, capped at a
+ * shared daily budget (knob discord.botCoinDailyBudget, default 1000) summed
+ * across everyone the bot touches. Reuses the real ledger helpers, so it shows
+ * up in coin history; punishment floors at the target's balance (never negative).
+ */
+const adjustCoins: Runner = async (askerId, args) => {
+  const targetId = typeof args.targetUserId === "string" && args.targetUserId ? args.targetUserId : askerId;
+  const requested = Math.round(Number(args.amount));
+  if (!Number.isFinite(requested) || requested === 0) return "Give me a non-zero coin amount.";
+  const note = (typeof args.reason === "string" ? args.reason : "").trim().slice(0, 160) || "the bot has spoken";
+
+  const knobs = await getGameKnobsCached("discord");
+  const budget = Math.max(0, Number(knobs.botCoinDailyBudget ?? 1000));
+
+  try {
+    return await db.$transaction(async (tx) => {
+      // Shared daily budget: gross coins the bot has moved (either direction) in 24h.
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const recent = await tx.coinTransaction.findMany({
+        where: { reason: { in: ["discord.ai.grant", "discord.ai.punish"] }, createdAt: { gte: since } },
+        select: { amount: true },
+      });
+      const usedGross = recent.reduce((s, t) => s + Math.abs(t.amount), 0);
+      const remaining = budget - usedGross;
+      if (remaining <= 0) return `I've spent my ${budget}-coin daily allowance — the treasury's dry till tomorrow.`;
+
+      const target = await tx.user.findUnique({
+        where: { id: targetId },
+        select: { id: true, displayName: true, coins: true },
+      });
+      if (!target) return "I can't find that member to adjust.";
+
+      const sign = requested > 0 ? 1 : -1;
+      const magnitude = Math.min(Math.abs(requested), remaining);
+
+      if (sign > 0) {
+        await creditWinnings(tx, target.id, magnitude, "discord.ai.grant", note, { by: "discord-ai" });
+        const after = await tx.user.findUniqueOrThrow({ where: { id: target.id }, select: { coins: true } });
+        return `🪙 Granted **${magnitude}** coins to ${target.displayName} (${note}). They're at ${after.coins}.`;
+      }
+      // Punish: only take what they have (no negative balances).
+      const take = Math.min(magnitude, target.coins);
+      if (take <= 0) return `${target.displayName} is already broke — nothing to dock.`;
+      await spendCoins(tx, target.id, take, "discord.ai.punish", note, "broke", { by: "discord-ai" });
+      const after = await tx.user.findUniqueOrThrow({ where: { id: target.id }, select: { coins: true } });
+      return `💸 Docked **${take}** coins from ${target.displayName} (${note}). They're down to ${after.coins}.`;
+    });
+  } catch (e) {
+    return `Couldn't adjust coins: ${e instanceof Error ? e.message : "something went wrong"}.`;
+  }
+};
+
 // ── Action tools (refetch the entity + re-apply guards, like the buttons) ─────
 
 const rsvp: Runner = async (userId, args) => {
@@ -529,6 +584,7 @@ export const TOOL_RUNNERS: Record<string, Runner> = {
   create_tierlist: createTierList,
   create_nowplaying: createNowPlaying,
   create_map_pin: createMapPin,
+  adjust_coins: adjustCoins,
   rsvp,
   poll_vote: pollVote,
   claim_listing: claimListing,
