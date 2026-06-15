@@ -50,6 +50,7 @@ export type ModuleKey =
   | "polls"
   | "reveal"
   | "stakes"
+  | "tiers"
   | "pet"
   | "snake"
   | "countdowns"
@@ -73,6 +74,7 @@ export const moduleStyle: Record<
   polls: { accent: "#6A5CFF", accentText: "#FFFFFF", icon: "chart-bar-big", label: "Polls" },
   reveal: { accent: "#101010", accentText: "#FFFFFF", icon: "eye", label: "Reveal" },
   stakes: { accent: "#0B9E63", accentText: "#FFFFFF", icon: "target", label: "Stakes" },
+  tiers: { accent: "#F59E0B", accentText: "#101010", icon: "trophy", label: "Tiers" },
   pet: { accent: "#38BDF8", accentText: "#101010", icon: "downasaur", label: "Pet" },
   snake: { accent: "#9B5DE5", accentText: "#FFFFFF", icon: "apple", label: "Snake" },
   countdowns: { accent: "#FF3366", accentText: "#FFFFFF", icon: "clock", label: "Countdowns" },
@@ -290,6 +292,38 @@ export function specFor(type: OutboxEventType, payload: Payload): CardSpec | nul
         path: "/countdowns",
       };
     }
+    case "tierlist.created": {
+      const count = num(payload, "itemCount");
+      return {
+        module: "tiers",
+        kicker: "NEW TIER LIST",
+        headline: str(payload, "title") ?? "Rank 'em",
+        sub: `${count ? `${count} to rank · ` : ""}drop them into S–F · by {actor}`,
+        actorId: str(payload, "creatorId"),
+        path: "/tiers",
+      };
+    }
+    case "claim.created": {
+      const hidden = payload["hidden"] === true;
+      const when = formatWhen(str(payload, "resolvesAt"));
+      return {
+        module: "stakes",
+        kicker: hidden ? "SEALED PREDICTION" : "CALLED SHOT",
+        headline: hidden ? "🤐 A sealed prediction" : str(payload, "text") ?? "A bold claim",
+        sub: when ? `resolves ${when} · by {actor}` : "by {actor}",
+        actorId: str(payload, "creatorId"),
+        path: "/stakes",
+      };
+    }
+    case "reveal.created":
+      return {
+        module: "reveal",
+        kicker: "NEW REVEAL",
+        headline: str(payload, "title") ?? "Reveal time",
+        sub: `${str(payload, "type") === "sealed" ? "a sealed time capsule" : "everyone ranks blind"} · by {actor}`,
+        actorId: str(payload, "createdBy"),
+        path: "/reveal",
+      };
     case "member.added":
       return {
         module: "home",
