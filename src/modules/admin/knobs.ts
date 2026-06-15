@@ -178,6 +178,15 @@ export const KNOB_REGISTRY: KnobGroup[] = [
         help: "Total coins the AI can grant or dock across everyone per day (0 disables the power).",
       },
       {
+        id: "spontaneousHours",
+        label: "Spontaneous post interval (hrs)",
+        type: "int",
+        default: 6,
+        min: 1,
+        max: 168,
+        help: "Roughly how often (±30% jitter) the bot posts unprompted content. Toggle the feature in the Assistant tab.",
+      },
+      {
         id: "rewardPerMessage",
         label: "Reward per message",
         type: "int",

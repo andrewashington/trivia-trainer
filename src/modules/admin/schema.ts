@@ -68,6 +68,7 @@ export const aiSettingsPut = z.object({
   aiMaxSteps: z.coerce.number().int().min(1).max(10),
   aiMaxTokens: z.coerce.number().int().min(200).max(4000),
   aiModel: z.string().trim().max(100),
+  spontaneousEnabled: z.boolean(),
 });
 
 export const memoryCreate = z.object({

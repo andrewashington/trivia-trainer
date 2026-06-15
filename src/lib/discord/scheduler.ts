@@ -1,4 +1,5 @@
 import { botConfig } from "@/lib/discord/bot";
+import { maybeRunSpontaneous } from "@/lib/discord/spontaneous";
 
 /**
  * In-process time-of-day scheduler for Discord (same philosophy as the
@@ -58,5 +59,7 @@ async function tick() {
  * gated by the relevant DiscordNotifyPref flag.
  */
 async function runDueJobs(): Promise<void> {
+  // Spontaneous bot posts (~6h, jittered; self-guards via AppConfig timing).
+  await maybeRunSpontaneous();
   // Wave 4: digest + sweeps.
 }

@@ -22,6 +22,7 @@ type AiSettings = {
   aiMaxSteps: number;
   aiMaxTokens: number;
   aiModel: string;
+  spontaneousEnabled: boolean;
 };
 type Payload = { funnel: Funnel; memories: Memory[]; settings: AiSettings };
 
@@ -71,6 +72,19 @@ export function AiAssistantPanel() {
       setStatus("Saved — live on the next message.");
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Save failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function postNow() {
+    setBusy(true);
+    setStatus("Conjuring something…");
+    try {
+      const r = await api<{ result: string }>("/api/admin/discord/ai?action=spontaneous", { method: "POST", body: {} });
+      setStatus(`Posted to the channel → ${r.result}`);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Post failed.");
     } finally {
       setBusy(false);
     }
@@ -288,9 +302,33 @@ export function AiAssistantPanel() {
             {settings.aiRerank ? "on" : "off"}
           </span>
         </button>
-        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => set("spontaneousEnabled", !settings.spontaneousEnabled)}
+          className={`flex w-full items-center justify-between gap-3 border-2 border-ink px-3 py-2 text-left ${
+            settings.spontaneousEnabled ? "bg-card" : "bg-ink/10 text-ink/40"
+          }`}
+        >
+          <span>
+            <span className="text-sm font-bold">Spontaneous posts</span>
+            <span className="block font-mono text-[10px] text-ink/50">
+              the bot drops its own content (~every 6h; interval is an Economy knob)
+            </span>
+          </span>
+          <span
+            className={`shrink-0 border-2 border-ink px-1.5 font-mono text-[9px] font-bold uppercase ${
+              settings.spontaneousEnabled ? "bg-accent-green" : "bg-card"
+            }`}
+          >
+            {settings.spontaneousEnabled ? "on" : "off"}
+          </span>
+        </button>
+        <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="yellow" disabled={busy} onClick={saveSettings}>
             {busy ? "Saving…" : "Save tuning"}
+          </Button>
+          <Button type="button" variant="green" disabled={busy} onClick={postNow}>
+            Post something now
           </Button>
           {status && <p className="font-mono text-xs font-bold">{status}</p>}
         </div>

@@ -22,6 +22,7 @@ export type DiscordSettings = {
   aiSearchLimit: number; // default segments per search_messages call
   aiMaxSteps: number; // agentic tool-loop step budget
   aiMaxTokens: number; // reply token budget
+  spontaneousEnabled: boolean; // the bot posts content unprompted (~every 6h)
 };
 
 export const DISCORD_SETTINGS_DEFAULTS: DiscordSettings = {
@@ -39,6 +40,7 @@ export const DISCORD_SETTINGS_DEFAULTS: DiscordSettings = {
   aiSearchLimit: 12,
   aiMaxSteps: 6,
   aiMaxTokens: 1800,
+  spontaneousEnabled: true,
 };
 
 /** Effective Discord settings (defaults merged with any admin override). */

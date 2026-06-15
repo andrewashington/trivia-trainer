@@ -60,6 +60,7 @@ export const GET = apiHandler(async () => {
       aiMaxSteps: s.aiMaxSteps,
       aiMaxTokens: s.aiMaxTokens,
       aiModel: s.aiModel,
+      spontaneousEnabled: s.spontaneousEnabled,
     },
   });
 });
@@ -73,9 +74,14 @@ export const PUT = apiHandler(async (req: Request) => {
   return NextResponse.json({ ok: true });
 });
 
-/** POST — add a remembered fact. */
+/** POST — add a remembered fact, or ?action=spontaneous to fire a post now. */
 export const POST = apiHandler(async (req: Request) => {
   const admin = await requireAdmin();
+  if (new URL(req.url).searchParams.get("action") === "spontaneous") {
+    const { runSpontaneousPost } = await import("@/lib/discord/spontaneous");
+    const result = await runSpontaneousPost();
+    return NextResponse.json({ ok: true, result });
+  }
   const { fact, subject } = await parseBody(req, memoryCreate);
   const memory = await db.discordMemory.create({
     data: { fact, subject: subject || null, createdById: admin.id },
