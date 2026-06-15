@@ -81,6 +81,7 @@ export function BookBoard({
   const [stake, setStake] = useState(Math.max(MIN_BET, 25));
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [view, setView] = useState<"lines" | "open" | "settled">("lines");
   const [lastSlip, setLastSlip] = useState<{ question: string; outcome: string; stake: number; payout: number } | null>(null);
 
   const openBets = bets.filter((b) => b.status === "open");
@@ -121,6 +122,7 @@ export function BookBoard({
       const win = payout(amount, price);
       setCoins(data.coins);
       setLastSlip({ question: market.question, outcome, stake: amount, payout: win });
+      setView("open");
       await refresh();
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "The ticket window jammed.");
@@ -130,34 +132,65 @@ export function BookBoard({
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="space-y-4">
-        <Card className="bg-accent-book text-white">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="mx-auto max-w-5xl space-y-5">
+      <Card className="overflow-hidden !p-0">
+        <div className="grid bg-accent-book text-white md:grid-cols-[minmax(0,1fr)_260px]">
+          <div className="p-5 sm:p-6">
+            <p className="brutal-label !text-white/70">The internet has odds. You have coins.</p>
+            <h2 className="max-w-2xl font-display text-4xl font-bold leading-none sm:text-5xl">
+              Buy a tiny slice of fate.
+            </h2>
+            <p className="mt-3 max-w-xl text-sm font-bold text-white/75">
+              Browse real-world lines, print a coin slip, and let Polymarket settle the argument later.
+            </p>
+          </div>
+          <div className="border-t-3 border-ink bg-card p-5 text-ink md:border-l-3 md:border-t-0">
+            <p className="brutal-label !mb-1">Balance</p>
+            <p className="font-display text-4xl font-bold">{coins.toLocaleString()}</p>
+            <p className="mt-1 font-mono text-[10px] uppercase text-ink/45">coins ready at the window</p>
+          </div>
+        </div>
+      </Card>
+
+      {lastSlip && (
+        <div className="animate-pop-in border-3 border-ink bg-accent-yellow p-4 shadow-brutal">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="brutal-label !text-white/70">The internet has odds. You have coins.</p>
-              <h2 className="font-display text-3xl font-bold leading-tight">Buy a tiny slice of fate.</h2>
+              <p className="brutal-label flex items-center gap-1.5">
+                <PixelIcon name="notebook" size={14} /> Ticket printed
+              </p>
+              <p className="font-display text-xl font-bold">
+                {lastSlip.outcome} for {lastSlip.stake} coins
+              </p>
             </div>
-            <div className="border-2 border-ink bg-card px-3 py-2 text-ink shadow-brutal-sm">
-              <p className="brutal-label !mb-0">Balance</p>
-              <p className="font-display text-2xl font-bold">{coins.toLocaleString()}</p>
-            </div>
-          </div>
-        </Card>
-
-        {lastSlip && (
-          <div className="animate-pop-in border-3 border-ink bg-accent-yellow p-3 shadow-brutal">
-            <p className="brutal-label flex items-center gap-1.5">
-              <PixelIcon name="notebook" size={14} /> Ticket printed
+            <p className="border-2 border-ink bg-card px-3 py-1 font-display text-xl font-bold shadow-brutal-sm">
+              Pays {lastSlip.payout.toLocaleString()}
             </p>
-            <p className="font-display text-lg font-bold">
-              {lastSlip.outcome} for {lastSlip.stake} coins
-            </p>
-            <p className="text-sm">Pays {lastSlip.payout.toLocaleString()} if it hits. Keep the stub.</p>
           </div>
-        )}
+        </div>
+      )}
 
-        <Card className="space-y-3">
+      <Card className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {([
+            ["lines", "Lines", filtered.length],
+            ["open", "Open slips", openBets.length],
+            ["settled", "Settled", resolvedBets.length],
+          ] as const).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key)}
+              className={`brutal-press border-2 border-ink px-3 py-1.5 font-mono text-xs font-bold uppercase shadow-brutal-sm ${
+                view === key ? "bg-ink text-white" : "bg-card text-ink"
+              }`}
+            >
+              {label} <span className="opacity-60">({count})</span>
+            </button>
+          ))}
+        </div>
+
+        {view === "lines" && (
           <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
             <Input
               value={query}
@@ -177,110 +210,147 @@ export function BookBoard({
               Refresh
             </Button>
           </div>
-          {notice && <p className="font-mono text-xs uppercase text-ink/50">{notice}</p>}
-        </Card>
+        )}
+        {notice && <p className="font-mono text-xs uppercase text-ink/50">{notice}</p>}
+      </Card>
 
-        {filtered.length === 0 ? (
+      {view === "lines" ? (
+        filtered.length === 0 ? (
           <EmptyState icon="notebook" title="No lines on the board" hint="Refresh The Book or try a broader search." />
         ) : (
-          <ul className="grid gap-4 lg:grid-cols-2">
+          <ul className="space-y-5">
             {filtered.map((market) => {
               const prices = parsePrices(market.outcomePrices);
               if (!prices) return null;
               const [yes, no] = prices;
               return (
                 <li key={market.id}>
-                  <Card className="flex h-full flex-col gap-3">
-                    <div className="flex gap-3">
+                  <Card className="overflow-hidden !p-0">
+                    <div className="grid md:grid-cols-[280px_minmax(0,1fr)]">
                       {market.image && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={market.image}
-                          alt=""
-                          className="h-16 w-16 shrink-0 border-2 border-ink object-cover"
-                        />
+                        <div className="relative min-h-48 border-b-3 border-ink bg-ink md:border-b-0 md:border-r-3">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={market.image}
+                            alt=""
+                            className="absolute inset-0 h-full w-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-transparent to-transparent" />
+                          <Badge className="absolute bottom-3 left-3 bg-card text-ink">
+                            {market.category ?? "Polymarket"}
+                          </Badge>
+                        </div>
                       )}
-                      <div className="min-w-0">
-                        <p className="font-display text-lg font-bold leading-tight">{market.question}</p>
-                        <p className="mt-1 font-mono text-[10px] uppercase text-ink/45">
-                          {market.category ?? "Polymarket"} · closes {fmtDate(market.endDate)}
+                      <div className="flex min-h-64 flex-col gap-5 p-5">
+                        <div>
+                          {!market.image && <Badge>{market.category ?? "Polymarket"}</Badge>}
+                          <p className="mt-2 font-display text-2xl font-bold leading-tight sm:text-3xl">
+                            {market.question}
+                          </p>
+                          <p className="mt-2 font-mono text-[11px] uppercase text-ink/45">
+                            closes {fmtDate(market.endDate)}
+                          </p>
+                        </div>
+
+                        <div className="mt-auto grid gap-3 sm:grid-cols-2">
+                          {([
+                            ["Yes", yes, "bg-accent-green text-ink", "Take this side"],
+                            ["No", no, "bg-accent-red text-white", "Fade it"],
+                          ] as const).map(([outcome, price, cls, label]) => (
+                            <button
+                              key={outcome}
+                              onClick={() => placeBet(market, outcome, price)}
+                              disabled={busyKey !== null || stake > coins}
+                              className={`brutal-press border-3 border-ink p-4 text-left shadow-brutal disabled:opacity-50 ${cls}`}
+                            >
+                              <span className="block font-mono text-[10px] font-bold uppercase opacity-75">
+                                {label}
+                              </span>
+                              <span className="block font-display text-4xl font-bold leading-none">
+                                {outcome}
+                              </span>
+                              <span className="mt-2 block font-mono text-xs uppercase opacity-80">
+                                odds {oddsLabel(price)}
+                              </span>
+                              <span className="mt-1 block font-display text-xl font-bold">
+                                pays {payout(stake, price).toLocaleString()}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                        <p className="font-mono text-[10px] uppercase text-ink/35">
+                          Current stake: {stake.toLocaleString()} coins. Odds lock when the slip prints.
                         </p>
                       </div>
-                    </div>
-
-                    <div className="mt-auto grid grid-cols-2 gap-2">
-                      {([
-                        ["Yes", yes, "bg-accent-green text-ink"],
-                        ["No", no, "bg-accent-red text-white"],
-                      ] as const).map(([outcome, price, cls]) => (
-                        <button
-                          key={outcome}
-                          onClick={() => placeBet(market, outcome, price)}
-                          disabled={busyKey !== null || stake > coins}
-                          className={`brutal-press border-3 border-ink p-3 text-left shadow-brutal-sm disabled:opacity-50 ${cls}`}
-                        >
-                          <span className="block font-display text-xl font-bold">Bet {outcome}</span>
-                          <span className="block font-mono text-xs uppercase opacity-80">
-                            {oddsLabel(price)} · pays {payout(stake, price).toLocaleString()}
-                          </span>
-                        </button>
-                      ))}
                     </div>
                   </Card>
                 </li>
               );
             })}
           </ul>
-        )}
-      </div>
+        )
+      ) : null}
 
-      <aside className="space-y-4">
-        <Card>
-          <p className="brutal-label flex items-center gap-1.5">
-            <PixelIcon name="notebook" size={14} /> Open slips
-          </p>
-          {openBets.length === 0 ? (
-            <p className="text-sm text-ink/55">Nothing riding yet. Suspiciously responsible.</p>
-          ) : (
-            <ul className="space-y-2">
-              {openBets.map((bet) => (
-                <li key={bet.id} className="border-2 border-ink bg-paper p-2 shadow-brutal-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-bold leading-tight">{bet.market.question}</p>
-                    <StatusBadge status={bet.status} />
-                  </div>
-                  <p className="mt-2 font-mono text-[10px] uppercase text-ink/55">
-                    {bet.outcome} · stake {bet.stake} · pays {bet.potentialPayout}
+      {view === "open" ? (
+        openBets.length === 0 ? (
+          <EmptyState icon="notebook" title="No open slips" hint="Print a ticket from the Lines tab and it will land here." />
+        ) : (
+          <ul className="grid gap-4 md:grid-cols-2">
+            {openBets.map((bet) => (
+              <li key={bet.id} className="border-3 border-ink bg-paper p-4 shadow-brutal">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <StatusBadge status={bet.status} />
+                  <p className="font-mono text-[10px] uppercase text-ink/45">
+                    {new Date(bet.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
                   </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card>
-          <p className="brutal-label flex items-center gap-1.5">
-            <PixelIcon name="trophy" size={14} /> Settled slips
-          </p>
-          {resolvedBets.length === 0 ? (
-            <p className="text-sm text-ink/55">No settled stubs yet.</p>
-          ) : (
-            <ul className="space-y-2">
-              {resolvedBets.map((bet) => (
-                <li key={bet.id} className="border-2 border-ink bg-card p-2 shadow-brutal-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-display font-bold">
-                      {bet.status === "won" ? `+${(bet.potentialPayout - bet.stake).toLocaleString()}` : bet.status === "lost" ? `-${bet.stake}` : "refunded"}
-                    </span>
-                    <StatusBadge status={bet.status} />
+                </div>
+                <p className="font-display text-xl font-bold leading-tight">{bet.market.question}</p>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                  <div className="border-2 border-ink bg-card p-2">
+                    <p className="brutal-label !mb-0">Side</p>
+                    <p className="font-display text-lg font-bold">{bet.outcome}</p>
                   </div>
-                  <p className="mt-1 line-clamp-2 text-xs text-ink/60">{bet.market.question}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </aside>
+                  <div className="border-2 border-ink bg-card p-2">
+                    <p className="brutal-label !mb-0">Stake</p>
+                    <p className="font-display text-lg font-bold">{bet.stake}</p>
+                  </div>
+                  <div className="border-2 border-ink bg-card p-2">
+                    <p className="brutal-label !mb-0">Pays</p>
+                    <p className="font-display text-lg font-bold">{bet.potentialPayout}</p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
+
+      {view === "settled" ? (
+        resolvedBets.length === 0 ? (
+          <EmptyState icon="trophy" title="No settled slips" hint="Reality is still thinking." />
+        ) : (
+          <ul className="space-y-3">
+            {resolvedBets.map((bet) => (
+              <li key={bet.id} className="grid gap-3 border-3 border-ink bg-card p-4 shadow-brutal-sm md:grid-cols-[140px_minmax(0,1fr)_auto] md:items-center">
+                <div>
+                  <StatusBadge status={bet.status} />
+                  <p className="mt-2 font-display text-2xl font-bold">
+                    {bet.status === "won"
+                      ? `+${(bet.potentialPayout - bet.stake).toLocaleString()}`
+                      : bet.status === "lost"
+                        ? `-${bet.stake}`
+                        : "refund"}
+                  </p>
+                </div>
+                <p className="font-bold leading-tight">{bet.market.question}</p>
+                <p className="font-mono text-[10px] uppercase text-ink/45">
+                  {bet.outcome} · stake {bet.stake}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
     </div>
   );
 }
