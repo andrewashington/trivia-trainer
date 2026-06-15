@@ -185,8 +185,13 @@ export async function runToolLoop(opts: {
           /* leave empty */
         }
         try {
-          return await opts.execute(tc.function.name, args);
+          const out = await opts.execute(tc.function.name, args);
+          // Observability: every tool call shows up in the logs (name, args,
+          // result size) so it's clear when the loop is actually retrieving/acting.
+          console.log(`[ai] step ${step} tool ${tc.function.name}(${JSON.stringify(args)}) -> ${out.length} chars`);
+          return out;
         } catch (e) {
+          console.log(`[ai] step ${step} tool ${tc.function.name} FAILED: ${e instanceof Error ? e.message : e}`);
           return `Error: ${e instanceof Error ? e.message : "tool failed"}`;
         }
       }),
