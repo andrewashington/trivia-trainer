@@ -9,7 +9,12 @@ import { eventInput } from "@/modules/events/schema";
 import { recipeInput } from "@/modules/cookbook/schema";
 import { countdownInput } from "@/modules/countdowns/schema";
 import { listingInput } from "@/modules/marketplace/schema";
-import { wishlistItemInput } from "@/modules/wishlist/schema";
+import { wishlistItemInput, coolFindInput } from "@/modules/wishlist/schema";
+import { promptInput } from "@/modules/reveal/schema";
+import { claimInput } from "@/modules/stakes/schema";
+import { tierListInput } from "@/modules/tiers/schema";
+import { nowPlayingInput } from "@/modules/nowplaying/schema";
+import { mapPinInput } from "@/modules/map/schema";
 
 /**
  * The UDM assistant's "tools": create-content and take-action functions, each
@@ -205,6 +210,191 @@ const createWishlist: Runner = async (userId, args) => {
   return `🎁 Added to your wishlist: **${item.title}**.`;
 };
 
+const createCoolFind: Runner = async (userId, args) => {
+  const data = coolFindInput.parse({
+    title: args.title,
+    url: args.url,
+    category: args.category ?? "interesting",
+    note: opt(args.note),
+    imageUrl: opt(args.imageUrl),
+    siteName: opt(args.siteName),
+  });
+  // Cool Finds intentionally has no outbox/feed event (matches its API route).
+  const find = await db.coolFind.create({
+    data: {
+      userId,
+      title: data.title,
+      url: data.url,
+      category: data.category,
+      note: data.note ?? null,
+      imageUrl: data.imageUrl ?? null,
+      siteName: data.siteName ?? null,
+    },
+  });
+  return `🔗 Filed under cool finds (${find.category}): **${find.title}**.`;
+};
+
+const createReveal: Runner = async (userId, args) => {
+  const data = promptInput.parse({
+    type: args.type,
+    title: args.title,
+    items: args.items,
+    sealedBody: opt(args.sealedBody),
+    unlockAt: opt(args.unlockAt),
+    deadline: opt(args.deadline),
+    unlockVotesNeeded: opt(args.unlockVotesNeeded),
+  });
+  const prompt = await withOutbox(
+    async (tx) => {
+      const p = await tx.revealPrompt.create({
+        data: {
+          creatorId: userId,
+          type: data.type,
+          title: data.title,
+          items: data.type === "rank" ? data.items : undefined,
+          deadline: data.type === "sealed" ? null : (data.deadline ?? null),
+          unlockAt: data.type === "sealed" ? data.unlockAt : null,
+          unlockVotesNeeded: data.type === "sealed" ? (data.unlockVotesNeeded ?? null) : null,
+        },
+      });
+      if (data.type === "sealed") {
+        await tx.revealSubmission.create({
+          data: { promptId: p.id, userId, payload: { body: data.sealedBody! } },
+        });
+      }
+      return p;
+    },
+    (p) => ({
+      type: "reveal.created",
+      payload: { promptId: p.id, title: p.title, type: p.type, createdBy: userId },
+    })
+  );
+  return `🎭 Reveal started: **${prompt.title}**.`;
+};
+
+const createStake: Runner = async (userId, args) => {
+  const data = claimInput.parse({
+    text: args.text,
+    resolvesAt: args.resolvesAt,
+    hidden: args.hidden ?? false,
+    counterpartyId: opt(args.counterpartyId),
+    stake: opt(args.stake),
+  });
+  if (data.counterpartyId === userId) throw new Error("You can't bet against yourself.");
+  const claim = await withOutbox(
+    (tx) =>
+      tx.claim.create({
+        data: {
+          creatorId: userId,
+          text: data.text,
+          resolvesAt: data.resolvesAt,
+          hidden: data.hidden,
+          counterpartyId: data.counterpartyId ?? null,
+          stake: data.stake ?? null,
+        },
+      }),
+    (c) => ({
+      type: "claim.created",
+      payload: {
+        claimId: c.id,
+        text: c.hidden ? null : c.text,
+        hidden: c.hidden,
+        resolvesAt: c.resolvesAt.toISOString(),
+        creatorId: userId,
+        counterpartyId: c.counterpartyId,
+        stake: c.stake,
+      },
+    })
+  );
+  return data.hidden
+    ? `🤐 Sealed prediction locked in (revealed when it resolves).`
+    : `🎯 Stake called: **${claim.text}**.`;
+};
+
+const createTierList: Runner = async (userId, args) => {
+  const data = tierListInput.parse({
+    title: args.title,
+    items: args.items,
+    description: opt(args.description),
+    sensitive: args.sensitive ?? false,
+  });
+  // De-dupe labels case-insensitively, mirroring the API route.
+  const seen = new Set<string>();
+  const labels = data.items.filter((label) => {
+    const key = label.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const list = await withOutbox(
+    (tx) =>
+      tx.tierList.create({
+        data: {
+          creatorId: userId,
+          title: data.title,
+          description: data.description ?? null,
+          sensitive: data.sensitive,
+          items: { create: labels.map((label, i) => ({ label, position: i })) },
+        },
+      }),
+    (l) => ({
+      type: "tierlist.created",
+      payload: { listId: l.id, title: l.title, creatorId: userId, itemCount: labels.length },
+    })
+  );
+  return `🏆 Tier list ready to rank: **${list.title}** (${labels.length} items).`;
+};
+
+const createNowPlaying: Runner = async (userId, args) => {
+  const data = nowPlayingInput.parse({
+    mediaType: args.mediaType,
+    title: args.title,
+    note: opt(args.note),
+  });
+  const item = await withOutbox(
+    (tx) =>
+      tx.nowPlayingItem.create({
+        data: { userId, mediaType: data.mediaType, title: data.title, note: data.note ?? null },
+      }),
+    (i) => ({
+      type: "nowplaying.updated",
+      payload: { action: "added", itemId: i.id, userId, mediaType: i.mediaType, title: i.title },
+    })
+  );
+  const verb = item.mediaType === "book" ? "reading" : "watching";
+  return `📺 Now ${verb}: **${item.title}**.`;
+};
+
+const createMapPin: Runner = async (userId, args) => {
+  const data = mapPinInput.parse({
+    name: args.name,
+    category: args.category,
+    lat: args.lat,
+    lng: args.lng,
+    address: opt(args.address),
+    note: opt(args.note),
+  });
+  const pin = await withOutbox(
+    (tx) =>
+      tx.mapPin.create({
+        data: {
+          creatorId: userId,
+          name: data.name,
+          category: data.category,
+          lat: data.lat,
+          lng: data.lng,
+          address: data.address ?? null,
+          note: data.note ?? null,
+        },
+      }),
+    (p) => ({
+      type: "map.pin.added",
+      payload: { pinId: p.id, name: p.name, category: p.category, addedBy: userId },
+    })
+  );
+  return `📍 Pin dropped: **${pin.name}**.`;
+};
+
 // ── Action tools (refetch the entity + re-apply guards, like the buttons) ─────
 
 const rsvp: Runner = async (userId, args) => {
@@ -333,6 +523,12 @@ export const TOOL_RUNNERS: Record<string, Runner> = {
   create_countdown: createCountdown,
   create_listing: createListing,
   create_wishlist: createWishlist,
+  create_coolfind: createCoolFind,
+  create_reveal: createReveal,
+  create_stake: createStake,
+  create_tierlist: createTierList,
+  create_nowplaying: createNowPlaying,
+  create_map_pin: createMapPin,
   rsvp,
   poll_vote: pollVote,
   claim_listing: claimListing,

@@ -183,6 +183,96 @@ const TOOL_DEFS: ToolSpec[] = [
     },
   },
   {
+    name: "create_coolfind",
+    description: "Save a useful/funny/interesting link to the group's Cool Finds. Needs a URL.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        url: { type: "string", description: "The link (http/https)." },
+        category: { type: "string", enum: ["tools", "funny", "interesting", "other"] },
+        note: { type: "string", description: "Why it's worth a click (optional)." },
+      },
+      required: ["title", "url"],
+    },
+  },
+  {
+    name: "create_reveal",
+    description:
+      "Start a reveal/quiz. type 'rank' = everyone privately ranks the items, revealed together (give items[]). type 'sealed' = lock a hidden prediction/note (sealedBody) until unlockAt.",
+    parameters: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["rank", "sealed"] },
+        title: { type: "string" },
+        items: { type: "array", items: { type: "string" }, description: "2–12 things to rank (type=rank)." },
+        sealedBody: { type: "string", description: "The hidden content (type=sealed)." },
+        unlockAt: { type: "string", description: "ISO-8601 future date the sealed note unlocks (type=sealed)." },
+        deadline: { type: "string", description: "Optional ISO-8601 deadline for ranking." },
+      },
+      required: ["type", "title"],
+    },
+  },
+  {
+    name: "create_stake",
+    description:
+      "Call a shot / make a prediction (a 'stake'). Solo by default. Set hidden=true to seal the text until it resolves. resolvesAt is when it gets judged.",
+    parameters: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "The claim/prediction." },
+        resolvesAt: { type: "string", description: "ISO-8601 future date it resolves." },
+        hidden: { type: "boolean", description: "Conceal the text until it resolves (solo only)." },
+        counterpartyId: { type: "string", description: "Optional Discord/UDM user id to bet against (from GROUP CONTEXT)." },
+        stake: { type: "string", description: "What's on the line, e.g. 'loser buys coffee' (needs counterparty)." },
+      },
+      required: ["text", "resolvesAt"],
+    },
+  },
+  {
+    name: "create_tierlist",
+    description: "Create a tier list for the group to rank. Give the items; people place them into tiers.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        items: { type: "array", items: { type: "string" }, description: "2–50 things to rank." },
+        description: { type: "string" },
+      },
+      required: ["title", "items"],
+    },
+  },
+  {
+    name: "create_nowplaying",
+    description: "Add what the user is currently watching/reading to Now Playing.",
+    parameters: {
+      type: "object",
+      properties: {
+        mediaType: { type: "string", enum: ["show", "movie", "book"] },
+        title: { type: "string" },
+        note: { type: "string" },
+      },
+      required: ["mediaType", "title"],
+    },
+  },
+  {
+    name: "create_map_pin",
+    description:
+      "Drop a pin on the group map. REQUIRES latitude and longitude — only use this when the user gives coordinates (you can't geocode an address yourself).",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        category: { type: "string", enum: ["food", "drink", "outdoors", "fun", "home", "other"] },
+        lat: { type: "number" },
+        lng: { type: "number" },
+        address: { type: "string" },
+        note: { type: "string" },
+      },
+      required: ["name", "category", "lat", "lng"],
+    },
+  },
+  {
     name: "rsvp",
     description: "RSVP the user to an event. eventId must come from GROUP CONTEXT upcomingEvents.",
     parameters: {
