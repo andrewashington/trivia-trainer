@@ -6,7 +6,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 const ROOT = join(process.cwd());
 loadEnv();
@@ -18,8 +18,19 @@ const guildId = process.env.DISCORD_GUILD_ID;
 const TEXT_CHANNEL_TYPES = new Set([0, 5, 10, 11, 12, 15]);
 const includeBots = process.argv.includes("--include-bots") || process.env.DISCORD_ARCHIVE_INCLUDE_BOTS === "true";
 
+// Resolve message authors to UDM+ users in memory — one query up front instead
+// of a DB round-trip per message (huge when the DB is remote).
+const userByDiscordId = new Map();
+
 async function main() {
   if (!token || !guildId) throw new Error("DISCORD_BOT_TOKEN and DISCORD_GUILD_ID are required");
+
+  const users = await db.user.findMany({
+    where: { discordUserId: { not: null } },
+    select: { id: true, discordUserId: true },
+  });
+  for (const u of users) userByDiscordId.set(u.discordUserId, u.id);
+  console.log(`[archive] loaded ${userByDiscordId.size} linked users`);
 
   const channels = await discordGet(`/guilds/${guildId}/channels`);
   const textChannels = channels.filter((c) => TEXT_CHANNEL_TYPES.has(c.type));
@@ -60,13 +71,9 @@ async function backfillChannel(channel) {
     }
     if (!messages.length) break;
 
-    for (const message of messages) {
-      if (!includeBots && message.author?.bot) {
-        skippedBots++;
-        continue;
-      }
-      await upsertMessage(message, channel);
-    }
+    const keep = includeBots ? messages : messages.filter((m) => !m.author?.bot);
+    skippedBots += messages.length - keep.length;
+    if (keep.length) await insertMessages(keep, channel);
     before = messages[messages.length - 1]?.id;
     total += messages.length;
     await db.$executeRaw`
@@ -93,20 +100,28 @@ async function upsertChannel(channel) {
   `;
 }
 
-async function upsertMessage(message, channel) {
-  const displayName = message.member?.nick ?? message.author?.global_name ?? message.author?.username ?? "unknown";
-  const attachments = JSON.stringify(
-    (message.attachments ?? []).map((a) => ({
-      url: a.url,
-      name: a.filename ?? null,
-      contentType: a.content_type ?? null,
-      size: a.size ?? null,
-    }))
-  );
-  const reactionCount = (message.reactions ?? []).reduce((sum, r) => sum + (r.count ?? 0), 0);
-  const user = await db.user.findUnique({
-    where: { discordUserId: message.author.id },
-    select: { id: true },
+// Insert a whole page of messages in ONE statement (multi-row VALUES). Authors
+// resolve from the in-memory user map, so no per-message DB lookups.
+async function insertMessages(messages, channel) {
+  const rows = messages.map((message) => {
+    const displayName = message.member?.nick ?? message.author?.global_name ?? message.author?.username ?? "unknown";
+    const attachments = JSON.stringify(
+      (message.attachments ?? []).map((a) => ({
+        url: a.url,
+        name: a.filename ?? null,
+        contentType: a.content_type ?? null,
+        size: a.size ?? null,
+      }))
+    );
+    const reactionCount = (message.reactions ?? []).reduce((sum, r) => sum + (r.count ?? 0), 0);
+    const userId = userByDiscordId.get(message.author.id) ?? null;
+    return Prisma.sql`(
+      ${message.id}, ${channel.id}, ${message.guild_id ?? guildId ?? null},
+      ${message.author.id}, ${displayName}, ${userId}, ${message.author.bot ?? false},
+      ${message.content ?? ""}, ${message.message_reference?.message_id ?? null},
+      ${attachments}::jsonb, ${(message.embeds ?? []).length > 0}, ${reactionCount},
+      ${new Date(message.timestamp)}, ${message.edited_timestamp ? new Date(message.edited_timestamp) : null}
+    )`;
   });
 
   await db.$executeRaw`
@@ -114,13 +129,7 @@ async function upsertMessage(message, channel) {
       id, channel_id, guild_id, author_id, author_name, user_id, is_bot,
       content, reply_to_id, attachments, has_embed, reaction_count, sent_at, edited_at
     )
-    VALUES (
-      ${message.id}, ${channel.id}, ${message.guild_id ?? guildId ?? null},
-      ${message.author.id}, ${displayName}, ${user?.id ?? null}, ${message.author.bot ?? false},
-      ${message.content ?? ""}, ${message.message_reference?.message_id ?? null},
-      ${attachments}::jsonb, ${(message.embeds ?? []).length > 0}, ${reactionCount},
-      ${new Date(message.timestamp)}, ${message.edited_timestamp ? new Date(message.edited_timestamp) : null}
-    )
+    VALUES ${Prisma.join(rows)}
     ON CONFLICT (id) DO UPDATE SET
       channel_id = EXCLUDED.channel_id,
       guild_id = EXCLUDED.guild_id,

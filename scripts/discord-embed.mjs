@@ -18,7 +18,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 const ROOT = join(process.cwd());
 loadEnv();
@@ -132,7 +132,9 @@ async function rebuildSegments() {
   };
 
   for (const m of messages) {
-    const line = `${m.author_name}: ${oneLine(m.content).slice(0, PER_MSG_CHARS)}`;
+    // Sanitize AFTER slicing: truncating at PER_MSG_CHARS can split an emoji's
+    // surrogate pair, so the final oneLine() pass cleans the boundary surrogate.
+    const line = oneLine(`${m.author_name}: ${oneLine(m.content).slice(0, PER_MSG_CHARS)}`);
     const sentMs = new Date(m.sent_at).getTime();
     const breaks =
       !cur ||
@@ -166,17 +168,22 @@ async function rebuildSegments() {
   }
   flush();
 
-  // Upsert all current segments, collect their ids, then prune any segment row
-  // not in the freshly-computed set (a boundary may have shifted).
-  const ids = [];
-  for (const s of segments) {
-    ids.push(s.id);
+  // Upsert all current segments (batched — one statement per chunk, not per
+  // row, which matters a lot over a remote DB), collect their ids, then prune
+  // any segment row not in the freshly-computed set (a boundary may have shifted).
+  const ids = segments.map((s) => s.id);
+  const CHUNK = 500;
+  for (let i = 0; i < segments.length; i += CHUNK) {
+    const rows = segments.slice(i, i + CHUNK).map(
+      (s) => Prisma.sql`(
+        ${s.id}, ${s.channelId}, ${s.guildId}, ${s.startMsgId}, ${s.endMsgId},
+        ${s.startAt}, ${s.endAt}, ${s.messageCount}, ${s.content}, ${s.contentHash}
+      )`,
+    );
     await db.$executeRaw`
       INSERT INTO discord_archive.message_segments
         (id, channel_id, guild_id, start_msg_id, end_msg_id, start_at, end_at, message_count, content, content_hash)
-      VALUES
-        (${s.id}, ${s.channelId}, ${s.guildId}, ${s.startMsgId}, ${s.endMsgId},
-         ${s.startAt}, ${s.endAt}, ${s.messageCount}, ${s.content}, ${s.contentHash})
+      VALUES ${Prisma.join(rows)}
       ON CONFLICT (id) DO UPDATE SET
         end_msg_id = EXCLUDED.end_msg_id,
         start_at = EXCLUDED.start_at,
@@ -217,7 +224,11 @@ async function embedTexts(texts) {
 }
 
 function oneLine(s) {
-  return String(s ?? "").replace(/\s+/g, " ").trim();
+  let t = String(s ?? "");
+  // Discord content can carry lone UTF-16 surrogates (broken emoji) and control
+  // chars; both break the DB driver JSON param serialization in a batch insert.
+  if (t.toWellFormed) t = t.toWellFormed(); // lone surrogates -> U+FFFD
+  return t.replace(/\s+/g, " ").replace(/\p{C}/gu, "").trim();
 }
 
 function sha256(content) {
