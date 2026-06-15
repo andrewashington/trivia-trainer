@@ -138,6 +138,85 @@ function oddsTier(yes: number, no: number): { label: string; icon: IconName; bg:
   return { label: "Coin toss", icon: "scale", bg: "bg-accent-cyan", fg: "text-ink" };
 }
 
+// Quick-pick unit sizes and the odds-ladder we preview a unit's payout against.
+const STAKE_PRESETS = [10, 25, 50, 100, 250, 1000];
+const PAYOUT_LADDER = [0.9, 0.7, 0.5, 0.3, 0.1];
+
+function clampStake(n: number, cap = MAX_BET) {
+  return Math.max(MIN_BET, Math.min(cap, Math.round(Number.isFinite(n) ? n : MIN_BET)));
+}
+
+// Shared coin-amount editor: −/+ steppers, a typed field, and preset chips.
+// Used both for the board-level unit and inside the confirm-bet modal.
+function StakeEditor({
+  value,
+  onChange,
+  cap = MAX_BET,
+  showMax = false,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  cap?: number;
+  showMax?: boolean;
+}) {
+  const set = (n: number) => onChange(clampStake(n, cap));
+  const step = value >= 100 ? 50 : 10;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-stretch gap-2">
+        <button
+          type="button"
+          onClick={() => set(value - step)}
+          className="brutal-press border-3 border-ink bg-card px-3 font-display text-2xl font-bold leading-none shadow-brutal-sm"
+          aria-label="Decrease amount"
+        >
+          −
+        </button>
+        <input
+          type="number"
+          min={MIN_BET}
+          max={cap}
+          value={value}
+          onChange={(e) => set(Number(e.target.value))}
+          className="brutal-input w-full text-center font-display text-xl font-bold"
+          aria-label="Bet amount"
+        />
+        <button
+          type="button"
+          onClick={() => set(value + step)}
+          className="brutal-press border-3 border-ink bg-card px-3 font-display text-2xl font-bold leading-none shadow-brutal-sm"
+          aria-label="Increase amount"
+        >
+          +
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {STAKE_PRESETS.filter((p) => p <= cap).map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => set(p)}
+            className={`brutal-press border-2 border-ink px-2.5 py-1 font-mono text-[11px] font-bold uppercase shadow-brutal-sm ${
+              value === p ? "bg-ink text-white" : "bg-card text-ink"
+            }`}
+          >
+            {p.toLocaleString()}
+          </button>
+        ))}
+        {showMax && (
+          <button
+            type="button"
+            onClick={() => set(cap)}
+            className="brutal-press border-2 border-ink bg-accent-yellow px-2.5 py-1 font-mono text-[11px] font-bold uppercase shadow-brutal-sm"
+          >
+            Max
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   const cls =
     status === "won"
@@ -228,10 +307,20 @@ export function BookBoard({
   const [lastSlip, setLastSlip] = useState<{ question: string; outcome: string; stake: number; payout: number } | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [pending, setPending] = useState<{ market: MarketView; outcome: "Yes" | "No"; price: number } | null>(null);
+  const [slipStake, setSlipStake] = useState(Math.max(MIN_BET, 25));
   const cardRefs = useRef<Map<string, HTMLLIElement>>(new Map());
 
   // Probability bars grow from a 50/50 split on first paint for a little drama.
   useEffect(() => setMounted(true), []);
+
+  // Esc closes the confirm-bet modal.
+  useEffect(() => {
+    if (!pending) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setPending(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pending]);
 
   // Ribbon → board: hop to the market a spotlight card points at and flash it.
   function focusMarket(id: string) {
@@ -368,8 +457,19 @@ export function BookBoard({
     }
   }
 
-  async function placeBet(market: MarketView, outcome: "Yes" | "No", price: number) {
-    const amount = Math.max(MIN_BET, Math.min(MAX_BET, Math.round(stake)));
+  // Tapping a side no longer fires the bet — it opens the confirm modal,
+  // preset to the board unit (clamped to what you can actually afford).
+  function openBet(market: MarketView, outcome: "Yes" | "No", price: number) {
+    setNotice(null);
+    const cap = Math.min(MAX_BET, coins);
+    setSlipStake(clampStake(Math.min(stake, cap), cap));
+    setPending({ market, outcome, price });
+  }
+
+  async function submitBet() {
+    if (!pending) return;
+    const { market, outcome, price } = pending;
+    const amount = clampStake(slipStake, Math.min(MAX_BET, coins));
     const key = `${market.id}:${outcome}`;
     setBusyKey(key);
     setNotice(null);
@@ -381,6 +481,7 @@ export function BookBoard({
       const win = payout(amount, price);
       setCoins(data.coins);
       setLastSlip({ question: market.question, outcome, stake: amount, payout: win });
+      setPending(null);
       setView("open");
       await refresh();
     } catch (e) {
@@ -407,6 +508,41 @@ export function BookBoard({
             <p className="brutal-label !mb-1">Balance</p>
             <p className="font-display text-4xl font-bold">{coins.toLocaleString()}</p>
             <p className="mt-1 font-mono text-[10px] uppercase text-ink/45">coins ready at the window</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* The unit dial: set how many coins one slip costs, and read the payout
+          ladder so the relative value of long vs. short odds is obvious. */}
+      <Card className="overflow-hidden !p-0">
+        <div className="grid md:grid-cols-[minmax(0,300px)_1fr]">
+          <div className="relative border-b-3 border-ink bg-accent-yellow p-4 md:border-b-0 md:border-r-3">
+            <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: STRIPES }} />
+            <div className="relative">
+              <p className="brutal-label flex items-center gap-1.5">
+                <PixelIcon name="money" size={14} /> Your bet unit
+              </p>
+              <p className="font-display text-5xl font-bold leading-none">{stake.toLocaleString()}</p>
+              <p className="mb-3 font-mono text-[10px] uppercase text-ink/55">coins per slip · adjustable at confirm</p>
+              <StakeEditor value={stake} onChange={setStake} />
+            </div>
+          </div>
+          <div className="p-4">
+            <p className="brutal-label">What a {stake.toLocaleString()}-coin slip returns</p>
+            <div className="mt-2 grid grid-cols-5 gap-1.5">
+              {PAYOUT_LADDER.map((p) => (
+                <div key={p} className="border-2 border-ink bg-paper p-2 text-center">
+                  <p className="font-mono text-[10px] font-bold uppercase text-ink/50">{oddsLabel(p)}</p>
+                  <p className="font-display text-lg font-bold leading-none">{payout(stake, p).toLocaleString()}</p>
+                  <p className="font-mono text-[9px] font-bold uppercase text-accent-green">
+                    +{(payout(stake, p) - stake).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 font-mono text-[10px] uppercase text-ink/40">
+              longer the odds, fatter the payout · tap a side on any line to bet
+            </p>
           </div>
         </div>
       </Card>
@@ -458,7 +594,7 @@ export function BookBoard({
 
         {view === "lines" && (
           <div className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-[1fr_150px_150px_auto]">
+            <div className="grid gap-3 md:grid-cols-[1fr_150px_auto]">
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -474,15 +610,6 @@ export function BookBoard({
                 <option value="soon">Closing soon</option>
                 <option value="liquid">Most liquid</option>
               </select>
-              <Input
-                type="number"
-                min={MIN_BET}
-                max={MAX_BET}
-                step={1}
-                value={stake}
-                onChange={(e) => setStake(Math.max(MIN_BET, Math.min(MAX_BET, Math.round(Number(e.target.value)))))}
-                aria-label="Stake"
-              />
               <Button type="button" variant="ghost" onClick={refresh}>
                 Refresh
               </Button>
@@ -655,12 +782,11 @@ export function BookBoard({
                           ["No", no, "bg-accent-red text-white", "Fade it"],
                         ] as const).map(([outcome, price, cls, label]) => {
                           const favored = price === Math.max(yes, no) && yes !== no;
-                          const busy = busyKey === `${market.id}:${outcome}`;
                           return (
                             <button
                               key={outcome}
-                              onClick={() => placeBet(market, outcome, price)}
-                              disabled={busyKey !== null || stake > coins}
+                              onClick={() => openBet(market, outcome, price)}
+                              disabled={busyKey !== null || coins < MIN_BET}
                               className={`group/bet brutal-press relative overflow-hidden border-3 border-ink p-4 text-left shadow-brutal disabled:opacity-50 ${cls}`}
                             >
                               <span className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-white/30 opacity-0 transition-opacity group-hover/bet:opacity-100 group-hover/bet:animate-sheen" />
@@ -679,14 +805,14 @@ export function BookBoard({
                                 odds {oddsLabel(price)}
                               </span>
                               <span className="relative mt-1 block font-display text-xl font-bold">
-                                {busy ? "printing…" : `pays ${payout(stake, price).toLocaleString()}`}
+                                pays {payout(stake, price).toLocaleString()}
                               </span>
                             </button>
                           );
                         })}
                       </div>
                       <p className="font-mono text-[10px] uppercase text-ink/35">
-                        Current stake: {stake.toLocaleString()} coins. Odds lock when the slip prints.
+                        Payouts shown for your {stake.toLocaleString()}-coin unit · tap a side to set the exact amount.
                       </p>
                     </div>
                   </Card>
@@ -758,6 +884,100 @@ export function BookBoard({
           </ul>
         )
       ) : null}
+
+      {pending && (() => {
+        const { market, outcome, price } = pending;
+        const color = categoryColor(market.category);
+        const cap = Math.min(MAX_BET, coins);
+        const amount = clampStake(slipStake, cap);
+        const win = payout(amount, price);
+        const profit = win - amount;
+        const sideGreen = outcome === "Yes";
+        return (
+          <div
+            className="fixed inset-0 z-[1200] flex items-center justify-center overflow-y-auto bg-ink/60 p-4"
+            onClick={() => setPending(null)}
+          >
+            <div
+              className="w-full max-w-md animate-pop-in border-3 border-ink bg-card shadow-brutal-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="relative flex items-center justify-between border-b-3 border-ink p-3"
+                style={{ backgroundImage: `linear-gradient(120deg, ${color}, ${color} 55%, #F4F1EA 160%)` }}
+              >
+                <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: STRIPES }} />
+                <p className="brutal-label !mb-0 relative flex items-center gap-1.5">
+                  <PixelIcon name="notebook" size={14} /> Print a slip
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setPending(null)}
+                  className="brutal-press relative border-2 border-ink bg-card px-2 py-0.5 font-mono text-xs font-bold shadow-brutal-sm"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4 p-4">
+                <div>
+                  <p className="font-display text-xl font-bold leading-tight">{market.question}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span
+                      className={`border-3 border-ink px-3 py-1 font-display text-lg font-bold shadow-brutal-sm ${
+                        sideGreen ? "bg-accent-green text-ink" : "bg-accent-red text-white"
+                      }`}
+                    >
+                      {outcome}
+                    </span>
+                    <span className="font-mono text-xs font-bold uppercase text-ink/55">odds {oddsLabel(price)}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="brutal-label">Stake</p>
+                  <StakeEditor value={amount} onChange={setSlipStake} cap={cap} showMax />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="border-2 border-ink bg-paper p-2">
+                    <p className="brutal-label !mb-0">Risk</p>
+                    <p className="font-display text-xl font-bold">{amount.toLocaleString()}</p>
+                  </div>
+                  <div className="border-2 border-ink bg-paper p-2">
+                    <p className="brutal-label !mb-0">Pays</p>
+                    <p className="font-display text-xl font-bold">{win.toLocaleString()}</p>
+                  </div>
+                  <div className="border-2 border-ink bg-accent-green p-2">
+                    <p className="brutal-label !mb-0">Profit</p>
+                    <p className="font-display text-xl font-bold">+{profit.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-mono text-[10px] uppercase text-ink/50">
+                    balance after · {(coins - amount).toLocaleString()}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="ghost" onClick={() => setPending(null)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={sideGreen ? "green" : "danger"}
+                      disabled={busyKey !== null || amount > coins}
+                      onClick={submitBet}
+                    >
+                      {busyKey !== null ? "printing…" : `Bet ${amount.toLocaleString()}`}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
