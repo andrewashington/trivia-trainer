@@ -44,7 +44,16 @@ export async function recentActivity(limit = 16, userId?: string): Promise<Activ
       db.mapPin.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
       db.fileObject.findMany({ ...recent, where: userId ? { uploaderId: userId } : undefined, include: { uploader: who } }),
       db.revealPrompt.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
-      db.claim.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
+      db.claim.findMany({
+        ...recent,
+        // Hidden, unresolved stakes are secret until they resolve — never leak
+        // their text into the feed (shown only once an outcome is set).
+        where: {
+          ...(userId ? { creatorId: userId } : {}),
+          OR: [{ hidden: false }, { outcome: { not: null } }],
+        },
+        include: { creator: who },
+      }),
       db.countdown.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
       db.nowPlayingItem.findMany({
         take: recent.take,
