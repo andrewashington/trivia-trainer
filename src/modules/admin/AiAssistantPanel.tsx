@@ -17,6 +17,7 @@ type Memory = { id: string; fact: string; subject: string | null; createdAt: str
 type AiSettings = {
   aiSystemPrompt: string;
   aiSemanticSearch: boolean;
+  aiRerank: boolean;
   aiSearchLimit: number;
   aiMaxSteps: number;
   aiMaxTokens: number;
@@ -264,6 +265,27 @@ export function AiAssistantPanel() {
             }`}
           >
             {settings.aiSemanticSearch ? "on" : "off"}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => set("aiRerank", !settings.aiRerank)}
+          className={`flex w-full items-center justify-between gap-3 border-2 border-ink px-3 py-2 text-left ${
+            settings.aiRerank ? "bg-card" : "bg-ink/10 text-ink/40"
+          }`}
+        >
+          <span>
+            <span className="text-sm font-bold">LLM rerank</span>
+            <span className="block font-mono text-[10px] text-ink/50">
+              over-fetch then let the model judge relevance (precision; +1 call per search)
+            </span>
+          </span>
+          <span
+            className={`shrink-0 border-2 border-ink px-1.5 font-mono text-[9px] font-bold uppercase ${
+              settings.aiRerank ? "bg-accent-green" : "bg-card"
+            }`}
+          >
+            {settings.aiRerank ? "on" : "off"}
           </span>
         </button>
         <div className="flex items-center gap-2">

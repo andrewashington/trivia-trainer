@@ -18,6 +18,7 @@ export type DiscordSettings = {
   // AI assistant tuning (admin-editable; all have safe code defaults).
   aiSystemPrompt: string; // appended to the base system prompt when set
   aiSemanticSearch: boolean; // use embeddings for archive search (vs keyword only)
+  aiRerank: boolean; // LLM rerank pass over search results (precision boost)
   aiSearchLimit: number; // default segments per search_messages call
   aiMaxSteps: number; // agentic tool-loop step budget
   aiMaxTokens: number; // reply token budget
@@ -34,6 +35,7 @@ export const DISCORD_SETTINGS_DEFAULTS: DiscordSettings = {
   aiModel: "",
   aiSystemPrompt: "",
   aiSemanticSearch: true,
+  aiRerank: true,
   aiSearchLimit: 12,
   aiMaxSteps: 6,
   aiMaxTokens: 1800,

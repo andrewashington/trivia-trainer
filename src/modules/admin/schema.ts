@@ -63,6 +63,7 @@ export const discordAdminPut = z.object({
 export const aiSettingsPut = z.object({
   aiSystemPrompt: z.string().max(4000),
   aiSemanticSearch: z.boolean(),
+  aiRerank: z.boolean(),
   aiSearchLimit: z.coerce.number().int().min(1).max(30),
   aiMaxSteps: z.coerce.number().int().min(1).max(10),
   aiMaxTokens: z.coerce.number().int().min(200).max(4000),

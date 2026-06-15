@@ -55,6 +55,7 @@ export const GET = apiHandler(async () => {
     settings: {
       aiSystemPrompt: s.aiSystemPrompt,
       aiSemanticSearch: s.aiSemanticSearch,
+      aiRerank: s.aiRerank,
       aiSearchLimit: s.aiSearchLimit,
       aiMaxSteps: s.aiMaxSteps,
       aiMaxTokens: s.aiMaxTokens,

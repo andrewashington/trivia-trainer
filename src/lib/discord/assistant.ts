@@ -6,6 +6,7 @@ import { TOOL_RUNNERS } from "@/lib/discord/actions";
 import { fetchRecentMessages } from "@/lib/discord/history";
 import { embedQuery } from "@/lib/discord/embeddings";
 import { searchArchiveMessages } from "@/lib/discord/archive";
+import { rerankHits } from "@/lib/discord/rerank";
 
 /**
  * The UDM AI assistant brain — one agentic tool-user behind every door (/udm and
@@ -520,18 +521,24 @@ async function route(input: AssistantInput): Promise<string> {
             return null;
           })
         : null;
-      const hits = await searchArchiveMessages({
+      // Over-fetch when reranking so the LLM has a wider pool to judge from.
+      const fetchLimit = settings.aiRerank ? Math.min(30, limit * 3) : limit;
+      const raw = await searchArchiveMessages({
         query,
         queryEmbedding: queryEmbedding ?? undefined,
         channelId,
         authorId,
         after,
         before,
-        limit,
+        limit: fetchLimit,
       }).catch((err) => {
         console.error("[discord] searchArchiveMessages failed", err);
         return [];
       });
+      const hits =
+        settings.aiRerank && raw.length > limit
+          ? await rerankHits(query, raw, limit, settings.aiModel || undefined)
+          : raw.slice(0, limit);
       if (!hits.length) return "No archived messages matched.";
       // Each hit is a conversation segment (a burst of messages), already
       // stitched with nearby context — h.text is multi-line "author: line" rows.
