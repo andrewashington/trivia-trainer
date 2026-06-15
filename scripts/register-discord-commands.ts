@@ -83,6 +83,11 @@ const COMMANDS = [
       { name: "message", description: "What do you want?", type: 3, required: true, max_length: 400 },
     ],
   },
+  {
+    name: "clear",
+    description: "Start a fresh conversation — clears UDM+'s memory of this channel's recent exchanges",
+    type: 1,
+  },
   { name: "marketplace", description: "What's for sale, with claim buttons", type: 1 },
   { name: "ideas", description: "Top open ideas, with upvote buttons", type: 1 },
   { name: "recipes", description: "Latest cookbook additions", type: 1 },
@@ -110,6 +115,16 @@ const COMMANDS = [
   },
 ];
 
+async function putCommands(appId: string, token: string, endpoint: string, commands: unknown[]) {
+  const res = await fetch(endpoint, {
+    method: "PUT",
+    headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(commands),
+  });
+  if (!res.ok) throw new Error(`Discord ${res.status}: ${await res.text()}`);
+  return (await res.json()) as { name: string }[];
+}
+
 async function main() {
   const appId = process.env.DISCORD_APP_ID;
   const token = process.env.DISCORD_BOT_TOKEN;
@@ -119,24 +134,26 @@ async function main() {
   }
 
   const guildId = process.env.DISCORD_GUILD_ID;
-  const endpoint = guildId
-    ? `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`
-    : `https://discord.com/api/v10/applications/${appId}/commands`;
+  const base = `https://discord.com/api/v10/applications/${appId}`;
 
-  const res = await fetch(endpoint, {
-    method: "PUT",
-    headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(COMMANDS),
-  });
-  if (!res.ok) {
-    console.error(`Discord ${res.status}:`, await res.text());
-    process.exit(1);
+  if (guildId) {
+    // Register to guild (instant propagation) and clear global commands so
+    // they don't show up as duplicates alongside the guild-scoped ones.
+    const registered = await putCommands(appId, token, `${base}/guilds/${guildId}/commands`, COMMANDS).catch(
+      (err) => { console.error(err.message); process.exit(1); }
+    );
+    console.log(`Registered ${registered.length} commands (guild ${guildId}): ${registered.map((c) => c.name).join(", ")}`);
+
+    const global = await putCommands(appId, token, `${base}/commands`, []).catch(
+      (err) => console.error("Warning: could not clear global commands:", err.message)
+    );
+    if (global !== undefined) console.log("Global commands cleared (was causing duplicates).");
+  } else {
+    const registered = await putCommands(appId, token, `${base}/commands`, COMMANDS).catch(
+      (err) => { console.error(err.message); process.exit(1); }
+    );
+    console.log(`Registered ${registered.length} commands (global): ${registered.map((c) => c.name).join(", ")}`);
   }
-  const registered = (await res.json()) as { name: string }[];
-  const scope = guildId ? `guild ${guildId}` : "global";
-  console.log(
-    `Registered ${registered.length} commands (${scope}): ${registered.map((c) => c.name).join(", ")}`
-  );
 }
 
 void main();
