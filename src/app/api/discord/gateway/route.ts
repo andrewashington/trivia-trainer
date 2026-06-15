@@ -4,7 +4,6 @@ import { db } from "@/lib/db";
 import { botConfig, discordApi } from "@/lib/discord/bot";
 import { getDiscordSettings } from "@/lib/discord/settings";
 import { runAssistant } from "@/lib/discord/assistant";
-import { fetchRecentMessages } from "@/lib/discord/history";
 
 /**
  * Forward endpoint for the @mention sidecar (services/discord-gateway). The
@@ -89,15 +88,10 @@ async function handleMention(input: {
     // Typing indicator while the model thinks (best-effort).
     await discordApi(`/channels/${input.channelId}/typing`, { method: "POST" }).catch(() => {});
 
-    // Recent channel context so "make a poll about this chat" works (skip the
-    // triggering @mention itself).
-    const recentMessages = await fetchRecentMessages(input.channelId, 18, input.messageId);
-
     const reply = await runAssistant({
       userId: user.id,
       text: input.text,
       sourceMessage: input.sourceMessage,
-      recentMessages,
       channelId: input.channelId,
       surface: "mention",
     });
