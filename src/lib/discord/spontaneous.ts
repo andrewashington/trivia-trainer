@@ -125,36 +125,56 @@ async function gatherInspiration(channelId: string | null): Promise<string> {
   return parts.join("\n\n");
 }
 
-/** Run the create runner for the chosen text-content kind. */
-async function createContent(out: SpontaneousOut, uid: string): Promise<boolean> {
+/**
+ * Build the chosen content. Resilient on purpose: the model sometimes picks a
+ * kind but fills the wrong field (e.g. puts a poll's choices in `items`), so we
+ * normalize field variants and, if the chosen kind can't be built, fall back to
+ * whatever IS present — so we virtually always post real content, not just an
+ * intro. Returns the kind built, or throws with a reason.
+ */
+async function createContent(out: SpontaneousOut, uid: string): Promise<string> {
   const run = TOOL_RUNNERS;
-  try {
-    if (out.kind === "poll" && out.question && (out.options?.length ?? 0) >= 2) {
-      await run.create_poll(uid, { question: out.question, options: out.options });
+  const title = out.title || out.question || out.ideaTitle;
+  const items = (out.items?.length ? out.items : out.options) ?? [];
+  const options = (out.options?.length ? out.options : out.items) ?? [];
+
+  const builders: Record<string, () => Promise<boolean>> = {
+    poll: async () => {
+      if (!out.question || options.length < 2) return false;
+      await run.create_poll(uid, { question: out.question, options: options.slice(0, 6) });
       return true;
-    }
-    if (out.kind === "tierlist" && out.title && (out.items?.length ?? 0) >= 2) {
-      await run.create_tierlist(uid, { title: out.title, items: out.items });
+    },
+    tierlist: async () => {
+      if (!title || items.length < 2) return false;
+      await run.create_tierlist(uid, { title, items });
       return true;
-    }
-    if (out.kind === "prediction" && out.text) {
-      const days = out.resolveInDays ?? 7;
-      const resolvesAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+    },
+    reveal: async () => {
+      if (!title || items.length < 2) return false;
+      await run.create_reveal(uid, { type: "rank", title, items });
+      return true;
+    },
+    prediction: async () => {
+      if (!out.text) return false;
+      const resolvesAt = new Date(Date.now() + (out.resolveInDays ?? 7) * 864e5).toISOString();
       await run.create_stake(uid, { text: out.text, resolvesAt, hidden: false });
       return true;
-    }
-    if (out.kind === "reveal" && out.title && (out.items?.length ?? 0) >= 2) {
-      await run.create_reveal(uid, { type: "rank", title: out.title, items: out.items });
+    },
+    idea: async () => {
+      if (!title) return false;
+      await run.create_idea(uid, { title, detail: out.ideaDetail });
       return true;
-    }
-    if (out.kind === "idea" && out.ideaTitle) {
-      await run.create_idea(uid, { title: out.ideaTitle, detail: out.ideaDetail });
-      return true;
-    }
-  } catch (err) {
-    console.error("[discord] spontaneous createContent failed", err);
+    },
+  };
+
+  // Try the chosen kind first, then everything else as a fallback.
+  const order = [out.kind, "poll", "tierlist", "reveal", "prediction", "idea"].filter(
+    (k, i, a) => k !== "image" && a.indexOf(k) === i,
+  );
+  for (const kind of order) {
+    if (await builders[kind]?.()) return kind;
   }
-  return false;
+  throw new Error(`no usable fields for kind=${out.kind} (q=${!!out.question} opts=${options.length} title=${!!title} items=${items.length} text=${!!out.text})`);
 }
 
 /** Generate an image, store it in the photobook, and post it inline. */
@@ -211,20 +231,21 @@ export async function runSpontaneousPost(channelOverride?: string | null): Promi
     maxTokens: 700,
   });
 
+  // Image: post inline (with its own caption) and we're done — no separate intro.
   if (out.kind === "image") {
-    const ok = await postImage(out, uid, channelId);
-    if (ok) return `posted image: ${out.imagePrompt?.slice(0, 60)}`;
-    // image failed → fall through to a text poll fallback below
-  } else {
-    // Intro first, then the content card follows via the drainer (~30s).
-    await postText(channelId, out.intro);
-    const ok = await createContent(out, uid);
-    if (ok) return `posted ${out.kind}`;
+    if (await postImage(out, uid, channelId)) return `image: ${out.imagePrompt?.slice(0, 60)}`;
+    // image gen failed — fall through and try to post a text piece instead.
   }
 
-  // Fallback: if the chosen kind couldn't be built, drop the intro as a message.
-  await postText(channelId, out.intro).catch(() => {});
-  return `posted intro only (kind ${out.kind} unbuildable)`;
+  // Text content: intro once, then the content card follows via the drainer (~30s).
+  await postText(channelId, out.intro);
+  try {
+    const built = await createContent(out, uid);
+    return `posted ${built}`;
+  } catch (err) {
+    console.error("[discord] spontaneous build failed; out =", JSON.stringify(out).slice(0, 500), err);
+    return `intro only — build failed: ${err instanceof Error ? err.message : err}`;
+  }
 }
 
 /**
