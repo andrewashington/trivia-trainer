@@ -12,7 +12,7 @@ import {
   getSocialEdges,
   getTimeMachine,
 } from "@/modules/discord-stats/queries";
-import { resolveIdentities } from "@/modules/discord-stats/identity";
+import { resolveIdentities, type AuthorIdentity } from "@/modules/discord-stats/identity";
 import { computeSuperlatives } from "@/modules/discord-stats/superlatives";
 import { AreaSparkline } from "@/modules/discord-stats/components/AreaSparkline";
 import {
@@ -47,23 +47,28 @@ export default async function DiscordStatsOverview() {
     ...leaders.map((l) => ({ authorId: l.authorId, authorName: l.authorName })),
     ...connectors.map((r) => ({ authorId: r.authorId, authorName: r.authorName })),
     ...fame.map((f) => ({ authorId: f.authorId, authorName: f.authorName })),
+    ...superlatives.map((s) => ({ authorId: s.authorId, authorName: s.authorName })),
     ...pairs.flatMap((p) => [
       { authorId: p.a1, authorName: p.a1Name },
       { authorId: p.a2, authorName: p.a2Name },
     ]),
   ];
   const ids = await resolveIdentities(authorSeed);
+  const identityFor = (authorId: string, authorName: string): AuthorIdentity =>
+    ids.get(authorId) ?? { authorId, name: authorName || "Unknown", avatarUrl: null, userId: null };
 
   const years =
     totals.firstAt && totals.lastAt
       ? Math.max(1, Math.round((totals.lastAt.getTime() - totals.firstAt.getTime()) / 3.15e10))
       : 0;
 
-  const topByMessages = leaders.slice(0, 5).map((l) => ({ identity: ids.get(l.authorId)!, value: l.messages }));
+  const topByMessages = leaders
+    .slice(0, 5)
+    .map((l) => ({ identity: identityFor(l.authorId, l.authorName), value: l.messages }));
   const topByLove = [...leaders]
     .sort((a, b) => b.reactionsReceived - a.reactionsReceived)
     .slice(0, 5)
-    .map((l) => ({ identity: ids.get(l.authorId)!, value: l.reactionsReceived }));
+    .map((l) => ({ identity: identityFor(l.authorId, l.authorName), value: l.reactionsReceived }));
 
   return (
     <div className="space-y-8">
@@ -106,7 +111,7 @@ export default async function DiscordStatsOverview() {
           <SectionTitle>The UDMies</SectionTitle>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {superlatives.map((a) => (
-              <SuperlativeCard key={a.key} award={a} identity={ids.get(a.authorId)!} />
+              <SuperlativeCard key={a.key} award={a} identity={identityFor(a.authorId, a.authorName)} />
             ))}
           </div>
         </section>
@@ -143,9 +148,9 @@ export default async function DiscordStatsOverview() {
           <Card className="flex flex-wrap gap-x-6 gap-y-2">
             {pairs.map((p, i) => (
               <div key={i} className="flex items-center gap-2">
-                <AuthorChip identity={ids.get(p.a1)!} />
+                <AuthorChip identity={identityFor(p.a1, p.a1Name)} />
                 <PixelIcon name="arrows-horizontal" size={14} />
-                <AuthorChip identity={ids.get(p.a2)!} />
+                <AuthorChip identity={identityFor(p.a2, p.a2Name)} />
                 <span className="font-mono text-xs text-ink/50">{p.shared.toLocaleString()}</span>
               </div>
             ))}
@@ -179,7 +184,7 @@ export default async function DiscordStatsOverview() {
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             {fame.map((m) => (
-              <MessageCard key={m.messageId} msg={m} identity={ids.get(m.authorId)!} />
+              <MessageCard key={m.messageId} msg={m} identity={identityFor(m.authorId, m.authorName)} />
             ))}
           </div>
         </section>

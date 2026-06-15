@@ -27,6 +27,11 @@ export type OverviewTotals = {
   busiestDay: { date: string; count: number } | null;
 };
 
+function dateOrNull(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  return value instanceof Date ? value : new Date(value);
+}
+
 async function overviewTotalsUncached(): Promise<OverviewTotals> {
   const [t] = await db.$queryRaw<
     {
@@ -66,15 +71,24 @@ async function overviewTotalsUncached(): Promise<OverviewTotals> {
     reactions: t?.reactions ?? 0,
     replies: t?.replies ?? 0,
     segments: seg?.segments ?? 0,
-    firstAt: t?.first_at ?? null,
-    lastAt: t?.last_at ?? null,
+    firstAt: dateOrNull(t?.first_at),
+    lastAt: dateOrNull(t?.last_at),
     busiestDay: busy ? { date: busy.day, count: busy.count } : null,
   };
 }
 
-export const getOverviewTotals = unstable_cache(overviewTotalsUncached, ["dstats-overview"], {
+const getOverviewTotalsCached = unstable_cache(overviewTotalsUncached, ["dstats-overview"], {
   revalidate: 600,
 });
+
+export async function getOverviewTotals(): Promise<OverviewTotals> {
+  const totals = await getOverviewTotalsCached();
+  return {
+    ...totals,
+    firstAt: dateOrNull(totals.firstAt),
+    lastAt: dateOrNull(totals.lastAt),
+  };
+}
 
 export type LeaderRow = {
   authorId: string;
@@ -132,14 +146,23 @@ async function leaderboardUncached(): Promise<LeaderRow[]> {
     avgLen: Math.round(r.avg_len ?? 0),
     maxLen: r.max_len ?? 0,
     channels: r.channels,
-    firstAt: r.first_at,
-    lastAt: r.last_at,
+    firstAt: dateOrNull(r.first_at),
+    lastAt: dateOrNull(r.last_at),
   }));
 }
 
-export const getLeaderboard = unstable_cache(leaderboardUncached, ["dstats-leaderboard"], {
+const getLeaderboardCached = unstable_cache(leaderboardUncached, ["dstats-leaderboard"], {
   revalidate: 600,
 });
+
+export async function getLeaderboard(): Promise<LeaderRow[]> {
+  const rows = await getLeaderboardCached();
+  return rows.map((r) => ({
+    ...r,
+    firstAt: dateOrNull(r.firstAt),
+    lastAt: dateOrNull(r.lastAt),
+  }));
+}
 
 export type MonthPoint = { month: string; count: number };
 
@@ -265,17 +288,22 @@ async function channelLeaderboardUncached(): Promise<ChannelRow[]> {
     name: r.name,
     messages: r.messages,
     authors: r.authors,
-    lastAt: r.last_at,
+    lastAt: dateOrNull(r.last_at),
     topAuthorId: r.top_author_id,
     topAuthorName: r.top_author_name,
   }));
 }
 
-export const getChannelLeaderboard = unstable_cache(
+const getChannelLeaderboardCached = unstable_cache(
   channelLeaderboardUncached,
   ["dstats-channels"],
   { revalidate: 600 },
 );
+
+export async function getChannelLeaderboard(): Promise<ChannelRow[]> {
+  const rows = await getChannelLeaderboardCached();
+  return rows.map((r) => ({ ...r, lastAt: dateOrNull(r.lastAt) }));
+}
 
 export type FameMessage = {
   messageId: string;
