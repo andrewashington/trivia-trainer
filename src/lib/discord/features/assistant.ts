@@ -4,6 +4,7 @@ import { registerFeature } from "@/lib/discord/registry";
 import { runAssistant } from "@/lib/discord/assistant";
 import { fetchRecentMessages } from "@/lib/discord/history";
 import type { Interaction } from "@/lib/discord/interactions";
+import { db } from "@/lib/db";
 
 /**
  * The /udm slash door onto the catch-all assistant. Self-registers with the
@@ -51,6 +52,19 @@ async function handleUdm(user: User, interaction: Interaction): Promise<object> 
   return { type: 5, data: { flags: EPHEMERAL } }; // deferred ephemeral
 }
 
+async function handleClear(_user: User, interaction: Interaction): Promise<object> {
+  const channelId = interaction.channel_id;
+  if (!channelId) {
+    return { type: 4, data: { content: "No channel to clear.", flags: EPHEMERAL } };
+  }
+  const { count } = await db.discordTurn.deleteMany({ where: { channelId } });
+  const msg =
+    count === 0
+      ? "nothing in the record for this channel. a clean slate either way."
+      : `${count} exchange${count === 1 ? "" : "s"} cleared. the record has been expunged. we start fresh.`;
+  return { type: 4, data: { content: msg, flags: EPHEMERAL } };
+}
+
 registerFeature({
   key: "assistant",
   commands: [
@@ -62,6 +76,11 @@ registerFeature({
         { name: "message", description: "What do you want?", type: 3, required: true, max_length: 400 },
       ],
     },
+    {
+      name: "clear",
+      description: "Start a fresh conversation — clears UDM+'s memory of this channel's recent exchanges",
+      type: 1,
+    },
   ],
-  commandHandlers: { udm: handleUdm },
+  commandHandlers: { udm: handleUdm, clear: handleClear },
 });
