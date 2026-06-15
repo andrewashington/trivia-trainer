@@ -25,6 +25,12 @@ type AiSettings = {
   spontaneousEnabled: boolean;
 };
 type Payload = { funnel: Funnel; memories: Memory[]; settings: AiSettings };
+type InsightsStatus = {
+  status: string;
+  detail: string;
+  startedAt: string | null;
+  lastBuiltAt: string | null;
+};
 
 function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string }) {
   return (
@@ -44,6 +50,7 @@ export function AiAssistantPanel() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [insights, setInsights] = useState<InsightsStatus | null>(null);
 
   async function load() {
     try {
@@ -54,9 +61,31 @@ export function AiAssistantPanel() {
       setErr(e instanceof Error ? e.message : "Failed to load.");
     }
   }
+  async function loadInsights() {
+    try {
+      setInsights(await api<InsightsStatus>("/api/admin/discord/insights"));
+    } catch {
+      /* table may not exist before first deploy — ignore */
+    }
+  }
   useEffect(() => {
     load();
+    loadInsights();
   }, []);
+
+  async function rebuildInsights() {
+    setBusy(true);
+    setStatus("Kicking off the insights rebuild…");
+    try {
+      await api("/api/admin/discord/insights", { method: "POST", body: {} });
+      setStatus("Rebuild running in the background (a few minutes). Refresh to check.");
+      setTimeout(loadInsights, 2000);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Rebuild failed to start.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function set<K extends keyof AiSettings>(k: K, v: AiSettings[K]) {
     setSettings((s) => (s ? { ...s, [k]: v } : s));
@@ -153,6 +182,37 @@ export function AiAssistantPanel() {
               {f.segments - f.embedded} segments not yet embedded — run `npm run discord:embed`.
             </p>
           )}
+        </div>
+      </div>
+
+      {/* Discord Stats insights */}
+      <div className="brutal-card space-y-3 p-3">
+        <p className="brutal-label">Discord Stats insights</p>
+        <p className="font-mono text-[11px] text-ink/55">
+          Crunches the embeddings into the Vibe Galaxy, AI dossiers, semantic soulmates &amp; the group
+          lexicon. Rebuild after a big new backfill (runs in the background, a few minutes).
+        </p>
+        {insights && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px]">
+            <span>
+              status: <b className={insights.status === "error" ? "text-accent-red" : ""}>{insights.status}</b>
+            </span>
+            {insights.lastBuiltAt && <span>last built: {new Date(insights.lastBuiltAt).toLocaleString()}</span>}
+            {insights.detail && <span className="text-ink/50">{insights.detail}</span>}
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="green"
+            disabled={busy || insights?.status === "running"}
+            onClick={rebuildInsights}
+          >
+            {insights?.status === "running" ? "Rebuilding…" : "Rebuild insights"}
+          </Button>
+          <Button type="button" variant="ghost" onClick={loadInsights}>
+            Refresh
+          </Button>
         </div>
       </div>
 

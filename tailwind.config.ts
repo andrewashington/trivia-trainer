@@ -49,6 +49,7 @@ const config: Config = {
           baize: "#0E7A4B", // poker (table felt)
           slot: "#FF1F8F", // slots
           riddle: "#5E60CE", // 20 questions
+          blurple: "#5865F2", // discord stats
 
         },
       },

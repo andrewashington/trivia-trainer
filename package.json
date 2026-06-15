@@ -25,6 +25,7 @@
     "discord:embed": "node scripts/discord-embed.mjs",
     "discord:embed:estimate": "node scripts/discord-embed.mjs --estimate",
     "discord:eval": "tsx scripts/discord-eval.ts",
+    "discord:insights": "node scripts/discord-insights.mjs",
     "postinstall": "prisma generate"
   },
   "prisma": {

@@ -599,6 +599,22 @@ export const modules: ModuleDef[] = [
     ],
   },
   {
+    key: "discordstats",
+    label: "Discord Stats",
+    icon: "users",
+    category: "forum",
+    navOrder: 30,
+    href: "/discord-stats",
+    accentBg: "bg-accent-blurple",
+    intro:
+      "Five years of the group chat, finally turned on itself. Leaderboards, an AI that reads the whole archive, a star-map of every conversation, and dossiers nobody asked for.",
+    tips: [
+      "Ask the Archive a question — it has read all 432,000 of your messages",
+      "Open the Vibe Galaxy and fly through every conversation you've ever had",
+      "Find your profile, then quietly accept your verbal-fingerprint diagnosis",
+    ],
+  },
+  {
     key: "twentyq",
     label: "20 Questions",
     icon: "circle-question",

@@ -38,6 +38,9 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/scripts/discord-backfill.mjs ./scripts/discord-backfill.mjs
 COPY --from=builder /app/scripts/discord-embed.mjs ./scripts/discord-embed.mjs
+# Spawned by the admin "Rebuild insights" button (Discord Stats). Self-contained
+# like the other scripts — only needs @prisma/client, already present at runtime.
+COPY --from=builder /app/scripts/discord-insights.mjs ./scripts/discord-insights.mjs
 # sharp's native libvips lives in @img/* optional deps; standalone tracing
 # copies sharp's JS but misses the .so packages — copy them explicitly
 # (needed by the world-avatar compositor).
