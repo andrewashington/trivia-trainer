@@ -80,6 +80,10 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge className={cls}>{status}</Badge>;
 }
 
+function marketVolume(m: MarketView) {
+  return (m.volume24hr ?? 0) * 10 + (m.volume ?? 0) + (m.liquidity ?? 0) * 0.5;
+}
+
 export function BookBoard({
   initialMarkets,
   initialBets,
@@ -126,6 +130,28 @@ export function BookBoard({
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12);
   }, [markets]);
+
+  const spotlights = useMemo(() => {
+    const priced = filtered
+      .map((market) => ({ market, prices: parsePrices(market.outcomePrices) }))
+      .filter((x): x is { market: MarketView; prices: [number, number] } => !!x.prices);
+    const hot = [...priced].sort((a, b) => marketVolume(b.market) - marketVolume(a.market))[0];
+    const soon = [...priced]
+      .filter((x) => x.market.endDate)
+      .sort((a, b) => new Date(a.market.endDate!).getTime() - new Date(b.market.endDate!).getTime())[0];
+    const moonshot = [...priced]
+      .map((x) => {
+        const yesLong = x.prices[0] <= x.prices[1];
+        return {
+          ...x,
+          side: yesLong ? "Yes" : "No",
+          price: yesLong ? x.prices[0] : x.prices[1],
+        };
+      })
+      .filter((x) => x.price > 0.01)
+      .sort((a, b) => a.price - b.price)[0];
+    return { hot, soon, moonshot };
+  }, [filtered]);
 
   async function refresh() {
     setNotice("Checking the board...");
@@ -291,8 +317,51 @@ export function BookBoard({
         filtered.length === 0 ? (
           <EmptyState icon="notebook" title="No lines on the board" hint="Refresh The Book or try a broader search." />
         ) : (
-          <ul className="space-y-5">
-            {filtered.map((market) => {
+          <>
+            <div className="grid gap-3 md:grid-cols-3">
+              {spotlights.hot && (
+                <div className="border-3 border-ink bg-accent-yellow p-3 shadow-brutal-sm">
+                  <p className="brutal-label !mb-1 flex items-center gap-1">
+                    <PixelIcon name="fire" size={13} /> Hot ticket
+                  </p>
+                  <p className="line-clamp-2 font-display text-lg font-bold leading-tight">
+                    {spotlights.hot.market.question}
+                  </p>
+                  <p className="mt-2 font-mono text-[10px] uppercase text-ink/55">
+                    24h {compactMoney(spotlights.hot.market.volume24hr)} · liq {compactMoney(spotlights.hot.market.liquidity)}
+                  </p>
+                </div>
+              )}
+              {spotlights.soon && (
+                <div className="border-3 border-ink bg-card p-3 shadow-brutal-sm">
+                  <p className="brutal-label !mb-1 flex items-center gap-1">
+                    <PixelIcon name="clock" size={13} /> Closing bell
+                  </p>
+                  <p className="line-clamp-2 font-display text-lg font-bold leading-tight">
+                    {spotlights.soon.market.question}
+                  </p>
+                  <p className="mt-2 font-mono text-[10px] uppercase text-ink/55">
+                    closes {fmtDate(spotlights.soon.market.endDate)}
+                  </p>
+                </div>
+              )}
+              {spotlights.moonshot && (
+                <div className="border-3 border-ink bg-ink p-3 text-white shadow-brutal-sm">
+                  <p className="brutal-label !mb-1 flex items-center gap-1 !text-white/65">
+                    <PixelIcon name="sparkles" size={13} /> Moonshot
+                  </p>
+                  <p className="line-clamp-2 font-display text-lg font-bold leading-tight">
+                    {spotlights.moonshot.side} · {spotlights.moonshot.market.question}
+                  </p>
+                  <p className="mt-2 font-mono text-[10px] uppercase text-white/55">
+                    odds {oddsLabel(spotlights.moonshot.price)} · pays {payout(stake, spotlights.moonshot.price).toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <ul className="space-y-5">
+              {filtered.map((market) => {
               const prices = parsePrices(market.outcomePrices);
               if (!prices) return null;
               const [yes, no] = prices;
@@ -320,9 +389,19 @@ export function BookBoard({
                           <p className="mt-2 font-display text-2xl font-bold leading-tight sm:text-3xl">
                             {market.question}
                           </p>
+                          {market.eventTitle && market.eventTitle !== market.question && (
+                            <p className="mt-1 font-mono text-[10px] font-bold uppercase text-ink/45">
+                              from {market.eventTitle}
+                            </p>
+                          )}
                           <p className="mt-2 font-mono text-[11px] uppercase text-ink/45">
                             closes {fmtDate(market.endDate)}
                           </p>
+                          {market.description && (
+                            <p className="mt-3 line-clamp-2 text-sm font-bold text-ink/60">
+                              {market.description}
+                            </p>
+                          )}
                           <div className="mt-3 flex flex-wrap gap-1.5">
                             <Badge className="bg-paper text-ink">24h {compactMoney(market.volume24hr)}</Badge>
                             <Badge className="bg-paper text-ink">vol {compactMoney(market.volume)}</Badge>
@@ -376,8 +455,9 @@ export function BookBoard({
                   </Card>
                 </li>
               );
-            })}
-          </ul>
+              })}
+            </ul>
+          </>
         )
       ) : null}
 

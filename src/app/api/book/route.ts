@@ -19,11 +19,33 @@ export const GET = apiHandler(async (req: Request) => {
     orderBy: { lastSyncedAt: "desc" },
     select: { lastSyncedAt: true },
   });
-  let marketCount = await db.bookMarket.count({ where: { active: true, closed: false } });
+  let [marketCount, richCount] = await Promise.all([
+    db.bookMarket.count({ where: { active: true, closed: false } }),
+    db.bookMarket.count({
+      where: {
+        active: true,
+        closed: false,
+        category: { not: null },
+        volume24hr: { not: null },
+        liquidity: { not: null },
+      },
+    }),
+  ]);
   const stale = !newest || Date.now() - newest.lastSyncedAt.getTime() > 30 * 60_000;
-  if (marketCount < 120 || stale) {
+  if (marketCount < 120 || richCount < 80 || stale) {
     await syncBookMarkets().catch(() => 0);
-    marketCount = await db.bookMarket.count({ where: { active: true, closed: false } });
+    [marketCount, richCount] = await Promise.all([
+      db.bookMarket.count({ where: { active: true, closed: false } }),
+      db.bookMarket.count({
+        where: {
+          active: true,
+          closed: false,
+          category: { not: null },
+          volume24hr: { not: null },
+          liquidity: { not: null },
+        },
+      }),
+    ]);
   }
 
   const [markets, bets, me] = await Promise.all([

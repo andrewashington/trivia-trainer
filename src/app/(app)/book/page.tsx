@@ -14,8 +14,17 @@ export default async function BookPage() {
   if (!user) redirect("/signin");
 
   await settleDueBookBets().catch(() => 0);
-  const [activeCount, newest] = await Promise.all([
+  const [activeCount, richCount, newest] = await Promise.all([
     db.bookMarket.count({ where: { active: true, closed: false } }),
+    db.bookMarket.count({
+      where: {
+        active: true,
+        closed: false,
+        category: { not: null },
+        volume24hr: { not: null },
+        liquidity: { not: null },
+      },
+    }),
     db.bookMarket.findFirst({
       where: { active: true, closed: false },
       orderBy: { lastSyncedAt: "desc" },
@@ -23,7 +32,7 @@ export default async function BookPage() {
     }),
   ]);
   const stale = !newest || Date.now() - newest.lastSyncedAt.getTime() > 30 * 60_000;
-  if (activeCount < 120 || stale) await syncBookMarkets().catch(() => 0);
+  if (activeCount < 120 || richCount < 80 || stale) await syncBookMarkets().catch(() => 0);
 
   const [markets, bets, me] = await Promise.all([
     db.bookMarket.findMany({
