@@ -32,6 +32,7 @@ export type ArchiveMessageInput = {
 export type ArchiveSearchHit = {
   segmentId: string;
   channelId: string;
+  channelName: string | null;
   text: string;
   at: string;
   messageCount: number;
@@ -202,6 +203,7 @@ export async function removeArchiveReaction(input: { messageId: string; emoji: s
 type RawSegmentHit = {
   segmentId: string;
   channelId: string;
+  channelName: string | null;
   text: string;
   at: string;
   endAt: string;
@@ -212,7 +214,8 @@ type RawSegmentHit = {
 
 const EXPAND_WINDOW_HOURS = 4; // pull neighbor segments within ±this of a hit
 const EXPAND_EACH_SIDE = 2; // up to this many neighbors before + after a hit
-const EXPAND_CHAR_BUDGET = 2200; // cap stitched text per hit
+const EXPAND_CHAR_BUDGET = 3200; // cap stitched text per hit
+const RRF_K = 60; // Reciprocal Rank Fusion constant (standard default)
 
 export async function searchArchiveMessages(opts: {
   query: string;
@@ -237,13 +240,16 @@ export async function searchArchiveMessages(opts: {
     SELECT
       s.id AS "segmentId",
       s.channel_id AS "channelId",
+      c.name AS "channelName",
       s.content AS text,
       s.start_at::text AS at,
       s.end_at::text AS "endAt",
       s.message_count AS "messageCount",
       ts_rank(s.content_tsv, q.tsq)::double precision AS score,
       'keyword'::text AS source
-    FROM discord_archive.message_segments s, q
+    FROM discord_archive.message_segments s
+    CROSS JOIN q
+    LEFT JOIN discord_archive.channels c ON c.id = s.channel_id
     WHERE s.content_tsv @@ q.tsq
       AND (${channelId}::text IS NULL OR s.channel_id = ${channelId})
       AND (${after}::timestamptz IS NULL OR s.end_at >= ${after})
@@ -266,6 +272,7 @@ export async function searchArchiveMessages(opts: {
       SELECT
         s.id AS "segmentId",
         s.channel_id AS "channelId",
+        c.name AS "channelName",
         s.content AS text,
         s.start_at::text AS at,
         s.end_at::text AS "endAt",
@@ -274,6 +281,7 @@ export async function searchArchiveMessages(opts: {
         'semantic'::text AS source
       FROM discord_archive.segment_embeddings e
       JOIN discord_archive.message_segments s ON s.id = e.segment_id
+      LEFT JOIN discord_archive.channels c ON c.id = s.channel_id
       WHERE (${channelId}::text IS NULL OR s.channel_id = ${channelId})
         AND (${after}::timestamptz IS NULL OR s.end_at >= ${after})
         AND (${before}::timestamptz IS NULL OR s.start_at <= ${before})
@@ -287,14 +295,26 @@ export async function searchArchiveMessages(opts: {
     `;
   }
 
-  const merged = new Map<string, RawSegmentHit>();
-  for (const hit of [...semanticHits, ...keywordHits]) {
-    const existing = merged.get(hit.segmentId);
-    if (!existing || hit.score > existing.score) merged.set(hit.segmentId, hit);
-  }
-  const ranked = [...merged.values()]
-    .sort((a, b) => b.score - a.score || Date.parse(b.at) - Date.parse(a.at))
-    .slice(0, limit);
+  // Reciprocal Rank Fusion: keyword ts_rank and semantic cosine scores live on
+  // different scales, so we fuse by *rank* instead of raw score — each list
+  // contributes 1/(k + rank), summed per segment. A segment that ranks high in
+  // both lists wins; one strong signal still surfaces a hit.
+  const fused = new Map<string, { hit: RawSegmentHit; rrf: number }>();
+  const fuse = (list: RawSegmentHit[]) => {
+    list.forEach((hit, i) => {
+      const inc = 1 / (RRF_K + i);
+      const existing = fused.get(hit.segmentId);
+      if (existing) existing.rrf += inc;
+      else fused.set(hit.segmentId, { hit, rrf: inc });
+    });
+  };
+  fuse(semanticHits);
+  fuse(keywordHits);
+
+  const ranked = [...fused.values()]
+    .sort((a, b) => b.rrf - a.rrf || Date.parse(b.hit.at) - Date.parse(a.hit.at))
+    .slice(0, limit)
+    .map((r) => r.hit);
 
   return expandHits(ranked);
 }
@@ -354,6 +374,7 @@ async function expandHits(hits: RawSegmentHit[]): Promise<ArchiveSearchHit[]> {
     out.push({
       segmentId: hit.segmentId,
       channelId: hit.channelId,
+      channelName: hit.channelName,
       text,
       at: hit.at,
       messageCount: hit.messageCount,

@@ -116,12 +116,18 @@ export async function runToolLoop(opts: {
   model?: string;
   maxSteps?: number;
   maxTokens?: number;
+  /** Per-tool-result char cap fed back to the model. Generous by default so
+   * retrieval-heavy tools (search) aren't strangled before the model reads them. */
+  maxToolResult?: number;
+  /** Sampling temperature, if you want tighter/looser output than the default. */
+  temperature?: number;
 }): Promise<string> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("OPENROUTER_API_KEY not configured");
   const model = opts.model || process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const maxSteps = opts.maxSteps ?? 5;
   const maxTokens = opts.maxTokens ?? 900;
+  const maxToolResult = opts.maxToolResult ?? 8000;
   const toolsPayload = opts.tools.map((t) => ({
     type: "function",
     function: { name: t.name, description: t.description, parameters: t.parameters },
@@ -135,6 +141,7 @@ export async function runToolLoop(opts: {
   for (let step = 0; step < maxSteps; step++) {
     const lastStep = step === maxSteps - 1;
     const body: Record<string, unknown> = { model, messages, max_tokens: maxTokens };
+    if (opts.temperature != null) body.temperature = opts.temperature;
     if (!lastStep) {
       body.tools = toolsPayload;
       body.tool_choice = "auto";
@@ -166,21 +173,27 @@ export async function runToolLoop(opts: {
 
     if (!toolCalls.length) return (msg.content ?? "").trim();
 
-    for (const tc of toolCalls) {
-      let args: Record<string, unknown> = {};
-      try {
-        args = JSON.parse(tc.function.arguments || "{}");
-      } catch {
-        /* leave empty */
-      }
-      let result: string;
-      try {
-        result = await opts.execute(tc.function.name, args);
-      } catch (e) {
-        result = `Error: ${e instanceof Error ? e.message : "tool failed"}`;
-      }
-      messages.push({ role: "tool", tool_call_id: tc.id, content: result.slice(0, 1500) });
-    }
+    // Run all tool calls in this step concurrently — when the model asks for two
+    // searches (or a read + a read) at once, they shouldn't serialize. Results
+    // are reassembled in call order so each lines up with its tool_call_id.
+    const results = await Promise.all(
+      toolCalls.map(async (tc) => {
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(tc.function.arguments || "{}");
+        } catch {
+          /* leave empty */
+        }
+        try {
+          return await opts.execute(tc.function.name, args);
+        } catch (e) {
+          return `Error: ${e instanceof Error ? e.message : "tool failed"}`;
+        }
+      }),
+    );
+    toolCalls.forEach((tc, i) => {
+      messages.push({ role: "tool", tool_call_id: tc.id, content: results[i].slice(0, maxToolResult) });
+    });
   }
   return ""; // exhausted steps without a text answer
 }
