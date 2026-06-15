@@ -635,8 +635,15 @@ async function route(input: AssistantInput): Promise<string> {
     console.error("[discord] assembleContext failed", err);
   }
 
+  // Trace collector — captures tool calls + results for the admin run log.
+  type TraceEntry = { step: number; tool: string; args: Record<string, unknown>; result: string };
+  const traceEntries: TraceEntry[] = [];
+  let traceStep = 0;
+
   // Tool dispatcher: read tools resolve here; write/act tools reuse actions.ts.
   const execute = async (name: string, args: Record<string, unknown>): Promise<string> => {
+    const step = traceStep++;
+    const traced = async (): Promise<string> => {
     if (name === "get_group_data") {
       const raw = args.sections;
       const sections = Array.isArray(raw) ? (raw.filter((s) => typeof s === "string") as GroupDataSection[]) : [];
@@ -740,6 +747,10 @@ async function route(input: AssistantInput): Promise<string> {
     const runner = TOOL_RUNNERS[name];
     if (runner) return runner(input.userId, args);
     return `Unknown tool: ${name}`;
+    }; // end traced()
+    const result = await traced();
+    traceEntries.push({ step, tool: name, args, result: result.slice(0, 1200) });
+    return result;
   };
 
   // True multi-turn memory: replay this channel's recent assistant exchanges so
@@ -756,6 +767,7 @@ async function route(input: AssistantInput): Promise<string> {
   // Capture the run trace (model used, steps, fallback, latency, outcome) so the
   // admin Assistant tab can show *why* a run failed without trawling Railway
   // logs. Best-effort: a failed log write never affects the reply.
+  const userPrompt = buildUserPrompt(input, ctx);
   const startedAt = Date.now();
   let meta = { steps: 0, toolCalls: 0, modelUsed: settings.aiModel || "default", fellBack: false };
   let reply = "";
@@ -763,7 +775,7 @@ async function route(input: AssistantInput): Promise<string> {
   try {
     reply = await runToolLoop({
       system,
-      user: buildUserPrompt(input, ctx),
+      user: userPrompt,
       tools: TOOL_DEFS,
       execute,
       history,
@@ -796,6 +808,7 @@ async function route(input: AssistantInput): Promise<string> {
     latencyMs: Date.now() - startedAt,
     error: runErr ? (runErr instanceof Error ? runErr.message : String(runErr)) : ok ? null : "empty reply (steps exhausted)",
     reply: ok ? reply : null,
+    trace: { userPrompt: userPrompt.slice(0, 6000), toolCalls: traceEntries, reply: ok ? reply : null },
   });
   if (runErr) throw runErr; // let runAssistant() turn it into a friendly line
 
@@ -831,6 +844,7 @@ async function logAssistantRun(run: {
   latencyMs: number;
   error: string | null;
   reply: string | null;
+  trace: object;
 }): Promise<void> {
   await db.discordAssistantRun
     .create({
@@ -848,6 +862,7 @@ async function logAssistantRun(run: {
         latencyMs: run.latencyMs,
         error: run.error ? run.error.slice(0, 500) : null,
         reply: run.reply ? run.reply.slice(0, 500) : null,
+        trace: run.trace,
       },
     })
     .catch((err) => console.error("[discord] logAssistantRun failed", err));

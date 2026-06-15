@@ -379,12 +379,28 @@ const createNowPlaying: Runner = async (userId, args) => {
 };
 
 const createMapPin: Runner = async (userId, args) => {
+  let lat = typeof args.lat === "number" ? args.lat : undefined;
+  let lng = typeof args.lng === "number" ? args.lng : undefined;
+  const address = typeof args.address === "string" && args.address.trim() ? args.address.trim() : undefined;
+
+  // Geocode via Nominatim when coordinates aren't provided.
+  if ((lat === undefined || lng === undefined) && address) {
+    const geo = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+      { headers: { "User-Agent": "UDM+ Discord bot (udmplus.app)" }, signal: AbortSignal.timeout(6000) }
+    ).catch(() => null);
+    const places = geo?.ok ? (await geo.json() as { lat: string; lon: string; display_name: string }[]) : [];
+    if (!places.length) return `Couldn't find "${address}" on the map — try a more specific address.`;
+    lat = parseFloat(places[0].lat);
+    lng = parseFloat(places[0].lon);
+  }
+
   const data = mapPinInput.parse({
     name: args.name,
     category: args.category,
-    lat: args.lat,
-    lng: args.lng,
-    address: opt(args.address),
+    lat,
+    lng,
+    address: opt(address ?? args.address),
     note: opt(args.note),
   });
   const pin = await withOutbox(
@@ -406,6 +422,70 @@ const createMapPin: Runner = async (userId, args) => {
     })
   );
   return `📍 Pin dropped: **${pin.name}**.`;
+};
+
+const fetchUrl: Runner = async (_userId, args) => {
+  const url = typeof args.url === "string" ? args.url.trim() : "";
+  if (!url.startsWith("http")) return "Need a full http/https URL.";
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(10000),
+    headers: { "User-Agent": "UDM+ Discord bot (udmplus.app)" },
+  }).catch((err: Error) => { throw new Error(`Fetch failed: ${err.message}`); });
+  if (!res.ok) return `Got HTTP ${res.status} from that URL.`;
+  const html = await res.text();
+  const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.slice(0, 3500) || "Page loaded but no readable text found.";
+};
+
+const lookupMedia: Runner = async (_userId, args) => {
+  const key = process.env.TMDB_API_KEY;
+  if (!key) return "TMDB not configured.";
+  const title = typeof args.title === "string" ? args.title.trim() : "";
+  if (!title) return "Need a title to search.";
+  const mediaType = args.type === "tv" ? "tv" : "movie";
+  const isV4 = key.includes(".");
+
+  const url = new URL(`https://api.themoviedb.org/3/search/${mediaType}`);
+  url.searchParams.set("query", title);
+  url.searchParams.set("include_adult", "false");
+  url.searchParams.set("page", "1");
+  if (!isV4) url.searchParams.set("api_key", key);
+
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(8000),
+    headers: { Accept: "application/json", ...(isV4 ? { Authorization: `Bearer ${key}` } : {}) },
+  }).catch((err: Error) => { throw new Error(`TMDB fetch failed: ${err.message}`); });
+  if (!res.ok) return `TMDB returned ${res.status}.`;
+
+  const raw = (await res.json()) as {
+    results?: {
+      id: number;
+      title?: string;
+      name?: string;
+      release_date?: string;
+      first_air_date?: string;
+      overview?: string;
+      vote_average?: number;
+      vote_count?: number;
+    }[];
+  };
+
+  const results = (raw.results ?? []).slice(0, 4);
+  if (!results.length) return `Nothing found for "${title}" on TMDB.`;
+
+  return results.map((r) => {
+    const name = (mediaType === "movie" ? r.title : r.name) ?? "Untitled";
+    const date = r.release_date || r.first_air_date || "";
+    const year = date.slice(0, 4);
+    const rating = r.vote_average ? `${r.vote_average.toFixed(1)}/10 (${r.vote_count?.toLocaleString()} votes)` : "unrated";
+    const overview = r.overview?.slice(0, 200) ?? "No description.";
+    return `**${name}** (${year || "?"}) — ${rating}\n${overview}`;
+  }).join("\n\n");
 };
 
 /**

@@ -1614,6 +1614,7 @@ model DiscordAssistantRun {
   latencyMs    Int      @default(0)
   error        String? // truncated error message when ok=false
   reply        String? // truncated final reply (handy for eyeballing quality)
+  trace        Json?   // full step-by-step: userPrompt, tool calls + results, final reply
   createdAt    DateTime @default(now())
 
   @@index([createdAt])

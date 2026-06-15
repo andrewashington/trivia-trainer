@@ -60,6 +60,8 @@ export const GET = apiHandler(async () => {
         toolCalls: true,
         latencyMs: true,
         error: true,
+        reply: true,
+        trace: true,
         createdAt: true,
       },
     })

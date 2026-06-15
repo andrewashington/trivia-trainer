@@ -28,6 +28,8 @@ type AiSettings = {
   aiModel: string;
   spontaneousEnabled: boolean;
 };
+type TraceToolCall = { step: number; tool: string; args: Record<string, unknown>; result: string };
+type RunTrace = { userPrompt: string; toolCalls: TraceToolCall[]; reply: string | null };
 type Run = {
   id: string;
   surface: string;
@@ -40,6 +42,8 @@ type Run = {
   toolCalls: number;
   latencyMs: number;
   error: string | null;
+  reply: string | null;
+  trace: RunTrace | null;
   createdAt: string;
 };
 type PromptDefaults = { assistant: string; spontaneous: string; rerank: string };
@@ -574,11 +578,7 @@ export function AiAssistantPanel() {
             {data.runs.map((r) => (
               <li key={r.id} className="border-2 border-ink bg-card px-2 py-1.5">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px]">
-                  <span
-                    className={`border-2 border-ink px-1 font-bold uppercase ${
-                      r.ok ? "bg-accent-green" : "bg-accent-red text-white"
-                    }`}
-                  >
+                  <span className={`border-2 border-ink px-1 font-bold uppercase ${r.ok ? "bg-accent-green" : "bg-accent-red text-white"}`}>
                     {r.ok ? "ok" : "fail"}
                   </span>
                   <span className="uppercase text-ink/40">{r.surface}</span>
@@ -594,14 +594,112 @@ export function AiAssistantPanel() {
                   <span className="ml-auto text-ink/40">{new Date(r.createdAt).toLocaleString()}</span>
                 </div>
                 <p className="mt-0.5 truncate text-[11px] text-ink/70" title={r.prompt}>
-                  “{r.prompt}”
+                  {"“"}{r.prompt}{"”"}
                 </p>
                 {r.error && <p className="mt-0.5 font-mono text-[10px] font-bold text-accent-red">{r.error}</p>}
+                {r.trace !== null && (
+                  <details className="mt-1">
+                    <summary className="cursor-pointer font-mono text-[10px] text-ink/50">expand trace</summary>
+                    <pre className="mt-1 max-h-96 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-ink/60">
+                      {JSON.stringify(r.trace, null, 2)}
+                    </pre>
+                  </details>
+                )}
               </li>
             ))}
           </ul>
         )}
       </div>
     </div>
+  );
+}
+
+function RunCard({ r }: { r: Run }) {
+  const tc = r.trace?.toolCalls ?? [];
+  const okClass = r.ok ? "bg-accent-green" : "bg-accent-red text-white";
+  const stepText = r.steps === 1 ? "1 step" : r.steps + " steps";
+  const latency = (r.latencyMs / 1000).toFixed(1) + "s";
+  return (
+    <li className="border-2 border-ink bg-card">
+      <details>
+        <summary className="cursor-pointer px-2 py-1.5">
+          <div className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px]">
+            <span className={"border-2 border-ink px-1 font-bold uppercase " + okClass}>
+              {r.ok ? "ok" : "fail"}
+            </span>
+            <span className="uppercase text-ink/40">{r.surface}</span>
+            <span className="font-bold">{r.modelUsed}</span>
+            {r.fellBack && (
+              <span className="border-2 border-ink bg-accent-yellow px-1 font-bold uppercase" title={"configured: " + (r.modelRequest || "default")}>
+                fell-back
+              </span>
+            )}
+            <span className="text-ink/45">{stepText} {"·"} {r.toolCalls} tool {"·"} {latency}</span>
+            <span className="text-ink/40">{new Date(r.createdAt).toLocaleString()}</span>
+          </div>
+          <p className="mt-0.5 truncate text-[11px] text-ink/70" title={r.prompt}>
+            {"“"}{r.prompt}{"”"}
+          </p>
+          {r.error && <p className="mt-0.5 font-mono text-[10px] font-bold text-accent-red">{r.error}</p>}
+        </summary>
+
+        <div className="space-y-2 border-t-2 border-ink/20 p-2">
+          {r.trace?.userPrompt && (
+            <details className="border border-ink/20">
+              <summary className="cursor-pointer px-2 py-1 font-mono text-[10px] uppercase text-ink/50">
+                Prompt sent to model
+              </summary>
+              <pre className="max-h-64 overflow-auto whitespace-pre-wrap px-2 py-1 font-mono text-[10px] leading-snug text-ink/70">
+                {r.trace.userPrompt}
+              </pre>
+            </details>
+          )}
+          {tc.length !== 0 && (
+            <div className="space-y-1">
+              <p className="font-mono text-[10px] uppercase text-ink/50">Tool calls</p>
+              {tc.map((call, i) => (
+                <ToolCallCard key={i} call={call} />
+              ))}
+            </div>
+          )}
+          {r.trace?.reply && (
+            <div>
+              <p className="mb-1 font-mono text-[10px] uppercase text-ink/50">Reply</p>
+              <p className="font-mono text-[11px] leading-snug text-ink/80">{r.trace.reply}</p>
+            </div>
+          )}
+          {!r.trace && (
+            <p className="font-mono text-[10px] text-ink/40">No trace {"—"} run pre-dates this feature.</p>
+          )}
+        </div>
+      </details>
+    </li>
+  );
+}
+
+function ToolCallCard({ call }: { call: TraceToolCall }) {
+  const argSummary = Object.entries(call.args ?? {}).map(([k, v]) => {
+    const val = typeof v === "string" ? v.slice(0, 40) : JSON.stringify(v).slice(0, 40);
+    return k + "=" + val;
+  }).join(", ");
+  return (
+    <details className="border border-ink/20">
+      <summary className="cursor-pointer px-2 py-1 font-mono text-[10px]">
+        <span className="text-ink/40">step {call.step}</span>
+        {" "}
+        <span className="font-bold text-accent-blue">{call.tool}</span>
+        {argSummary && <span className="ml-1 text-ink/50">({argSummary})</span>}
+      </summary>
+      <div className="border-t border-ink/20 px-2 py-1">
+        <p className="mb-1 font-mono text-[9px] uppercase text-ink/40">Args</p>
+        <pre className="mb-2 whitespace-pre-wrap font-mono text-[10px] text-ink/70">
+          {JSON.stringify(call.args, null, 2)}
+        </pre>
+        <p className="mb-1 font-mono text-[9px] uppercase text-ink/40">Result</p>
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-ink/70">
+          {call.result}
+        </pre>
+      </div>
+    </details>
   );
 }
