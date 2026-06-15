@@ -42,6 +42,7 @@ Guidelines:
 - For questions about THIS GROUP (events, coins, polls, who's playing/watching what, who voted, what's been said), ground the answer in GROUP CONTEXT + RECENT CHANNEL MESSAGES. Call search_messages for older/all-time message history; call get_more_messages only for more recent context in the current channel. For general questions (facts, trivia, how-to, advice), answer helpfully from your own knowledge.
 - Retrieval is for recall you don't already have — reach for search_messages the moment a question turns on "what did we say/decide/plan about X" and the answer isn't in front of you, but don't search what you can already answer. Each search result is a whole CONVERSATION SEGMENT (multiple messages, with #channel + date); read across the segment, attribute who said what, and SYNTHESIZE a direct answer — never dump raw logs. If the first results miss or you need broader coverage, search again with a sharper query or a higher limit before settling. Don't claim the group never discussed something unless a real search came back empty.
 - NEVER ask permission to search ("want me to check the archives?") — if recall would help, just call search_messages and answer. Acting is the whole point.
+- Recency usually wins. If a question is about what's current/latest/lately, or names a timeframe ("this year", "since the trip", "back in 2022"), pass recentMonths or after/before so old matches don't drown out fresh ones. Use the "now" in GROUP CONTEXT to compute dates. Only go fully all-time for timeless recall ("have we ever…", old quotes).
 - Each search result starts with a jump LINK (https://discord.com/channels/...). When you quote or cite what someone said, paste that link so people can click straight to the moment — e.g. "yeah, VIII called toby a top-5 islander (<link>)". Use the link of the segment the quote came from; don't invent links.
 - IDENTITY & ATTRIBUTION (critical — don't get this wrong): the person talking to you is GROUP CONTEXT.you (their name + discordUserId). For "have I / did I / when did I / where have I" questions, pass authorId = your discordUserId to search_messages so you only get THAT person's own messages. In any result, each line is "AuthorName: text" — only say "you" when the line's author name matches the asker's name. If toby was mentioned by VIII and juicyyj but not by the asker, the honest answer is "you haven't, but VIII and juicyyj have" — never credit other people's messages to the asker.
 - Conversations are multi-turn — the messages before this one in the thread are your actual prior exchange with this user. When they say "add that", "do it", "the second one", "what about him", etc., resolve the reference from that history (and RECENT CHANNEL MESSAGES) — e.g. if you just surfaced a piña colada recipe and they say "add that to the recipe book", call create_recipe with the recipe you already found; don't claim you can't see it or ask them to repeat it.
@@ -63,7 +64,7 @@ const TOOL_DEFS: ToolSpec[] = [
   {
     name: "search_messages",
     description:
-      "Search the group's archived Discord history across channels. Returns whole CONVERSATION SEGMENTS (bursts of messages, stitched with nearby context), not single lines — so each result is a self-contained snippet of who said what. Use for old topics, decisions, quotes, summaries, or anything needing recall beyond recent channel context. For a broad 'gather everything we've said about X' ask, raise limit to pull more segments.",
+      "Search the group's archived Discord history across channels. Returns whole CONVERSATION SEGMENTS (bursts of messages, stitched with nearby context), not single lines — so each result is a self-contained snippet of who said what. Use for old topics, decisions, quotes, summaries, or anything needing recall beyond recent channel context. For a broad 'gather everything we've said about X' ask, raise limit. RECENCY USUALLY WINS: if the question is about what's current/latest, or implies a timeframe, set recentMonths (or after/before) so you don't surface stale matches.",
     parameters: {
       type: "object",
       properties: {
@@ -71,6 +72,13 @@ const TOOL_DEFS: ToolSpec[] = [
         channelId: { type: "string", description: "Optional Discord channel id to scope the search." },
         authorId: { type: "string", description: "Optional Discord user id to scope to segments a given person took part in." },
         limit: { type: "integer", description: "Max segments to return, default 12, max 30. Go higher for broad/all-time questions." },
+        recentMonths: {
+          type: "integer",
+          description:
+            "Only segments from the last N months. Use for 'latest/current/lately' questions — e.g. 6 for the last half-year. Omit for all-time recall (old quotes, 'have we ever…').",
+        },
+        after: { type: "string", description: "ISO-8601 date — only segments on/after this (e.g. for 'since the trip', 'this year')." },
+        before: { type: "string", description: "ISO-8601 date — only segments on/before this (e.g. 'back in 2022', 'before the move')." },
       },
       required: ["query"],
     },
@@ -493,6 +501,19 @@ async function route(input: AssistantInput): Promise<string> {
       const limit = Math.min(30, Math.max(1, Math.round(Number(args.limit) || settings.aiSearchLimit)));
       const channelId = typeof args.channelId === "string" ? args.channelId : undefined;
       const authorId = typeof args.authorId === "string" ? args.authorId : undefined;
+      // Date scoping. recentMonths is a convenience for "the last N months";
+      // after/before take explicit ISO dates. Invalid dates are ignored.
+      const parseDate = (v: unknown): Date | undefined => {
+        if (typeof v !== "string" || !v.trim()) return undefined;
+        const d = new Date(v);
+        return Number.isNaN(d.getTime()) ? undefined : d;
+      };
+      let after = parseDate(args.after);
+      const before = parseDate(args.before);
+      const recentMonths = Number(args.recentMonths);
+      if (!after && Number.isFinite(recentMonths) && recentMonths > 0) {
+        after = new Date(Date.now() - recentMonths * 30 * 24 * 60 * 60 * 1000);
+      }
       const queryEmbedding = settings.aiSemanticSearch
         ? await embedQuery(query).catch((err) => {
             console.error("[discord] embedQuery failed", err);
@@ -504,6 +525,8 @@ async function route(input: AssistantInput): Promise<string> {
         queryEmbedding: queryEmbedding ?? undefined,
         channelId,
         authorId,
+        after,
+        before,
         limit,
       }).catch((err) => {
         console.error("[discord] searchArchiveMessages failed", err);
