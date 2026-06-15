@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
@@ -5,6 +6,8 @@ import { Badge, Card, EmptyState, UserLink } from "@/components/ui";
 import { HeroBanner, HeroCta } from "@/components/Hero";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { AddWishForm } from "@/modules/wishlist/AddWishForm";
+import { AddFindForm } from "@/modules/wishlist/AddFindForm";
+import { CoolFindsList } from "@/modules/wishlist/CoolFindsList";
 import { WishActions } from "@/modules/wishlist/WishActions";
 import { CommentThread } from "@/modules/comments/CommentThread";
 import { commentCounts } from "@/modules/comments/counts";
@@ -12,9 +15,18 @@ import { commentCounts } from "@/modules/comments/counts";
 export const metadata = { title: "Wishlist" };
 export const dynamic = "force-dynamic";
 
-export default async function WishlistPage() {
+export default async function WishlistPage({ searchParams }: { searchParams: { tab?: string } }) {
   const user = await currentUser();
   if (!user) redirect("/signin");
+
+  const tab = searchParams.tab === "finds" ? "finds" : "wishes";
+  const finds =
+    tab === "finds"
+      ? await db.coolFind.findMany({
+          orderBy: { createdAt: "desc" },
+          include: { user: { select: { id: true, displayName: true, avatarUrl: true } } },
+        })
+      : [];
 
   const items = await db.wishlistItem.findMany({
     orderBy: { createdAt: "desc" },
@@ -51,13 +63,37 @@ export default async function WishlistPage() {
     a === user.id ? -1 : b === user.id ? 1 : 0
   );
 
+  const tabClass = (active: boolean) =>
+    `inline-flex items-center gap-1.5 border-3 border-ink px-3 py-1 font-mono text-xs font-bold uppercase shadow-brutal-sm no-underline ${
+      active ? "bg-accent-orange text-ink" : "bg-card text-ink"
+    }`;
+
   return (
     <div className="space-y-6">
-      <ModuleHeader title="Wishlist" icon="gift" accentBg="bg-accent-orange" addLabel="Wish">
-        <AddWishForm />
+      <ModuleHeader
+        title="Wishlist"
+        icon="gift"
+        accentBg="bg-accent-orange"
+        addLabel={tab === "finds" ? "Find" : "Wish"}
+      >
+        {tab === "finds" ? <AddFindForm /> : <AddWishForm />}
       </ModuleHeader>
 
-      {nextBirthday && nextBirthday.daysAway <= 45 && (
+      {/* Wishlist / Cool Finds tabs */}
+      <div className="flex gap-2">
+        <Link href="/wishlist" className={tabClass(tab === "wishes")}>
+          Wishlist
+        </Link>
+        <Link href="/wishlist?tab=finds" className={tabClass(tab === "finds")}>
+          Cool Finds
+        </Link>
+      </div>
+
+      {tab === "finds" && (
+        <CoolFindsList finds={finds} viewer={{ id: user.id, isAdmin: user.role === "admin" }} />
+      )}
+
+      {tab === "wishes" && nextBirthday && nextBirthday.daysAway <= 45 && (
         <HeroBanner
           accentBg="bg-accent-orange"
           pattern="rays"
@@ -79,7 +115,7 @@ export default async function WishlistPage() {
         </HeroBanner>
       )}
 
-      {groups.length === 0 ? (
+      {tab === "wishes" && (groups.length === 0 ? (
         <EmptyState
           icon="handbag"
           title="Nobody wants anything?"
@@ -151,7 +187,7 @@ export default async function WishlistPage() {
             </div>
           ))}
         </div>
-      )}
+      ))}
     </div>
   );
 }

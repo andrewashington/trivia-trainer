@@ -18,3 +18,14 @@ export const wishlistItemInput = z.object({
 export const wishlistPreviewRequest = z.object({
   url: httpUrl,
 });
+
+export const COOL_FIND_CATEGORIES = ["tools", "funny", "interesting", "other"] as const;
+
+export const coolFindInput = z.object({
+  title: z.string().trim().min(1, "Title is required").max(300),
+  url: httpUrl,
+  category: z.enum(COOL_FIND_CATEGORIES).default("interesting"),
+  note: z.string().trim().max(500).nullish(),
+  imageUrl: httpUrl.nullish().or(z.literal("").transform(() => null)),
+  siteName: z.string().trim().max(100).nullish(),
+});

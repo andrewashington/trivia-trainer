@@ -64,6 +64,7 @@ model User {
   vaultEntries       VaultEntry[]
   contactCard        ContactCard?
   wishlistItems      WishlistItem[]
+  coolFinds          CoolFind[]
   mapPins            MapPin[]
   ideas              Idea[]
   ideaVotes          IdeaVote[]
@@ -518,6 +519,23 @@ model WishlistItem {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+/// "Cool Finds" — shared useful/funny/interesting links, a tab in the wishlist.
+model CoolFind {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  url       String
+  category  String   @default("interesting") // tools | funny | interesting | other
+  note      String?
+  imageUrl  String? // og:image scraped from the link, if any
+  siteName  String? // og:site_name scraped from the link, if any
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([category, createdAt])
 }
 
 enum PinCategory {
