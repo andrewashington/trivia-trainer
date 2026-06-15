@@ -36,7 +36,7 @@ export type AssistantInput = {
   surface?: "udm" | "mention" | "spontaneous";
 };
 
-const SYSTEM = `You are UDM+, the in-house AI assistant for a private friends-and-family web app, reachable from Discord. You're a genuinely useful all-purpose assistant: you answer questions (about this group's data AND general knowledge), create content, take actions, and pull more channel history when you need it — all as the user talking to you.
+export const ASSISTANT_SYSTEM_DEFAULT = `You are UDM+, the in-house AI assistant for a private friends-and-family web app, reachable from Discord. You're a genuinely useful all-purpose assistant: you answer questions (about this group's data AND general knowledge), create content, take actions, and pull more channel history when you need it — all as the user talking to you.
 
 You have tools. BRANCH on effort: if you can answer or act from what's already provided, just do it in one step (snappy). Only dig deeper — call search_messages, get_more_messages, or chain a read into a create/act — when the request actually needs it. Don't call tools you don't need.
 
@@ -568,7 +568,7 @@ async function route(input: AssistantInput): Promise<string> {
       const RERANK_MIN_SURPLUS = 4;
       const hits =
         settings.aiRerank && raw.length >= limit + RERANK_MIN_SURPLUS
-          ? await rerankHits(query, raw, limit, settings.aiModel || undefined)
+          ? await rerankHits(query, raw, limit, settings.aiModel || undefined, settings.aiPromptRerank || undefined)
           : raw.slice(0, limit);
       if (!hits.length) return "No archived messages matched.";
       // Each hit is a conversation segment (a burst of messages), already
@@ -616,10 +616,12 @@ async function route(input: AssistantInput): Promise<string> {
   // follow-ups ("add that", "what about him") resolve even across messages.
   const history = input.channelId ? await loadTurns(input.channelId) : [];
 
-  // Admins can append extra guidance to the base prompt from the Assistant tab.
+  // Admins can fully override the base prompt (for testing) and/or append extra
+  // guidance — both from the Assistant tab. Empty override → shipped default.
+  const base = settings.aiPromptAssistant.trim() || ASSISTANT_SYSTEM_DEFAULT;
   const system = settings.aiSystemPrompt.trim()
-    ? `${SYSTEM}\n\nADMIN NOTES (extra operator guidance — follow these):\n${settings.aiSystemPrompt.trim()}`
-    : SYSTEM;
+    ? `${base}\n\nADMIN NOTES (extra operator guidance — follow these):\n${settings.aiSystemPrompt.trim()}`
+    : base;
 
   // Capture the run trace (model used, steps, fallback, latency, outcome) so the
   // admin Assistant tab can show *why* a run failed without trawling Railway

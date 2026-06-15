@@ -17,6 +17,9 @@ type Funnel = {
 type Memory = { id: string; fact: string; subject: string | null; createdAt: string };
 type AiSettings = {
   aiSystemPrompt: string;
+  aiPromptAssistant: string;
+  aiPromptSpontaneous: string;
+  aiPromptRerank: string;
   aiSemanticSearch: boolean;
   aiRerank: boolean;
   aiSearchLimit: number;
@@ -39,7 +42,8 @@ type Run = {
   error: string | null;
   createdAt: string;
 };
-type Payload = { funnel: Funnel; memories: Memory[]; settings: AiSettings; runs: Run[] };
+type PromptDefaults = { assistant: string; spontaneous: string; rerank: string };
+type Payload = { funnel: Funnel; memories: Memory[]; settings: AiSettings; runs: Run[]; promptDefaults: PromptDefaults };
 type InsightsStatus = {
   status: string;
   detail: string;
@@ -59,6 +63,68 @@ function Stat({ label, value, sub }: { label: string; value: React.ReactNode; su
       <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-ink/50">{label}</p>
       {sub && <p className="font-mono text-[10px] text-ink/40">{sub}</p>}
     </div>
+  );
+}
+
+/**
+ * One full system-prompt override. Empty value = "use the shipped default"
+ * (the default is shown as placeholder / in a reference panel). "Load default
+ * to edit" copies the baked-in text into the box so you can tweak it; "Reset"
+ * clears the override so the code default takes over again.
+ */
+function PromptEditor({
+  title,
+  blurb,
+  value,
+  defaultText,
+  onChange,
+}: {
+  title: string;
+  blurb: string;
+  value: string;
+  defaultText: string;
+  onChange: (v: string) => void;
+}) {
+  const overridden = value.trim().length > 0;
+  return (
+    <details className="border-2 border-ink bg-card">
+      <summary className="flex cursor-pointer items-center justify-between gap-2 px-2 py-1.5">
+        <span className="text-sm font-bold">{title}</span>
+        <span
+          className={`shrink-0 border-2 border-ink px-1.5 font-mono text-[9px] font-bold uppercase ${
+            overridden ? "bg-accent-yellow" : "bg-card text-ink/50"
+          }`}
+        >
+          {overridden ? "overridden" : "default"}
+        </span>
+      </summary>
+      <div className="space-y-2 border-t-2 border-ink p-2">
+        <p className="font-mono text-[10px] text-ink/55">{blurb}</p>
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={10}
+          placeholder="(empty — using the shipped default shown below)"
+          className="w-full border-2 border-ink bg-bg px-2 py-1 font-mono text-[11px] leading-snug"
+        />
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="ghost" onClick={() => onChange(defaultText)} disabled={value === defaultText}>
+            Load default to edit
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => onChange("")} disabled={!overridden}>
+            Reset to default
+          </Button>
+        </div>
+        <details className="border-2 border-ink/30">
+          <summary className="cursor-pointer px-2 py-1 font-mono text-[10px] uppercase text-ink/50">
+            View shipped default
+          </summary>
+          <pre className="max-h-60 overflow-auto whitespace-pre-wrap px-2 py-1 font-mono text-[10px] leading-snug text-ink/60">
+            {defaultText}
+          </pre>
+        </details>
+      </div>
+    </details>
   );
 }
 
@@ -138,6 +204,10 @@ export function AiAssistantPanel() {
       aiMaxSteps: clampInt(settings.aiMaxSteps, 1, 12, 6),
       aiMaxTokens: clampInt(settings.aiMaxTokens, 200, 8000, 1800),
       aiModel: settings.aiModel.trim().slice(0, 100),
+      aiSystemPrompt: settings.aiSystemPrompt.slice(0, 4000),
+      aiPromptAssistant: settings.aiPromptAssistant.slice(0, 8000),
+      aiPromptSpontaneous: settings.aiPromptSpontaneous.slice(0, 8000),
+      aiPromptRerank: settings.aiPromptRerank.slice(0, 8000),
     };
     setSettings(clean);
     try {
@@ -441,6 +511,43 @@ export function AiAssistantPanel() {
           </Button>
           <Button type="button" variant="green" disabled={busy} onClick={postNow}>
             Post something now
+          </Button>
+          {status && <p className="font-mono text-xs font-bold">{status}</p>}
+        </div>
+      </div>
+
+      {/* Full system-prompt overrides — for testing & tweaking */}
+      <div className="brutal-card space-y-3 p-3">
+        <p className="brutal-label">System prompts (advanced)</p>
+        <p className="font-mono text-[11px] text-ink/55">
+          Rewrite the actual system prompts the assistant runs on. Leave one untouched to use the shipped default; a
+          tweak here goes live on the next message. The &quot;extra system prompt&quot; above still appends to whatever
+          base prompt is active.
+        </p>
+        <PromptEditor
+          title="Assistant brain (the /udm + @mention prompt)"
+          blurb="The core instructions for answering, searching the archive, and taking actions. The biggest lever on behaviour."
+          value={settings.aiPromptAssistant}
+          defaultText={data.promptDefaults.assistant}
+          onChange={(v) => set("aiPromptAssistant", v)}
+        />
+        <PromptEditor
+          title="Spontaneous posts (the unprompted-content prompt)"
+          blurb="Drives what the bot invents when it posts on its own (polls, tier lists, predictions, images…)."
+          value={settings.aiPromptSpontaneous}
+          defaultText={data.promptDefaults.spontaneous}
+          onChange={(v) => set("aiPromptSpontaneous", v)}
+        />
+        <PromptEditor
+          title="Archive rerank judge"
+          blurb="Judges which archived conversation snippets actually answer a search. Only used when LLM rerank is on."
+          value={settings.aiPromptRerank}
+          defaultText={data.promptDefaults.rerank}
+          onChange={(v) => set("aiPromptRerank", v)}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="yellow" disabled={busy} onClick={saveSettings}>
+            {busy ? "Saving…" : "Save prompts"}
           </Button>
           {status && <p className="font-mono text-xs font-bold">{status}</p>}
         </div>

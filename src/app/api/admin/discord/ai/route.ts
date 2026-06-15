@@ -5,6 +5,9 @@ import { getConfig, setConfig } from "@/lib/appConfig";
 import { getDiscordSettings } from "@/lib/discord/settings";
 import { requireAdmin } from "@/lib/session";
 import { aiSettingsPut, memoryCreate } from "@/modules/admin/schema";
+import { ASSISTANT_SYSTEM_DEFAULT } from "@/lib/discord/assistant";
+import { SPONTANEOUS_SYSTEM_DEFAULT } from "@/lib/discord/spontaneous";
+import { RERANK_SYSTEM_DEFAULT } from "@/lib/discord/rerank";
 
 /**
  * Admin surface for the Discord AI assistant: the archive→segment→embedding
@@ -78,6 +81,9 @@ export const GET = apiHandler(async () => {
     runs: runs.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
     settings: {
       aiSystemPrompt: s.aiSystemPrompt,
+      aiPromptAssistant: s.aiPromptAssistant,
+      aiPromptSpontaneous: s.aiPromptSpontaneous,
+      aiPromptRerank: s.aiPromptRerank,
       aiSemanticSearch: s.aiSemanticSearch,
       aiRerank: s.aiRerank,
       aiSearchLimit: s.aiSearchLimit,
@@ -85,6 +91,12 @@ export const GET = apiHandler(async () => {
       aiMaxTokens: s.aiMaxTokens,
       aiModel: s.aiModel,
       spontaneousEnabled: s.spontaneousEnabled,
+    },
+    // Baked-in defaults so the admin tab can show / reset each prompt.
+    promptDefaults: {
+      assistant: ASSISTANT_SYSTEM_DEFAULT,
+      spontaneous: SPONTANEOUS_SYSTEM_DEFAULT,
+      rerank: RERANK_SYSTEM_DEFAULT,
     },
   });
 });

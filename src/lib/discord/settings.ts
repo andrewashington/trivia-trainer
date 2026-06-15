@@ -17,6 +17,12 @@ export type DiscordSettings = {
   aiModel: string; // overrides OPENROUTER_MODEL when non-empty
   // AI assistant tuning (admin-editable; all have safe code defaults).
   aiSystemPrompt: string; // appended to the base system prompt when set
+  // Full base-prompt overrides (empty = use the baked-in code default). Let the
+  // owner rewrite the actual system prompts from the admin tab for testing,
+  // with a reset back to the shipped default.
+  aiPromptAssistant: string; // the main assistant brain's base prompt
+  aiPromptSpontaneous: string; // the unprompted-post generator's prompt
+  aiPromptRerank: string; // the search-rerank judge's prompt
   aiSemanticSearch: boolean; // use embeddings for archive search (vs keyword only)
   aiRerank: boolean; // LLM rerank pass over search results (precision boost)
   aiSearchLimit: number; // default segments per search_messages call
@@ -35,6 +41,9 @@ export const DISCORD_SETTINGS_DEFAULTS: DiscordSettings = {
   digestHour: 9,
   aiModel: "",
   aiSystemPrompt: "",
+  aiPromptAssistant: "",
+  aiPromptSpontaneous: "",
+  aiPromptRerank: "",
   aiSemanticSearch: true,
   aiRerank: true,
   aiSearchLimit: 12,

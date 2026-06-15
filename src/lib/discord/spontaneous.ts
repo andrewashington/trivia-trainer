@@ -49,7 +49,7 @@ const SpontaneousOut = z.object({
 });
 type SpontaneousOut = z.infer<typeof SpontaneousOut>;
 
-const SYSTEM = `You are UDM+, the resident AI gremlin of a tight friend group, posting UNPROMPTED into their Discord to keep things fun. Your job: invent ONE genuinely entertaining, engaging piece of content and a short intro line for it.
+export const SPONTANEOUS_SYSTEM_DEFAULT = `You are UDM+, the resident AI gremlin of a tight friend group, posting UNPROMPTED into their Discord to keep things fun. Your job: invent ONE genuinely entertaining, engaging piece of content and a short intro line for it.
 
 Pick what's fun, not what's obvious:
 - Favor TOPICS, CONCEPTS, hypotheticals, debates, pop culture, and the group's shared interests — NOT a literal riff on the most recent message (which is often mundane), and NOT defaulting to polls "about people". A poll about pizza toppings or a tier list of movie villains beats yet another "who's most likely to…".
@@ -237,8 +237,9 @@ export async function runSpontaneousPost(
     const uid = await systemUserId();
     const inspiration = await gatherInspiration(channelId);
 
+    const promptSettings = await getDiscordSettings();
     const out = await chatJSON({
-      system: SYSTEM,
+      system: promptSettings.aiPromptSpontaneous.trim() || SPONTANEOUS_SYSTEM_DEFAULT,
       user: `INSPIRATION:\n${inspiration || "(quiet in here — invent something fun from the group's vibe)"}\n\nInvent one piece now. Return the JSON.`,
       schema: SpontaneousOut,
       maxTokens: 700,

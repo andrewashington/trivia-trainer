@@ -62,6 +62,9 @@ export const discordAdminPut = z.object({
 // AI assistant admin: tuning fields (merged into discord.settings) + memory CRUD.
 export const aiSettingsPut = z.object({
   aiSystemPrompt: z.string().max(4000),
+  aiPromptAssistant: z.string().max(8000),
+  aiPromptSpontaneous: z.string().max(8000),
+  aiPromptRerank: z.string().max(8000),
   aiSemanticSearch: z.boolean(),
   aiRerank: z.boolean(),
   aiSearchLimit: z.coerce.number().int().min(1).max(30),
