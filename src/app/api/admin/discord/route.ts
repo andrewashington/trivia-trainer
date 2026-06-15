@@ -19,6 +19,9 @@ export const PUT = apiHandler(async (req: Request) => {
   await requireAdmin();
   const { disabled, settings } = await parseBody(req, discordAdminPut);
   await setConfig("discord.feeds", { disabled });
-  await setConfig("discord.settings", settings);
+  // Merge, not replace — the Assistant tab owns the AI tuning fields in the same
+  // config blob, so a feature-toggle save here must not wipe them.
+  const current = await getConfig<Record<string, unknown>>("discord.settings");
+  await setConfig("discord.settings", { ...(current ?? {}), ...settings });
   return NextResponse.json({ ok: true });
 });

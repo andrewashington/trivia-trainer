@@ -15,6 +15,12 @@ export type DiscordSettings = {
   digestDay: number; // 0–6 (Sun–Sat) — used for the weekly digest
   digestHour: number; // 0–23, local to FEED_TZ
   aiModel: string; // overrides OPENROUTER_MODEL when non-empty
+  // AI assistant tuning (admin-editable; all have safe code defaults).
+  aiSystemPrompt: string; // appended to the base system prompt when set
+  aiSemanticSearch: boolean; // use embeddings for archive search (vs keyword only)
+  aiSearchLimit: number; // default segments per search_messages call
+  aiMaxSteps: number; // agentic tool-loop step budget
+  aiMaxTokens: number; // reply token budget
 };
 
 export const DISCORD_SETTINGS_DEFAULTS: DiscordSettings = {
@@ -26,6 +32,11 @@ export const DISCORD_SETTINGS_DEFAULTS: DiscordSettings = {
   digestDay: 1, // Monday
   digestHour: 9,
   aiModel: "",
+  aiSystemPrompt: "",
+  aiSemanticSearch: true,
+  aiSearchLimit: 12,
+  aiMaxSteps: 6,
+  aiMaxTokens: 1800,
 };
 
 /** Effective Discord settings (defaults merged with any admin override). */

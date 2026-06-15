@@ -7,6 +7,7 @@ import { MemberManager } from "@/modules/admin/MemberManager";
 import { CoinsPanel } from "@/modules/admin/CoinsPanel";
 import { PromosPanel, type Promo } from "@/modules/admin/PromosPanel";
 import { DiscordPanel, type DiscordFeedEvent } from "@/modules/admin/DiscordPanel";
+import { AiAssistantPanel } from "@/modules/admin/AiAssistantPanel";
 import { EconomyPanel, type KnobGame } from "@/modules/admin/EconomyPanel";
 import { FeedbackList, type FeedbackItem } from "@/modules/admin/FeedbackList";
 import type { DiscordSettings } from "@/lib/discord/settings";
@@ -28,6 +29,7 @@ const TABS: { key: string; label: string; icon: IconName; accent: string }[] = [
   { key: "coins", label: "Coins", icon: "money", accent: "bg-accent-yellow" },
   { key: "promos", label: "Promos", icon: "gift", accent: "bg-accent-green" },
   { key: "discord", label: "Discord", icon: "megaphone", accent: "bg-accent-blue text-white" },
+  { key: "assistant", label: "Assistant", icon: "robot-face-happy", accent: "bg-accent-grape text-white" },
   { key: "economy", label: "Economy", icon: "gamepad", accent: "bg-accent-red text-white" },
   { key: "world", label: "World", icon: "earth", accent: "bg-accent-green" },
   { key: "feedback", label: "Feedback", icon: "megaphone", accent: "bg-accent-yellow" },
@@ -83,6 +85,7 @@ export function AdminConsole(props: AdminConsoleProps) {
           mode={props.discord.mode}
         />
       )}
+      {tab === "assistant" && <AiAssistantPanel />}
       {tab === "economy" && (
         <EconomyPanel games={props.knobs.games} overrides={props.knobs.overrides} />
       )}

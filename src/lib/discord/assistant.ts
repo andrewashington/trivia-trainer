@@ -400,13 +400,15 @@ async function route(input: AssistantInput): Promise<string> {
     if (name === "search_messages") {
       const query = typeof args.query === "string" ? args.query.trim() : "";
       if (!query) return "No search query provided.";
-      const limit = Math.min(30, Math.max(1, Math.round(Number(args.limit) || Number(knobs.searchDefaultLimit ?? 12))));
+      const limit = Math.min(30, Math.max(1, Math.round(Number(args.limit) || settings.aiSearchLimit)));
       const channelId = typeof args.channelId === "string" ? args.channelId : undefined;
       const authorId = typeof args.authorId === "string" ? args.authorId : undefined;
-      const queryEmbedding = await embedQuery(query).catch((err) => {
-        console.error("[discord] embedQuery failed", err);
-        return null;
-      });
+      const queryEmbedding = settings.aiSemanticSearch
+        ? await embedQuery(query).catch((err) => {
+            console.error("[discord] embedQuery failed", err);
+            return null;
+          })
+        : null;
       const hits = await searchArchiveMessages({
         query,
         queryEmbedding: queryEmbedding ?? undefined,
@@ -456,8 +458,13 @@ async function route(input: AssistantInput): Promise<string> {
   // follow-ups ("add that", "what about him") resolve even across messages.
   const history = input.channelId ? await loadTurns(input.channelId) : [];
 
+  // Admins can append extra guidance to the base prompt from the Assistant tab.
+  const system = settings.aiSystemPrompt.trim()
+    ? `${SYSTEM}\n\nADMIN NOTES (extra operator guidance — follow these):\n${settings.aiSystemPrompt.trim()}`
+    : SYSTEM;
+
   const reply = await runToolLoop({
-    system: SYSTEM,
+    system,
     user: buildUserPrompt(input, ctx),
     tools: TOOL_DEFS,
     execute,
@@ -466,8 +473,8 @@ async function route(input: AssistantInput): Promise<string> {
     // Headroom to retrieve → (refine) → act → answer without hanging: simple
     // asks still return in one round-trip (tool_choice auto), complex ones get
     // room to dig. Generous tool-result cap so rich search context survives.
-    maxSteps: 6,
-    maxTokens: 1800,
+    maxSteps: settings.aiMaxSteps,
+    maxTokens: settings.aiMaxTokens,
     maxToolResult: 8000,
   });
 
