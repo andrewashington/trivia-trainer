@@ -193,15 +193,15 @@ export async function postCardV2(opts: {
   const style = moduleStyle[opts.spec.module];
   const accent = parseInt(style.accent.slice(1), 16);
   const base = (process.env.AUTH_URL ?? "").replace(/\/$/, "");
-  const sub = opts.spec.sub.replace("{actor}", opts.actorName ?? "someone");
   const tracked = !!(opts.kind && opts.refId);
   const withId = <T extends object>(id: number, c: T): T => (tracked ? { ...c, id } : c);
 
+  // The brutalist PNG carries the headline/body, so no duplicated text lines —
+  // just the image (with an alt/preview description), the live status, the
+  // interaction buttons, and the link.
+  const altText = `${opts.spec.kicker} — ${opts.spec.headline}`.slice(0, 180);
   const inner: object[] = [
-    withId(CARD_IDS.header, textDisplay(`**${style.label.toUpperCase()} · ${opts.spec.kicker}**`)),
-    withId(CARD_IDS.headline, textDisplay(`## ${opts.spec.headline}`)),
-    withId(CARD_IDS.sub, textDisplay(sub)),
-    withId(CARD_IDS.media, mediaGallery([{ url: "attachment://card.png" }])),
+    withId(CARD_IDS.media, mediaGallery([{ url: "attachment://card.png", description: altText }])),
   ];
   if (opts.statusLine) inner.push(withId(CARD_IDS.status, textDisplay(opts.statusLine)));
   if (opts.components?.length) {

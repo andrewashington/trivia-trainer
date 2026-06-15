@@ -103,11 +103,13 @@ async function postRow(id: string, type: OutboxEventType, payload: unknown) {
 
   // Lazy imports keep next/og out of the module graph until a card is
   // actually needed.
-  const [{ renderCardPng }, { componentsFor, trackRefFor }] = await Promise.all([
+  const [{ renderCardPng }, { componentsFor, trackRefFor }, { cardExtras }] = await Promise.all([
     import("@/lib/discord/card"),
     import("@/lib/discord/feed"),
+    import("@/lib/discord/cardData"),
   ]);
-  const png = await renderCardPng(spec, actorName);
+  const extras = await cardExtras(type, p);
+  const png = await renderCardPng(spec, actorName, extras);
   const components = componentsFor(type, p);
 
   if (botConfig().canPost) {

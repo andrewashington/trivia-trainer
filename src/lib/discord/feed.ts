@@ -22,6 +22,20 @@ export type CardSpec = {
   path: string;
 };
 
+/**
+ * Per-type body content the PNG renders (the "heavy lifting"): poll options,
+ * event when/where, listing price, etc. Built async from the entity (see
+ * cardData.ts) because the outbox payload alone doesn't carry it.
+ */
+export type CardExtras = {
+  /** A prominent chip near the headline (price, poll mode). */
+  badge?: string;
+  /** A choice list (poll options). */
+  options?: string[];
+  /** Labeled rows (when/where, detail). */
+  facts?: { label: string; value: string }[];
+};
+
 export type ModuleKey =
   | "cookbook"
   | "events"
@@ -126,9 +140,9 @@ const str = (p: Payload, key: string) =>
 const num = (p: Payload, key: string) =>
   typeof p[key] === "number" ? (p[key] as number) : undefined;
 
-function formatWhen(iso: string | undefined): string | undefined {
-  if (!iso) return undefined;
-  const d = new Date(iso);
+export function formatWhen(when: string | Date | undefined): string | undefined {
+  if (!when) return undefined;
+  const d = when instanceof Date ? when : new Date(when);
   if (isNaN(d.getTime())) return undefined;
   return d.toLocaleString("en-US", {
     weekday: "short",
@@ -140,7 +154,7 @@ function formatWhen(iso: string | undefined): string | undefined {
   });
 }
 
-function formatPrice(cents: number | null | undefined): string {
+export function formatPrice(cents: number | null | undefined): string {
   if (cents == null) return "free?";
   return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 }
