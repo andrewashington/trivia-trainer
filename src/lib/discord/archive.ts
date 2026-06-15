@@ -33,6 +33,7 @@ export type ArchiveSearchHit = {
   segmentId: string;
   channelId: string;
   channelName: string | null;
+  guildId: string | null;
   text: string;
   at: string;
   messageCount: number;
@@ -204,6 +205,7 @@ type RawSegmentHit = {
   segmentId: string;
   channelId: string;
   channelName: string | null;
+  guildId: string | null;
   text: string;
   at: string;
   endAt: string;
@@ -241,6 +243,7 @@ export async function searchArchiveMessages(opts: {
       s.id AS "segmentId",
       s.channel_id AS "channelId",
       c.name AS "channelName",
+      s.guild_id AS "guildId",
       s.content AS text,
       s.start_at::text AS at,
       s.end_at::text AS "endAt",
@@ -273,6 +276,7 @@ export async function searchArchiveMessages(opts: {
         s.id AS "segmentId",
         s.channel_id AS "channelId",
         c.name AS "channelName",
+        s.guild_id AS "guildId",
         s.content AS text,
         s.start_at::text AS at,
         s.end_at::text AS "endAt",
@@ -375,6 +379,7 @@ async function expandHits(hits: RawSegmentHit[]): Promise<ArchiveSearchHit[]> {
       segmentId: hit.segmentId,
       channelId: hit.channelId,
       channelName: hit.channelName,
+      guildId: hit.guildId,
       text,
       at: hit.at,
       messageCount: hit.messageCount,

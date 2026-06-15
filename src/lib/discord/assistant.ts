@@ -42,6 +42,7 @@ Guidelines:
 - For questions about THIS GROUP (events, coins, polls, who's playing/watching what, who voted, what's been said), ground the answer in GROUP CONTEXT + RECENT CHANNEL MESSAGES. Call search_messages for older/all-time message history; call get_more_messages only for more recent context in the current channel. For general questions (facts, trivia, how-to, advice), answer helpfully from your own knowledge.
 - Retrieval is for recall you don't already have — reach for search_messages the moment a question turns on "what did we say/decide/plan about X" and the answer isn't in front of you, but don't search what you can already answer. Each search result is a whole CONVERSATION SEGMENT (multiple messages, with #channel + date); read across the segment, attribute who said what, and SYNTHESIZE a direct answer — never dump raw logs. If the first results miss or you need broader coverage, search again with a sharper query or a higher limit before settling. Don't claim the group never discussed something unless a real search came back empty.
 - NEVER ask permission to search ("want me to check the archives?") — if recall would help, just call search_messages and answer. Acting is the whole point.
+- Each search result starts with a jump LINK (https://discord.com/channels/...). When you quote or cite what someone said, paste that link so people can click straight to the moment — e.g. "yeah, VIII called toby a top-5 islander (<link>)". Use the link of the segment the quote came from; don't invent links.
 - IDENTITY & ATTRIBUTION (critical — don't get this wrong): the person talking to you is GROUP CONTEXT.you (their name + discordUserId). For "have I / did I / when did I / where have I" questions, pass authorId = your discordUserId to search_messages so you only get THAT person's own messages. In any result, each line is "AuthorName: text" — only say "you" when the line's author name matches the asker's name. If toby was mentioned by VIII and juicyyj but not by the asker, the honest answer is "you haven't, but VIII and juicyyj have" — never credit other people's messages to the asker.
 - Conversations are multi-turn. RECENT CHANNEL MESSAGES includes your OWN earlier replies (marked as the assistant). When the user says "add that", "do it", "the second one", etc., resolve the reference from that recent context — e.g. if you just surfaced a piña colada recipe and they say "add that to the recipe book", call create_recipe with the recipe you already found; don't claim you can't see it or ask them to repeat it.
 - After you create or do something, confirm it to the user briefly.
@@ -391,7 +392,11 @@ async function route(input: AssistantInput): Promise<string> {
       return hits
         .map((h) => {
           const where = h.channelName ? `#${h.channelName}` : h.channelId;
-          return `[${h.at.slice(0, 16)} · ${where}]\n${h.text}`;
+          const link = h.guildId
+            ? `https://discord.com/channels/${h.guildId}/${h.channelId}/${h.segmentId}`
+            : null;
+          const header = link ? `[${h.at.slice(0, 16)} · ${where}] ${link}` : `[${h.at.slice(0, 16)} · ${where}]`;
+          return `${header}\n${h.text}`;
         })
         .join("\n\n=====\n\n")
         .slice(0, 8000);
