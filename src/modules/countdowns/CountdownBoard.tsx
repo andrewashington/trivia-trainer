@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import autoAnimate from "@formkit/auto-animate";
 import { api } from "@/lib/client";
 import { confettiCelebrate } from "@/lib/confetti";
@@ -166,13 +166,122 @@ function Tile({ tile, landed, viewer }: { tile: TileView; landed: boolean; viewe
   );
 }
 
+function tileEmoji(t: TileView): string {
+  return t.emoji ?? (t.kind === "birthday" ? "🎂" : t.kind === "event" ? "📅" : "⏳");
+}
+function tileHref(t: TileView): string | null {
+  return t.kind === "event" ? `/events/${t.id}` : t.kind === "birthday" ? "/contacts" : t.link;
+}
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
+
+/** Month grid with each tile's icon dropped on its target day. */
+function CalendarMonth({ tiles }: { tiles: TileView[] }) {
+  const today = new Date();
+  const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+
+  const byDay = useMemo(() => {
+    const m = new Map<string, TileView[]>();
+    for (const t of tiles) {
+      const k = dayKey(new Date(t.targetAt));
+      const arr = m.get(k);
+      if (arr) arr.push(t);
+      else m.set(k, [t]);
+    }
+    return m;
+  }, [tiles]);
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const startPad = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < startPad; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const todayK = dayKey(today);
+  const monthLabel = cursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  return (
+    <div className="brutal-card p-3">
+      <div className="mb-3 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setCursor(new Date(year, month - 1, 1))}
+          className="brutal-press border-2 border-ink bg-card px-2.5 py-1 font-display font-bold shadow-brutal-sm"
+        >
+          ‹
+        </button>
+        <p className="font-display text-lg font-bold">{monthLabel}</p>
+        <button
+          type="button"
+          onClick={() => setCursor(new Date(year, month + 1, 1))}
+          className="brutal-press border-2 border-ink bg-card px-2.5 py-1 font-display font-bold shadow-brutal-sm"
+        >
+          ›
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {WEEKDAYS.map((d, i) => (
+          <div key={i} className="text-center font-mono text-[10px] uppercase text-ink/40">
+            {d}
+          </div>
+        ))}
+        {cells.map((d, i) => {
+          if (!d) return <div key={i} className="min-h-[60px]" />;
+          const k = dayKey(d);
+          const items = byDay.get(k) ?? [];
+          const isToday = k === todayK;
+          return (
+            <div
+              key={i}
+              className={`min-h-[60px] border-2 border-ink p-1 ${isToday ? "bg-accent-yellow/40" : "bg-card"}`}
+            >
+              <div className="font-mono text-[10px] text-ink/50">{d.getDate()}</div>
+              <div className="mt-0.5 flex flex-wrap gap-0.5">
+                {items.slice(0, 4).map((t) => {
+                  const href = tileHref(t);
+                  const emoji = tileEmoji(t);
+                  return href ? (
+                    <Link
+                      key={`${t.kind}-${t.id}`}
+                      href={href}
+                      title={t.title}
+                      target={t.kind === "countdown" ? "_blank" : undefined}
+                      className="text-base leading-none no-underline"
+                    >
+                      {emoji}
+                    </Link>
+                  ) : (
+                    <span key={`${t.kind}-${t.id}`} title={t.title} className="text-base leading-none">
+                      {emoji}
+                    </span>
+                  );
+                })}
+                {items.length > 4 && (
+                  <span className="font-mono text-[9px] text-ink/40">+{items.length - 4}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function CountdownBoard({ tiles, viewer }: { tiles: TileView[]; viewer: Viewer }) {
+  const [view, setView] = useState<"list" | "calendar">("list");
   const upcomingRef = useRef<HTMLUListElement>(null);
   const landedRef = useRef<HTMLUListElement>(null);
   useEffect(() => {
     if (upcomingRef.current) autoAnimate(upcomingRef.current);
     if (landedRef.current) autoAnimate(landedRef.current);
-  }, []);
+  }, [view]);
 
   const now = Date.now();
   const upcoming = tiles.filter((t) => new Date(t.targetAt).getTime() > now);
@@ -182,7 +291,26 @@ export function CountdownBoard({ tiles, viewer }: { tiles: TileView[]; viewer: V
 
   return (
     <div className="space-y-8">
-      {upcoming.length === 0 ? (
+      {/* List / Calendar toggle */}
+      <div className="flex gap-2">
+        {(["list", "calendar"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            className={`inline-flex items-center gap-1.5 border-3 border-ink px-3 py-1 font-mono text-xs font-bold uppercase shadow-brutal-sm ${
+              view === v ? "bg-accent-punch text-white" : "bg-card"
+            }`}
+          >
+            <PixelIcon name={v === "list" ? "clock" : "calendar"} size={14} />
+            {v}
+          </button>
+        ))}
+      </div>
+
+      {view === "calendar" && <CalendarMonth tiles={tiles} />}
+
+      {view === "list" && (upcoming.length === 0 ? (
         <EmptyState
           icon="clock"
           title="Nothing on the clock"
@@ -196,9 +324,9 @@ export function CountdownBoard({ tiles, viewer }: { tiles: TileView[]; viewer: V
             </li>
           ))}
         </ul>
-      )}
+      ))}
 
-      {landed.length > 0 && (
+      {view === "list" && landed.length > 0 && (
         <section>
           <h2 className="mb-3 font-mono text-sm font-bold uppercase tracking-widest text-ink/50">
             Recently landed
