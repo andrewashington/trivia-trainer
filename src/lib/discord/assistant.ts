@@ -338,6 +338,19 @@ const TOOL_DEFS: ToolSpec[] = [
     },
   },
   {
+    name: "create_challenge",
+    description: "Post a challenge — a prompt for the group to do something and submit proof (text or photo). Set a deadline in days.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "The challenge prompt — what people have to do." },
+        description: { type: "string", description: "Optional detail, rules, or context." },
+        deadlineDays: { type: "integer", description: "How many days until the challenge closes (default 7)." },
+      },
+      required: ["title"],
+    },
+  },
+  {
     name: "create_map_pin",
     description:
       "Drop a pin on the group map. REQUIRES latitude and longitude — only use this when the user gives coordinates (you can't geocode an address yourself).",

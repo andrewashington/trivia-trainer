@@ -17,6 +17,7 @@ import { claimInput } from "@/modules/stakes/schema";
 import { tierListInput } from "@/modules/tiers/schema";
 import { nowPlayingInput } from "@/modules/nowplaying/schema";
 import { mapPinInput } from "@/modules/map/schema";
+import { challengeInput } from "@/modules/challenges/schema";
 
 /**
  * The UDM assistant's "tools": create-content and take-action functions, each
@@ -579,6 +580,32 @@ const ideaUpvote: Runner = async (userId, args) => {
   return `▲ Upvoted **${idea.title}** — ${voteCount} vote${voteCount === 1 ? "" : "s"}.`;
 };
 
+const createChallenge: Runner = async (userId, args) => {
+  const deadlineDays = Math.max(1, Math.round(Number(args.deadlineDays) || 7));
+  const deadline = new Date(Date.now() + deadlineDays * 864e5).toISOString();
+  const data = challengeInput.parse({
+    title: args.title,
+    description: opt(args.description),
+    deadline,
+  });
+  const challenge = await withOutbox(
+    (tx) =>
+      tx.challenge.create({
+        data: {
+          creatorId: userId,
+          title: data.title,
+          description: data.description ?? null,
+          deadline: data.deadline ? new Date(data.deadline) : null,
+        },
+      }),
+    (c) => ({
+      type: "challenge.created",
+      payload: { challengeId: c.id, title: c.title, creatorId: userId, deadline: c.deadline?.toISOString() ?? null },
+    })
+  );
+  return `🎯 Challenge posted: **${challenge.title}** — ${deadlineDays} day${deadlineDays === 1 ? "" : "s"} to prove yourselves.`;
+};
+
 /** tool name -> runner. `answer` is handled in the assistant (no side effects). */
 export const TOOL_RUNNERS: Record<string, Runner> = {
   create_poll: createPoll,
@@ -594,6 +621,7 @@ export const TOOL_RUNNERS: Record<string, Runner> = {
   create_tierlist: createTierList,
   create_nowplaying: createNowPlaying,
   create_map_pin: createMapPin,
+  create_challenge: createChallenge,
   adjust_coins: adjustCoins,
   rsvp,
   poll_vote: pollVote,

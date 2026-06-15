@@ -54,6 +54,7 @@ export type ModuleKey =
   | "pet"
   | "snake"
   | "countdowns"
+  | "challenges"
   | "home";
 
 /** Accent hexes mirror tailwind.config.ts — Satori can't read Tailwind. */
@@ -78,6 +79,7 @@ export const moduleStyle: Record<
   pet: { accent: "#38BDF8", accentText: "#101010", icon: "downasaur", label: "Pet" },
   snake: { accent: "#9B5DE5", accentText: "#FFFFFF", icon: "apple", label: "Snake" },
   countdowns: { accent: "#FF3366", accentText: "#FFFFFF", icon: "clock", label: "Countdowns" },
+  challenges: { accent: "#C1440E", accentText: "#FFFFFF", icon: "bullseye-arrow", label: "Challenges" },
   home: { accent: "#FFD60A", accentText: "#101010", icon: "home", label: "UDM+" },
 };
 
@@ -313,6 +315,17 @@ export function specFor(type: OutboxEventType, payload: Payload): CardSpec | nul
         sub: when ? `resolves ${when} · by {actor}` : "by {actor}",
         actorId: str(payload, "creatorId"),
         path: "/stakes",
+      };
+    }
+    case "challenge.created": {
+      const when = formatWhen(str(payload, "deadline") ?? undefined);
+      return {
+        module: "challenges",
+        kicker: "CHALLENGE POSTED",
+        headline: str(payload, "title") ?? "A challenge",
+        sub: when ? `deadline ${when} · issued by {actor}` : "issued by {actor}",
+        actorId: str(payload, "creatorId"),
+        path: "/challenges",
       };
     }
     case "reveal.created":

@@ -39,30 +39,36 @@ const SpontaneousOut = z.discriminatedUnion("kind", [
   z.object({ ...base, kind: z.literal("reveal"),     title: z.string().min(1).max(200),    items: z.array(z.string().min(1).max(120)).min(2).max(8) }),
   z.object({ ...base, kind: z.literal("prediction"), text: z.string().min(1).max(500),     resolveInDays: z.coerce.number().int().min(1).max(365) }),
   z.object({ ...base, kind: z.literal("idea"),       ideaTitle: z.string().min(1).max(300), ideaDetail: z.string().max(1000).optional() }),
+  z.object({ ...base, kind: z.literal("challenge"),  title: z.string().min(1).max(200),    description: z.string().max(1000).optional(), deadlineDays: z.coerce.number().int().min(1).max(30).optional() }),
+  z.object({ ...base, kind: z.literal("post"),       body: z.string().min(1).max(1800) }),
   z.object({ ...base, kind: z.literal("image"),      imagePrompt: z.string().min(1).max(600), caption: z.string().max(300).optional() }),
 ]);
 type SpontaneousOut = z.infer<typeof SpontaneousOut>;
 
-export const SPONTANEOUS_SYSTEM_DEFAULT = `You are UDM+, the resident AI gremlin of a tight friend group, posting UNPROMPTED into their Discord to keep things fun. Your job: invent ONE genuinely entertaining, engaging piece of content and a short intro line for it.
+export const SPONTANEOUS_SYSTEM_DEFAULT = `You are UDM+, the keeper of a tight friend group's record, posting UNPROMPTED into their Discord. Your job: invent ONE genuinely entertaining piece of content. You are the one writing and posting it — own the voice, the perspective, the craft.
 
-Pick what's fun, not what's obvious:
-- Favor TOPICS, CONCEPTS, hypotheticals, debates, pop culture, and the group's shared interests — NOT a literal riff on the most recent message (which is often mundane), and NOT defaulting to polls "about people". A poll about pizza toppings or a tier list of movie villains beats yet another "who's most likely to…".
-- Use the inspiration as flavor and lore (inside jokes, running bits, who likes what), but the content itself should stand on its own and spark replies.
-- Vary the format. Across posts you should range over polls, tier lists, predictions, reveals, ideas, and the occasional image.
+Pick what's interesting, not what's safe:
+- Pull real threads from the archive: a recurring debate, a pattern you've noticed, a running bit. The best posts feel like they came from someone who's been paying attention.
+- Vary the format widely. Not everything needs to be a poll. A "post" (free-form text you write) can be a hot take, a mini-ranking essay, a fictional scenario, a dramatic retelling of an archived argument, a thought you had, an observation. Use it when a structured format would kill what you're trying to say.
+- Challenges work when you want the group to DO something, not just vote. Set a real deadline and make the prompt specific.
+- Favor topics, debates, hypotheticals, and pop culture the group cares about over mundane chat riffs or polls about people.
 
-Output JSON for exactly one piece. Every field listed for the chosen kind is REQUIRED — the post won't happen if you leave them out:
+Output JSON for exactly one piece. Every field listed is REQUIRED — a missing field means nothing posts:
 
 - poll:       { "kind":"poll",       "intro":"…", "question":"…", "options":["…","…","…"] }
 - tierlist:   { "kind":"tierlist",   "intro":"…", "title":"…",    "items":["…","…","…","…"] }
 - prediction: { "kind":"prediction", "intro":"…", "text":"…",     "resolveInDays":30 }
 - reveal:     { "kind":"reveal",     "intro":"…", "title":"…",    "items":["…","…","…"] }
 - idea:       { "kind":"idea",       "intro":"…", "ideaTitle":"…","ideaDetail":"…" }
+- challenge:  { "kind":"challenge",  "intro":"…", "title":"…",    "description":"…", "deadlineDays":7 }
+- post:       { "kind":"post",       "intro":"…", "body":"…" }
 - image:      { "kind":"image",      "intro":"…", "imagePrompt":"…" }
 
-intro: 1-2 sentence lead-in in your voice (dry, ironic, lowercase-casual). This is what you SAY when you drop the piece.
-poll options: 2–6 short choices. tierlist/reveal items: 4–12 things. prediction text: a specific falsifiable claim.
+intro: what you SAY when you drop it (1–2 sentences, dry, precise, lowercase-casual).
+post body: the actual thing you're writing — a take, a ranking, an observation, a bit. Write it fully; don't summarize it.
+poll options: 2–6 short choices. tierlist/reveal items: 4–12. prediction: falsifiable, specific, with a real timeframe.
 
-Make it land. Be specific and a little weird. No @everyone, no pinging.`;
+No @everyone, no pinging.`;
 
 /** Cached id of the bot's own User row (lazy-created). */
 let botUserId: string | null = null;
@@ -148,6 +154,9 @@ async function createContent(out: SpontaneousOut, uid: string): Promise<string> 
     case "idea":
       await run.create_idea(uid, { title: out.ideaTitle, detail: out.ideaDetail });
       return "idea";
+    case "challenge":
+      await run.create_challenge(uid, { title: out.title, description: out.description, deadlineDays: out.deadlineDays ?? 7 });
+      return "challenge";
     default:
       throw new Error(`unexpected kind: ${(out as SpontaneousOut).kind}`);
   }
@@ -221,10 +230,16 @@ export async function runSpontaneousPost(
       maxTokens: 700,
     });
 
-    // Image: post inline (with its own caption) and we're done — no separate intro.
+    // Image: post inline and we're done — no separate intro.
     if (out.kind === "image") {
       if (await postImage(out, uid, channelId)) return `image: ${out.imagePrompt?.slice(0, 60)}`;
       // image gen failed — fall through and try to post a text piece instead.
+    }
+
+    // Post: free-form text written by the bot; posted directly, no app card.
+    if (out.kind === "post") {
+      await postText(channelId, out.body);
+      return "post";
     }
 
     // Build the content first; only post the intro if it actually built — a
