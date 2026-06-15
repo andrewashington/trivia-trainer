@@ -211,40 +211,58 @@ async function postText(channelId: string, content: string): Promise<void> {
   await discordApi(`/channels/${channelId}/messages`, { method: "POST", body: { content: content.slice(0, 1900) } });
 }
 
+// In-flight guard: a spontaneous post takes several seconds (LLM + maybe image);
+// a double-click or overlapping trigger must not produce two posts.
+let posting = false;
+
 /**
  * Generate + post one spontaneous piece. Exposed for the admin "post now"
- * button and the assistant's create_something tool. `channelOverride` lets a
- * tool call post into the channel the request came from.
+ * button, the scheduler, and the assistant's create_something tool.
+ * - channelOverride: post into a specific channel (the tool's source channel).
+ * - postIntro: post the bot's intro line as its own message. The conversation
+ *   tool sets this false because the assistant's own reply already leads in,
+ *   so we'd otherwise double up.
  */
-export async function runSpontaneousPost(channelOverride?: string | null): Promise<string> {
+export async function runSpontaneousPost(
+  channelOverride?: string | null,
+  opts: { postIntro?: boolean } = {},
+): Promise<string> {
   const channelId = channelOverride || botConfig().channelId;
   if (!channelId) return "No channel configured.";
   if (!aiConfigured()) return "AI not configured.";
-
-  const uid = await systemUserId();
-  const inspiration = await gatherInspiration(channelId);
-
-  const out = await chatJSON({
-    system: SYSTEM,
-    user: `INSPIRATION:\n${inspiration || "(quiet in here — invent something fun from the group's vibe)"}\n\nInvent one piece now. Return the JSON.`,
-    schema: SpontaneousOut,
-    maxTokens: 700,
-  });
-
-  // Image: post inline (with its own caption) and we're done — no separate intro.
-  if (out.kind === "image") {
-    if (await postImage(out, uid, channelId)) return `image: ${out.imagePrompt?.slice(0, 60)}`;
-    // image gen failed — fall through and try to post a text piece instead.
-  }
-
-  // Text content: intro once, then the content card follows via the drainer (~30s).
-  await postText(channelId, out.intro);
+  if (posting) return "already working on one";
+  posting = true;
   try {
-    const built = await createContent(out, uid);
-    return `posted ${built}`;
-  } catch (err) {
-    console.error("[discord] spontaneous build failed; out =", JSON.stringify(out).slice(0, 500), err);
-    return `intro only — build failed: ${err instanceof Error ? err.message : err}`;
+    const postIntro = opts.postIntro !== false;
+    const uid = await systemUserId();
+    const inspiration = await gatherInspiration(channelId);
+
+    const out = await chatJSON({
+      system: SYSTEM,
+      user: `INSPIRATION:\n${inspiration || "(quiet in here — invent something fun from the group's vibe)"}\n\nInvent one piece now. Return the JSON.`,
+      schema: SpontaneousOut,
+      maxTokens: 700,
+    });
+
+    // Image: post inline (with its own caption) and we're done — no separate intro.
+    if (out.kind === "image") {
+      if (await postImage(out, uid, channelId)) return `image: ${out.imagePrompt?.slice(0, 60)}`;
+      // image gen failed — fall through and try to post a text piece instead.
+    }
+
+    // Build the content first; only post the intro if it actually built, so a
+    // failure never leaves a dangling intro with no card.
+    try {
+      const built = await createContent(out, uid);
+      if (postIntro) await postText(channelId, out.intro);
+      return `posted ${built}`;
+    } catch (err) {
+      console.error("[discord] spontaneous build failed; out =", JSON.stringify(out).slice(0, 500), err);
+      if (postIntro) await postText(channelId, out.intro);
+      return `intro only — build failed: ${err instanceof Error ? err.message : err}`;
+    }
+  } finally {
+    posting = false;
   }
 }
 

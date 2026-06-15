@@ -275,12 +275,22 @@ const createReveal: Runner = async (userId, args) => {
 };
 
 const createStake: Runner = async (userId, args) => {
+  // Forgiving date: the model often omits or fumbles resolvesAt — default to a
+  // week out rather than throwing.
+  const provided = args.resolvesAt ? new Date(args.resolvesAt as string) : null;
+  const resolvesAt =
+    provided && !Number.isNaN(provided.getTime()) && provided > new Date()
+      ? provided
+      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  // Hidden predictions are solo by rule — drop any counterparty/stake so the
+  // "sealed prediction" path can't fail the bets-can't-be-hidden check.
+  const hidden = args.hidden === true;
   const data = claimInput.parse({
     text: args.text,
-    resolvesAt: args.resolvesAt,
-    hidden: args.hidden ?? false,
-    counterpartyId: opt(args.counterpartyId),
-    stake: opt(args.stake),
+    resolvesAt,
+    hidden,
+    counterpartyId: hidden ? null : opt(args.counterpartyId),
+    stake: hidden ? null : opt(args.stake),
   });
   if (data.counterpartyId === userId) throw new Error("You can't bet against yourself.");
   const claim = await withOutbox(
