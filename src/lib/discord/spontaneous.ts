@@ -74,8 +74,8 @@ async function systemUserId(): Promise<string> {
   if (botUserId) return botUserId;
   const u = await db.user.upsert({
     where: { email: "bot@udmplus.local" },
-    update: {},
-    create: { email: "bot@udmplus.local", displayName: "UDM+", role: "member" },
+    update: { isSystem: true },
+    create: { email: "bot@udmplus.local", displayName: "UDM+", role: "member", isSystem: true },
     select: { id: true },
   });
   botUserId = u.id;
@@ -191,9 +191,13 @@ async function postText(channelId: string, content: string): Promise<void> {
   await discordApi(`/channels/${channelId}/messages`, { method: "POST", body: { content: content.slice(0, 1900) } });
 }
 
-/** Generate + post one spontaneous piece. Exposed for an admin "post now" button. */
-export async function runSpontaneousPost(): Promise<string> {
-  const { channelId } = botConfig();
+/**
+ * Generate + post one spontaneous piece. Exposed for the admin "post now"
+ * button and the assistant's create_something tool. `channelOverride` lets a
+ * tool call post into the channel the request came from.
+ */
+export async function runSpontaneousPost(channelOverride?: string | null): Promise<string> {
+  const channelId = channelOverride || botConfig().channelId;
   if (!channelId) return "No channel configured.";
   if (!aiConfigured()) return "AI not configured.";
 

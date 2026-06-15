@@ -7,6 +7,7 @@ import { fetchRecentMessages } from "@/lib/discord/history";
 import { embedQuery } from "@/lib/discord/embeddings";
 import { searchArchiveMessages } from "@/lib/discord/archive";
 import { rerankHits } from "@/lib/discord/rerank";
+import { runSpontaneousPost } from "@/lib/discord/spontaneous";
 
 /**
  * The UDM AI assistant brain — one agentic tool-user behind every door (/udm and
@@ -312,6 +313,12 @@ const TOOL_DEFS: ToolSpec[] = [
     parameters: { type: "object", properties: { ideaId: { type: "string" } }, required: ["ideaId"] },
   },
   {
+    name: "create_something",
+    description:
+      "When asked to 'make/create something interesting', 'surprise us', 'post something', 'do your thing', 'we're bored', etc. — invent and post one original piece of content (a poll, tier list, prediction, reveal, idea, or AI image) to the channel, as yourself. The content is created and posted for you; just give a tiny one-line ack afterward. Do NOT use this for a SPECIFIC request (use the matching create_* tool instead).",
+    parameters: { type: "object", properties: {} },
+  },
+  {
     name: "adjust_coins",
     description:
       "Your coin power: grant (positive amount) or dock (negative amount) coins from a member. Use it for justice and mischief — reward a genuinely great/funny contribution, or playfully punish a bad take — NOT just because someone asks you to pay them. You have a SHARED daily budget (~1000 coins across everyone), so spend it with intent. targetUserId must be a member id from GROUP CONTEXT members; default to the person you're talking to if they clearly mean themselves.",
@@ -397,7 +404,7 @@ export async function assembleContext(userId: string) {
         take: 60,
         select: { id: true, fact: true, subject: true },
       }),
-      db.user.findMany({ select: { id: true, displayName: true, coins: true } }),
+      db.user.findMany({ where: { isSystem: false }, select: { id: true, displayName: true, coins: true } }),
     ]);
 
   return {
@@ -589,6 +596,13 @@ async function route(input: AssistantInput): Promise<string> {
       if (!id) return "Which memory? I need its id.";
       const res = await db.discordMemory.updateMany({ where: { id, active: true }, data: { active: false } });
       return res.count ? "Forgotten." : "I didn't have a memory with that id.";
+    }
+    if (name === "create_something") {
+      const result = await runSpontaneousPost(input.channelId).catch((err) => {
+        console.error("[discord] create_something failed", err);
+        return "couldn't pull something together";
+      });
+      return `Done — posted it to the channel (${result}). Give a tiny one-line ack; don't repeat the content.`;
     }
     const runner = TOOL_RUNNERS[name];
     if (runner) return runner(input.userId, args);

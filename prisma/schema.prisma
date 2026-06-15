@@ -43,6 +43,7 @@ model User {
   avatarUrl     String? // rendered DiceBear URL — denormalized from avatarConfig for the render path
   avatarConfig  Json? // structured Open Peeps choices (seed + pinned features); source of truth for the builder
   role          Role      @default(member)
+  isSystem      Boolean   @default(false) // the bot's own account (UDM+) — author of bot-made content
   discordUserId String?   @unique // reserved for phase 2 (Discord bot), unused in v1
   venmoHandle   String? // payments stay person-to-person — we just link to Venmo
   emailVerified DateTime? // managed by Auth.js
