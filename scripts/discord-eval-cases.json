@@ -1,0 +1,57 @@
+[
+  {
+    "id": "pool-night",
+    "query": "what day did we decide on for the pool night",
+    "expectAll": ["pool"],
+    "expectAny": ["june 10", "june 12", "tuesday", "thursday"],
+    "note": "wake's pool-night planning burst in general-plus-ones"
+  },
+  {
+    "id": "jess-promotion",
+    "query": "who got a promotion at their job",
+    "expectAny": ["promoted", "store manager", "lulu", "jess"],
+    "note": "Jess promoted to Store Manager at Lulu"
+  },
+  {
+    "id": "toby-islander",
+    "query": "what do people think about toby on love island",
+    "expectAny": ["toby"],
+    "note": "Toby = top-5 islander discussion"
+  },
+  {
+    "id": "tyrique",
+    "query": "who is tyrique",
+    "expectAny": ["tyrique"],
+    "note": "Love Island UK chatter"
+  },
+  {
+    "id": "thanksgiving",
+    "query": "thanksgiving plans and traditions",
+    "expectAny": ["thanksgiving"],
+    "note": "thanksgiving messages"
+  },
+  {
+    "id": "pina-colada",
+    "query": "is there a piña colada recipe anyone posted",
+    "expectAny": ["colada", "pineapple", "coconut"],
+    "note": "tonesmz's piña colada recipe"
+  },
+  {
+    "id": "gyoza",
+    "query": "who was making a bunch of gyoza",
+    "expectAny": ["gyoza"],
+    "note": "VIII making ~60 gyoza"
+  },
+  {
+    "id": "lagoon-day",
+    "query": "lagoon day group outing",
+    "expectAny": ["lagoon"],
+    "note": "juicyyj's UDM Lagoon Day"
+  },
+  {
+    "id": "herb-puppet",
+    "query": "what do we know about herb the puppet",
+    "expectAny": ["herb"],
+    "note": "lives in #general — only passes once that channel is backfilled"
+  }
+]
