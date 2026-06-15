@@ -260,7 +260,8 @@ Run via `npm run discord:backfill` locally, or inside Railway after deploy with
 re-run anytime; it resumes from each channel's durable `last_backfill_id`.
 The script saves progress after every Discord page, so a crash replays at most
 100 messages and idempotent upserts keep that harmless. Bot-authored messages
-are skipped by default.
+are skipped by default. Channels returning Discord `403`/`404` are marked
+`archived` and skipped so one private/inaccessible channel cannot kill the run.
 
 ---
 

@@ -45,7 +45,19 @@ async function backfillChannel(channel) {
   let skippedBots = 0;
   for (;;) {
     const path = `/channels/${channel.id}/messages?limit=100${before ? `&before=${before}` : ""}`;
-    const messages = await discordGet(path);
+    let messages;
+    try {
+      messages = await discordGet(path);
+    } catch (err) {
+      if (err instanceof DiscordApiError && (err.status === 403 || err.status === 404)) {
+        console.log(`[archive] #${channel.name ?? channel.id}: skipping (${err.status} ${err.body.slice(0, 120)})`);
+        await db.$executeRaw`
+          UPDATE discord_archive.channels SET archived = true WHERE id = ${channel.id}
+        `;
+        return;
+      }
+      throw err;
+    }
     if (!messages.length) break;
 
     for (const message of messages) {
@@ -137,8 +149,17 @@ async function discordGet(path) {
       await sleep(Math.ceil((body?.retry_after ?? 1) * 1000));
       continue;
     }
-    if (!res.ok) throw new Error(`Discord GET ${path} -> ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    if (!res.ok) throw new DiscordApiError(res.status, await res.text(), path);
     return res.json();
+  }
+}
+
+class DiscordApiError extends Error {
+  constructor(status, body, path) {
+    super(`Discord GET ${path} -> ${status}: ${body.slice(0, 300)}`);
+    this.status = status;
+    this.body = body;
+    this.path = path;
   }
 }
 
