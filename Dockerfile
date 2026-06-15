@@ -36,6 +36,8 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 # standalone tracing can miss the dynamically-loaded engine binary, so
 # copy it explicitly — needed by both the app server and bootstrap-admin.
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/scripts/discord-backfill.mjs ./scripts/discord-backfill.mjs
+COPY --from=builder /app/scripts/discord-embed.mjs ./scripts/discord-embed.mjs
 # sharp's native libvips lives in @img/* optional deps; standalone tracing
 # copies sharp's JS but misses the .so packages — copy them explicitly
 # (needed by the world-avatar compositor).

@@ -136,6 +136,19 @@ export function DiscordPanel({
             on={settings.aiEnabled}
             onClick={() => setFlag("aiEnabled", !settings.aiEnabled)}
           />
+          <SettingToggle
+            label="Message archive"
+            help="Store Discord message history for search"
+            on={settings.archiveEnabled}
+            onClick={() => setFlag("archiveEnabled", !settings.archiveEnabled)}
+          />
+          <SettingToggle
+            label="Engagement rewards"
+            help="Future coin rewards from archived message activity"
+            on={settings.rewardsEnabled}
+            warn
+            onClick={() => setFlag("rewardsEnabled", !settings.rewardsEnabled)}
+          />
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
@@ -177,7 +190,8 @@ export function DiscordPanel({
         </div>
         <p className="font-mono text-[10px] text-ink/50">
           tips are off by default — flipping them on lets coins move between people · digest
-          day/hour drive the periodic DM · AI model overrides OPENROUTER_MODEL when set
+          day/hour drive the periodic DM · AI model overrides OPENROUTER_MODEL when set ·
+          archive search also needs APP_INGEST_URL on the gateway
         </p>
       </div>
 

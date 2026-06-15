@@ -46,6 +46,8 @@ export const discordSettingsPut = z.object({
   tipsEnabled: z.boolean(),
   dropsEnabled: z.boolean(),
   aiEnabled: z.boolean(),
+  archiveEnabled: z.boolean(),
+  rewardsEnabled: z.boolean(),
   digestDay: z.coerce.number().int().min(0).max(6),
   digestHour: z.coerce.number().int().min(0).max(23),
   aiModel: z.string().trim().max(100),

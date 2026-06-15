@@ -21,6 +21,9 @@
     "world:export": "tsx scripts/world-export-map.ts",
     "triage:export": "tsx scripts/export-triage.ts",
     "discord:register": "tsx scripts/register-discord-commands.ts",
+    "discord:backfill": "node scripts/discord-backfill.mjs",
+    "discord:embed": "node scripts/discord-embed.mjs",
+    "discord:embed:estimate": "node scripts/discord-embed.mjs --estimate",
     "postinstall": "prisma generate"
   },
   "prisma": {

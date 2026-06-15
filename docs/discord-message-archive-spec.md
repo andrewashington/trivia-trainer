@@ -1,9 +1,10 @@
 # UDM+ Discord — Message Archive, Deep Search & Engagement Engine (Build Spec)
 
 > Implementation-ready spec for the next project: store the group's complete
-> Discord message history in our own Postgres, give the AI assistant **true
-> search** over it (RAG), and unlock **engagement stats + coin rewards** for
-> message activity. Hand this to a coding agent. **Read §0 first.**
+> Discord message history in Postgres under a dedicated `discord_archive`
+> schema, give the AI assistant **true search** over it (keyword now, semantic
+> retrieval after a cost estimate), and unlock **engagement stats + coin
+> rewards** for message activity. Hand this to a coding agent. **Read §0 first.**
 >
 > This builds directly on the shipped Discord integration (see §1 "What exists
 > today"). It does **not** require the Discord developer portal beyond what's
@@ -22,23 +23,27 @@
    that must be harmless. Reward grants must be deduped (one grant per
    user-per-window), keyed by a unique constraint like `CoinRewardClaim`.
 3. **Additive, hand-written migrations** in a timestamped folder
-   (`prisma/migrations/$(date +%Y%m%d%H%M%S)_<name>/migration.sql`). Two
-   features need **raw SQL Prisma can't model**: the full-text `tsvector` column
-   + GIN index, and (phase 2) the pgvector column — write those by hand.
+   (`prisma/migrations/$(date +%Y%m%d%H%M%S)_<name>/migration.sql`). Put archive
+   tables in the `discord_archive` schema and access them through raw SQL
+   helpers, not Prisma models. Full-text `tsvector` + GIN is required.
 4. **Deploy gate = `npm run typecheck`** (`tsc --noEmit`). No self-driven
    browser testing — the owner tests in Discord. Verify with typecheck + a clean
    dev-server compile, then hand off. Commit per logical unit, push to `main`
    (Railway auto-deploys; `prisma migrate deploy` runs on boot).
-5. **Reuse, don't rebuild.** The gateway sidecar, the HMAC forward contract, the
+5. **Skip bot-authored messages by default.** The live sidecar ignores bot
+   authors, and historical backfill does the same unless deliberately run with
+   `DISCORD_ARCHIVE_INCLUDE_BOTS=true` / `--include-bots`.
+6. **Reuse, don't rebuild.** The gateway sidecar, the HMAC forward contract, the
    assistant tool loop, the feature registry, the scheduler, `bank.ts`,
    `coinRewards.ts`, and the `discord` knob group already exist (§1). Extend them.
-6. **New tables use a bare `userId String`** (no Prisma relation to `User`) to
+7. **New tables use a bare `userId String`** (no Prisma relation to `User`) to
    keep the `User` hotspot conflict-free, matching the existing Discord tables.
-7. **Everything no-ops cleanly when Discord/AI env is unset** (mirror the
+8. **Everything no-ops cleanly when Discord/AI env is unset** (mirror the
    existing pattern — `botConfig().canPost`, `aiConfigured()`).
-8. **Volume reality check:** at friend-group scale total history is plausibly
-   tens-to-low-hundreds of thousands of messages — trivial for Postgres FTS. Don't
-   over-engineer (no Elasticsearch, no queue infra). Postgres does all of this.
+9. **Volume reality check:** at friend-group scale total history is plausibly
+   tens-to-low-hundreds of thousands of messages — trivial for Postgres FTS and
+   fine for simple vector scans. Don't over-engineer (no Elasticsearch, no queue
+   infra, no separate vector DB until reality proves we need it).
 
 ### What exists today (the foundation this builds on)
 
@@ -86,14 +91,14 @@ Discord ──gateway──▶ services/discord-gateway ──HMAC POST──▶
 
 Backfill job ──discordApi GET /channels/{id}/messages?before=──▶ upsert (one-time + gap-fill)
 
-Postgres  ──FTS (tsvector+GIN)  &  pgvector (phase 2)──▶ search_messages tool ──▶ AI assistant (RAG)
+Postgres discord_archive schema ──FTS + optional embeddings──▶ search_messages tool ──▶ AI assistant (RAG)
           ──aggregate queries──▶ engagement stats (admin/dashboard) + coin rewards (withOutbox)
 ```
 
-Three ingestion paths into one `DiscordMessage` table (all idempotent upserts):
+Three ingestion paths into `discord_archive.messages` (all idempotent upserts):
 **live** (sidecar, real-time), **backfill** (paged history, one-time + gap-fill),
 **edits/deletes/reactions** (live updates). Then: **search** (FTS now, semantic
-later) powers the AI; **aggregates** power stats + rewards.
+after cost estimate) powers the AI; **aggregates** power stats + rewards.
 
 > **Why our own DB and not the Discord API for search?** Bots **cannot** use
 > Discord's message-search endpoint (it's user-token only). Paging history works
@@ -104,14 +109,20 @@ later) powers the AI; **aggregates** power stats + rewards.
 
 | Var | Where | Purpose |
 |---|---|---|
-| `OPENROUTER_API_KEY` | app | already set — reused for embeddings (phase 2) |
-| (no new required env for phase 1) | | live capture reuses `DISCORD_GATEWAY_SECRET`; backfill reuses `DISCORD_BOT_TOKEN` |
+| `APP_INGEST_URL` | gateway | `$AUTH_URL/api/discord/ingest` for live archive capture |
+| `OPENAI_API_KEY` | app/scripts | OpenAI embeddings, only used when semantic embedding is enabled |
+| `DISCORD_EMBEDDINGS_ENABLED` | app | `false` until after backfill count + cost estimate |
+| `DISCORD_EMBEDDING_MODEL` | app/scripts | default `text-embedding-3-small` |
+| `DISCORD_EMBED_BATCH_SIZE` | scripts | default `50` |
 
 ---
 
 ## §2 — Data model (additive)
 
-Add to `prisma/schema.prisma`; bare `userId`. Snowflake ids are the idempotency keys.
+Add via raw SQL migration under `discord_archive`; keep `user_id` as a bare
+string. Snowflake ids are the idempotency keys. The first shipped migration uses
+`discord_archive.channels`, `discord_archive.messages`,
+`discord_archive.reactions`, and `discord_archive.message_embeddings`.
 
 ```prisma
 model DiscordChannel {
@@ -164,14 +175,10 @@ model DiscordReaction {
   @@index([authorId])
 }
 
-// Phase 2 (semantic search) — needs the pgvector extension; the `embedding`
-// column is added by hand-written SQL (Prisma maps it as Unsupported).
-// model DiscordMessageEmbedding {
-//   messageId String @id
-//   // embedding  Unsupported("vector(1536)")
-//   model      String
-//   createdAt  DateTime @default(now())
-// }
+// Semantic search stores message embeddings in discord_archive.message_embeddings.
+// First pass uses double precision[] + a cosine SQL helper so deploys do not
+// depend on pgvector being installed. If quality/perf ever needs it, migrate
+// that column to pgvector later.
 ```
 
 Migration extras (hand-written, after the `CREATE TABLE`s):
@@ -192,7 +199,7 @@ CREATE INDEX "DiscordMessage_content_tsv_idx" ON "DiscordMessage" USING GIN ("co
   default e.g. 2), `rewardDailyCap` (per user/day, default e.g. 100),
   `rewardMinChars` (ignore one-word spam, default 4), `searchDefaultLimit` (12).
 - `src/lib/discord/settings.ts` `discord.settings` — add `archiveEnabled`
-  (default false until backfilled), `rewardsEnabled` (default false).
+  (default true for ingest/backfill), `rewardsEnabled` (default false).
 
 ---
 
@@ -248,8 +255,12 @@ One-time historical import + ongoing gap-fill:
   messages per channel to fill any gaps the live path missed (e.g. sidecar
   downtime) — idempotent upserts make this safe.
 
-Run via `npm run discord:backfill` (own script, reuses `discordApi`). It can be
-re-run anytime; it resumes.
+Run via `npm run discord:backfill` locally, or inside Railway after deploy with
+`railway ssh -s trivia-trainer node scripts/discord-backfill.mjs`. It can be
+re-run anytime; it resumes from each channel's durable `last_backfill_id`.
+The script saves progress after every Discord page, so a crash replays at most
+100 messages and idempotent upserts keep that harmless. Bot-authored messages
+are skipped by default.
 
 ---
 
@@ -275,13 +286,14 @@ Use `websearch_to_tsquery('english', query)` against `content_tsv`, rank with
 LIMIT. Raw SQL via `db.$queryRaw`. This is true keyword search across all history
 — the thing the Discord API can't give a bot.
 
-### 4b — Semantic (phase 2, optional)
+### 4b — Semantic (after backfill count + cost estimate)
 
-Enable `pgvector`; on ingest (or in a backfill pass) embed `content` (OpenRouter
-/ an embeddings model) into `DiscordMessageEmbedding`; query by cosine distance
-for "find where we talked about X" even without keyword overlap. Hybrid =
-combine FTS rank + vector distance. Only worth it once keyword search is live and
-the group wants fuzzy recall.
+After backfill, run `npm run discord:embed:estimate` to count messages and
+roughly estimate embedding tokens (`chars / 4`). Only then decide whether to run
+`npm run discord:embed`. Use OpenAI directly via `OPENAI_API_KEY`, default
+`text-embedding-3-small`; do not spend embeddings money blindly. Hybrid search
+combines FTS rank + cosine similarity for "find where we talked about X" even
+without keyword overlap.
 
 ---
 
@@ -366,7 +378,8 @@ Grant UDM+ coins for contribution, anti-farmed:
    §4a, §5. (Biggest immediate payoff: the assistant gains true recall.)
 6. **Engagement stats** (queries + a panel/command) — §6a.
 7. **Rewards** (scheduler sweep + `withOutbox` credit + dedupe + knobs) — §6b.
-8. **(Optional) Semantic search** (pgvector + embeddings) — §4b.
+8. **Estimate semantic search cost** (`npm run discord:embed:estimate`), then run
+   embeddings only after approval — §4b.
 9. After each step: `npm run typecheck`, confirm a clean dev-server compile, hand
    to the owner to test in Discord. Commit per unit; push to `main`.
 
