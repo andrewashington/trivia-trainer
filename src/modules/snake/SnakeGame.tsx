@@ -97,6 +97,7 @@ export function SnakeGame() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusRef = useRef<Status>("idle");
   const submitted = useRef(false);
+  const sessionId = useRef<string | null>(null);
 
   const occupiedSet = useCallback(() => {
     const g = game.current;
@@ -183,6 +184,7 @@ export function SnakeGame() {
           method: "POST",
           body: {
             game: "snake",
+            sessionId: sessionId.current,
             score: g.score,
             meta: { maxCombo: g.maxCombo, length: g.snake.length, bonuses: g.bonuses },
           },
@@ -299,6 +301,7 @@ export function SnakeGame() {
     g.score = 0;
     g.pellet = randEmpty(new Set(g.snake.map((p) => `${p.x},${p.y}`)));
     submitted.current = false;
+    sessionId.current = null;
     setResult(null);
     setScore(0);
     setMult(1);
@@ -308,6 +311,13 @@ export function SnakeGame() {
     setStatus("running");
     draw(performance.now());
     timer.current = setTimeout(step, tickFor(3));
+    // Fetch a session token in the background; finish() will include it.
+    api<{ sessionId: string }>("/api/arcade/session", {
+      method: "POST",
+      body: { game: "snake" },
+    })
+      .then((r) => { sessionId.current = r.sessionId; })
+      .catch(() => {}); // best-effort; score submission will gracefully fail
   }, [draw, step]);
 
   const togglePause = useCallback(() => {

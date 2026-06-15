@@ -82,6 +82,7 @@ model User {
   revealUnlockVotes  RevealUnlockVote[]
   feedback           Feedback[]
   arcadeScores       ArcadeScore[]
+  gameSessions       GameSession[]
   countdowns         Countdown[]
   tanksChallenges    TanksGame[]        @relation("tanksChallenger")
   tanksDefenses      TanksGame[]        @relation("tanksOpponent")
@@ -317,6 +318,22 @@ model Countdown {
   creator User @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([targetAt])
+}
+
+// Server-issued token that gates score submission for client-side arcade
+// games. Issued when a game round starts; consumed (one-time) on submit.
+// Prevents bare API posts and makes crude score injection much harder.
+model GameSession {
+  id        String    @id @default(cuid())
+  userId    String
+  game      String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, game])
 }
 
 // One row per finished run of an arcade game. We keep every run (not

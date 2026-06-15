@@ -34,6 +34,7 @@ export function tickFor(length: number): number {
 
 export const scoreInput = z.object({
   game: z.literal("snake"),
+  sessionId: z.string().cuid(),
   score: z.number().int().min(0).max(1_000_000),
   meta: z
     .object({
