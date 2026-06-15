@@ -2,7 +2,6 @@ import type { User } from "@prisma/client";
 import { DISCORD_API, botConfig } from "@/lib/discord/bot";
 import { registerFeature } from "@/lib/discord/registry";
 import { runAssistant } from "@/lib/discord/assistant";
-import { fetchRecentMessages } from "@/lib/discord/history";
 import type { Interaction } from "@/lib/discord/interactions";
 import { db } from "@/lib/db";
 
@@ -33,8 +32,7 @@ async function handleUdm(user: User, interaction: Interaction): Promise<object> 
   const finish = async () => {
     let content: string;
     try {
-      const recentMessages = channelId ? await fetchRecentMessages(channelId, 18) : [];
-      content = await runAssistant({ userId: user.id, text, recentMessages, channelId });
+      content = await runAssistant({ userId: user.id, text, channelId });
     } catch (err) {
       console.error("[discord] /udm failed", err);
       content = "Something broke on my end — try again.";
