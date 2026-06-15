@@ -32,21 +32,15 @@ const INTEREST_SEEDS = [
   "books", "cooking experiments", "sports", "memes", "nostalgia", "guilty pleasures",
 ];
 
-const KIND = z.enum(["poll", "tierlist", "prediction", "reveal", "idea", "image"]);
-const SpontaneousOut = z.object({
-  intro: z.string().min(1).max(400),
-  kind: KIND,
-  question: z.string().max(300).optional(),
-  options: z.array(z.string().min(1).max(100)).max(8).optional(),
-  title: z.string().max(200).optional(),
-  items: z.array(z.string().min(1).max(120)).max(12).optional(),
-  text: z.string().max(500).optional(),
-  resolveInDays: z.coerce.number().int().min(1).max(365).optional(),
-  ideaTitle: z.string().max(300).optional(),
-  ideaDetail: z.string().max(1000).optional(),
-  imagePrompt: z.string().max(600).optional(),
-  caption: z.string().max(300).optional(),
-});
+const base = { intro: z.string().min(1).max(400) };
+const SpontaneousOut = z.discriminatedUnion("kind", [
+  z.object({ ...base, kind: z.literal("poll"),       question: z.string().min(1).max(300), options: z.array(z.string().min(1).max(100)).min(2).max(8) }),
+  z.object({ ...base, kind: z.literal("tierlist"),   title: z.string().min(1).max(200),    items: z.array(z.string().min(1).max(120)).min(2).max(12) }),
+  z.object({ ...base, kind: z.literal("reveal"),     title: z.string().min(1).max(200),    items: z.array(z.string().min(1).max(120)).min(2).max(8) }),
+  z.object({ ...base, kind: z.literal("prediction"), text: z.string().min(1).max(500),     resolveInDays: z.coerce.number().int().min(1).max(365) }),
+  z.object({ ...base, kind: z.literal("idea"),       ideaTitle: z.string().min(1).max(300), ideaDetail: z.string().max(1000).optional() }),
+  z.object({ ...base, kind: z.literal("image"),      imagePrompt: z.string().min(1).max(600), caption: z.string().max(300).optional() }),
+]);
 type SpontaneousOut = z.infer<typeof SpontaneousOut>;
 
 export const SPONTANEOUS_SYSTEM_DEFAULT = `You are UDM+, the resident AI gremlin of a tight friend group, posting UNPROMPTED into their Discord to keep things fun. Your job: invent ONE genuinely entertaining, engaging piece of content and a short intro line for it.
@@ -56,15 +50,17 @@ Pick what's fun, not what's obvious:
 - Use the inspiration as flavor and lore (inside jokes, running bits, who likes what), but the content itself should stand on its own and spark replies.
 - Vary the format. Across posts you should range over polls, tier lists, predictions, reveals, ideas, and the occasional image.
 
-Output JSON for exactly one piece:
-- intro: 1-2 sentence lead-in, in your voice (dry, ironic, a little unhinged, lowercase-casual fine). This is what you SAY when you drop it.
-- kind: one of poll | tierlist | prediction | reveal | idea | image
-- poll: { question, options: 2-6 short choices }
-- tierlist: { title, items: 4-12 things to rank }
-- prediction: { text (a falsifiable prediction), resolveInDays (when it can be judged) }
-- reveal: a blind-rank game → { title, items: 3-8 things everyone ranks privately }
-- idea: { ideaTitle, ideaDetail } — a genuinely fun thing for the group to do
-- image: { imagePrompt (vivid art prompt — make it funny/striking, can nod to group lore), caption }
+Output JSON for exactly one piece. Every field listed for the chosen kind is REQUIRED — the post won't happen if you leave them out:
+
+- poll:       { "kind":"poll",       "intro":"…", "question":"…", "options":["…","…","…"] }
+- tierlist:   { "kind":"tierlist",   "intro":"…", "title":"…",    "items":["…","…","…","…"] }
+- prediction: { "kind":"prediction", "intro":"…", "text":"…",     "resolveInDays":30 }
+- reveal:     { "kind":"reveal",     "intro":"…", "title":"…",    "items":["…","…","…"] }
+- idea:       { "kind":"idea",       "intro":"…", "ideaTitle":"…","ideaDetail":"…" }
+- image:      { "kind":"image",      "intro":"…", "imagePrompt":"…" }
+
+intro: 1-2 sentence lead-in in your voice (dry, ironic, lowercase-casual). This is what you SAY when you drop the piece.
+poll options: 2–6 short choices. tierlist/reveal items: 4–12 things. prediction text: a specific falsifiable claim.
 
 Make it land. Be specific and a little weird. No @everyone, no pinging.`;
 
@@ -134,51 +130,31 @@ async function gatherInspiration(channelId: string | null): Promise<string> {
  */
 async function createContent(out: SpontaneousOut, uid: string): Promise<string> {
   const run = TOOL_RUNNERS;
-  const title = out.title || out.question || out.ideaTitle;
-  const items = (out.items?.length ? out.items : out.options) ?? [];
-  const options = (out.options?.length ? out.options : out.items) ?? [];
-
-  const builders: Record<string, () => Promise<boolean>> = {
-    poll: async () => {
-      if (!out.question || options.length < 2) return false;
-      await run.create_poll(uid, { question: out.question, options: options.slice(0, 6) });
-      return true;
-    },
-    tierlist: async () => {
-      if (!title || items.length < 2) return false;
-      await run.create_tierlist(uid, { title, items });
-      return true;
-    },
-    reveal: async () => {
-      if (!title || items.length < 2) return false;
-      await run.create_reveal(uid, { type: "rank", title, items });
-      return true;
-    },
-    prediction: async () => {
-      if (!out.text) return false;
-      const resolvesAt = new Date(Date.now() + (out.resolveInDays ?? 7) * 864e5).toISOString();
+  switch (out.kind) {
+    case "poll":
+      await run.create_poll(uid, { question: out.question, options: out.options.slice(0, 6) });
+      return "poll";
+    case "tierlist":
+      await run.create_tierlist(uid, { title: out.title, items: out.items });
+      return "tierlist";
+    case "reveal":
+      await run.create_reveal(uid, { type: "rank", title: out.title, items: out.items });
+      return "reveal";
+    case "prediction": {
+      const resolvesAt = new Date(Date.now() + out.resolveInDays * 864e5).toISOString();
       await run.create_stake(uid, { text: out.text, resolvesAt, hidden: false });
-      return true;
-    },
-    idea: async () => {
-      if (!title) return false;
-      await run.create_idea(uid, { title, detail: out.ideaDetail });
-      return true;
-    },
-  };
-
-  // Try the chosen kind first, then everything else as a fallback.
-  const order = [out.kind, "poll", "tierlist", "reveal", "prediction", "idea"].filter(
-    (k, i, a) => k !== "image" && a.indexOf(k) === i,
-  );
-  for (const kind of order) {
-    if (await builders[kind]?.()) return kind;
+      return "prediction";
+    }
+    case "idea":
+      await run.create_idea(uid, { title: out.ideaTitle, detail: out.ideaDetail });
+      return "idea";
+    default:
+      throw new Error(`unexpected kind: ${(out as SpontaneousOut).kind}`);
   }
-  throw new Error(`no usable fields for kind=${out.kind} (q=${!!out.question} opts=${options.length} title=${!!title} items=${items.length} text=${!!out.text})`);
 }
 
 /** Generate an image, store it in the photobook, and post it inline. */
-async function postImage(out: SpontaneousOut, uid: string, channelId: string): Promise<boolean> {
+async function postImage(out: Extract<SpontaneousOut, { kind: "image" }>, uid: string, channelId: string): Promise<boolean> {
   const prompt = out.imagePrompt;
   if (!prompt) return false;
   const img = await generateImage(prompt);
@@ -251,16 +227,15 @@ export async function runSpontaneousPost(
       // image gen failed — fall through and try to post a text piece instead.
     }
 
-    // Build the content first; only post the intro if it actually built, so a
-    // failure never leaves a dangling intro with no card.
+    // Build the content first; only post the intro if it actually built — a
+    // failure must never leave a dangling intro with no card behind it.
     try {
       const built = await createContent(out, uid);
       if (postIntro) await postText(channelId, out.intro);
       return `posted ${built}`;
     } catch (err) {
       console.error("[discord] spontaneous build failed; out =", JSON.stringify(out).slice(0, 500), err);
-      if (postIntro) await postText(channelId, out.intro);
-      return `intro only — build failed: ${err instanceof Error ? err.message : err}`;
+      return `build failed (no intro posted): ${err instanceof Error ? err.message : err}`;
     }
   } finally {
     posting = false;
