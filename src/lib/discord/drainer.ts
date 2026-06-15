@@ -126,7 +126,7 @@ async function postRow(id: string, type: OutboxEventType, payload: unknown) {
       png,
       components,
       actorName,
-      statusLine: track ? initialStatusFor(type) : undefined,
+      statusLine: track ? initialStatusFor(type, p) : undefined,
       kind: track?.kind,
       refId: track?.refId,
     });

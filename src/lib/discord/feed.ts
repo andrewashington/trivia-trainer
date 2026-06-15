@@ -55,6 +55,7 @@ export type ModuleKey =
   | "snake"
   | "countdowns"
   | "challenges"
+  | "book"
   | "home";
 
 /** Accent hexes mirror tailwind.config.ts — Satori can't read Tailwind. */
@@ -80,6 +81,7 @@ export const moduleStyle: Record<
   snake: { accent: "#9B5DE5", accentText: "#FFFFFF", icon: "apple", label: "Snake" },
   countdowns: { accent: "#FF3366", accentText: "#FFFFFF", icon: "clock", label: "Countdowns" },
   challenges: { accent: "#C1440E", accentText: "#FFFFFF", icon: "bullseye-arrow", label: "Challenges" },
+  book: { accent: "#243B8F", accentText: "#FFFFFF", icon: "notebook", label: "The Book" },
   home: { accent: "#FFD60A", accentText: "#101010", icon: "home", label: "UDM+" },
 };
 
@@ -346,6 +348,15 @@ export function specFor(type: OutboxEventType, payload: Payload): CardSpec | nul
         actorId: str(payload, "addedBy"),
         path: "/",
       };
+    case "book.bet.placed":
+      return {
+        module: "book",
+        kicker: "THE BOOK IS OPEN",
+        headline: str(payload, "question") ?? "A fresh line",
+        sub: `{actor} slapped coins on ${str(payload, "outcome") ?? "a side"} — pick yours`,
+        actorId: str(payload, "userId"),
+        path: "/book",
+      };
     default:
       return null;
   }
@@ -372,6 +383,12 @@ export function trackRefFor(
     case "event.created": {
       const id = str(payload, "eventId");
       return id ? { kind: "event", refId: id } : null;
+    }
+    case "book.bet.placed": {
+      // One card per market: later bets rewrite this same message's tally line
+      // (see /api/book/bets → editTrackedMessage) instead of re-posting.
+      const id = str(payload, "marketId");
+      return id ? { kind: "book", refId: id } : null;
     }
     default:
       return null;

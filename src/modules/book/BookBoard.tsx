@@ -85,6 +85,45 @@ function categoryColor(cat: string | null) {
   return (cat && CATEGORY_COLOR[cat]) || "#243B8F";
 }
 
+// A flavorful stand-in icon when a market has no image (or a dead one).
+const CATEGORY_ICON: Record<string, IconName> = {
+  Sports: "trophy",
+  Crypto: "money",
+  Tech: "robot-face-happy",
+  Culture: "clapperboard",
+  Business: "chart-bar-big",
+  Politics: "scale",
+  World: "earth",
+  Science: "lightbulb",
+};
+
+function categoryIcon(cat: string | null): IconName {
+  return (cat && CATEGORY_ICON[cat]) || "notebook";
+}
+
+// Polymarket thumbnails are frequently missing OR a dead URL. Render the image
+// when it actually loads; otherwise fall back to a category-flavored icon tile
+// so a card never shows a broken-image glyph.
+function MarketThumb({ src, category }: { src: string | null; category: string | null }) {
+  const [ok, setOk] = useState(true);
+  if (src && ok) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt=""
+        onError={() => setOk(false)}
+        className="relative h-14 w-14 shrink-0 rounded-md border-2 border-ink object-cover shadow-brutal-sm"
+      />
+    );
+  }
+  return (
+    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-md border-2 border-ink bg-card shadow-brutal-sm">
+      <PixelIcon name={categoryIcon(category)} size={24} />
+    </div>
+  );
+}
+
 // Diagonal brutalist hatch reused on headers + probability bars for texture.
 const STRIPES =
   "repeating-linear-gradient(45deg, rgba(0,0,0,0.10) 0, rgba(0,0,0,0.10) 6px, transparent 6px, transparent 12px)";
@@ -542,18 +581,7 @@ export function BookBoard({
                       style={{ backgroundImage: `linear-gradient(120deg, ${color} 0%, ${color} 48%, #F4F1EA 150%)` }}
                     >
                       <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: STRIPES }} />
-                      {market.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={market.image}
-                          alt=""
-                          className="relative h-14 w-14 shrink-0 rounded-md border-2 border-ink object-cover shadow-brutal-sm"
-                        />
-                      ) : (
-                        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-md border-2 border-ink bg-card shadow-brutal-sm">
-                          <PixelIcon name="notebook" size={22} />
-                        </div>
-                      )}
+                      <MarketThumb src={market.image} category={market.category} />
                       <div className="relative flex min-w-0 flex-1 flex-wrap items-center gap-2">
                         <Badge className="bg-card text-ink">{market.category ?? "Polymarket"}</Badge>
                         <span

@@ -17,8 +17,18 @@ export const availableStatus = () => "🟢 Up for grabs — first tap wins";
 export const pollStatus = (total: number) =>
   total === 0 ? "📊 No votes yet — tap Vote" : `📊 ${total} vote${total === 1 ? "" : "s"} in`;
 
+/** The live tally line on a Book market card — Yes/No split + coins riding. */
+export const bookStatus = (yes: number, no: number, totalStake: number) =>
+  `🟢 ${yes} Yes · 🔴 ${no} No · 💰 ${totalStake.toLocaleString()} coins on the line`;
+
+const num = (p: Record<string, unknown> | undefined, key: string) =>
+  typeof p?.[key] === "number" ? (p[key] as number) : 0;
+
 /** The initial status line for a freshly-posted, trackable card. */
-export function initialStatusFor(type: OutboxEventType): string | undefined {
+export function initialStatusFor(
+  type: OutboxEventType,
+  payload?: Record<string, unknown>
+): string | undefined {
   switch (type) {
     case "event.created":
       return rsvpStatus(0, 0, 0);
@@ -26,6 +36,8 @@ export function initialStatusFor(type: OutboxEventType): string | undefined {
       return availableStatus();
     case "poll.created":
       return pollStatus(0);
+    case "book.bet.placed":
+      return bookStatus(num(payload, "yesCount"), num(payload, "noCount"), num(payload, "totalStake"));
     default:
       return undefined;
   }

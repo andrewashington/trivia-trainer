@@ -84,7 +84,8 @@ export type OutboxEventType =
   | "discord.drop.created"
   | "discord.drop.claimed"
   | "discord.coinflip.created"
-  | "discord.coinflip.settled";
+  | "discord.coinflip.settled"
+  | "book.bet.placed";
 
 /**
  * Write a domain event (and apply any coin award it earns) on an open
