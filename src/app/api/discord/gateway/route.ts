@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { botConfig, discordApi } from "@/lib/discord/bot";
 import { getDiscordSettings } from "@/lib/discord/settings";
 import { runAssistant } from "@/lib/discord/assistant";
+import { fetchRecentMessages } from "@/lib/discord/history";
 
 /**
  * Forward endpoint for the @mention sidecar (services/discord-gateway). The
@@ -32,6 +33,7 @@ export async function POST(req: Request) {
   let payload: {
     discordUserId?: unknown;
     channelId?: unknown;
+    messageId?: unknown;
     text?: unknown;
     referenced?: { content?: unknown } | null;
   };
@@ -46,13 +48,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
   const text = typeof payload.text === "string" ? payload.text : "";
+  const messageId = typeof payload.messageId === "string" ? payload.messageId : undefined;
   const sourceMessage =
     payload.referenced && typeof payload.referenced.content === "string"
       ? payload.referenced.content
       : undefined;
 
   // Process async; ack the sidecar fast so it isn't blocked on the model call.
-  void handleMention({ discordUserId, channelId, text, sourceMessage });
+  void handleMention({ discordUserId, channelId, text, sourceMessage, messageId });
   return NextResponse.json({ ok: true });
 }
 
@@ -61,6 +64,7 @@ async function handleMention(input: {
   channelId: string;
   text: string;
   sourceMessage?: string;
+  messageId?: string;
 }) {
   try {
     const user = await db.user.findUnique({ where: { discordUserId: input.discordUserId } });
@@ -85,10 +89,15 @@ async function handleMention(input: {
     // Typing indicator while the model thinks (best-effort).
     await discordApi(`/channels/${input.channelId}/typing`, { method: "POST" }).catch(() => {});
 
+    // Recent channel context so "make a poll about this chat" works (skip the
+    // triggering @mention itself).
+    const recentMessages = await fetchRecentMessages(input.channelId, 18, input.messageId);
+
     const reply = await runAssistant({
       userId: user.id,
       text: input.text,
       sourceMessage: input.sourceMessage,
+      recentMessages,
     });
     await postChannel(input.channelId, `<@${input.discordUserId}> ${reply}`);
   } catch (err) {
