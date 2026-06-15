@@ -12,7 +12,7 @@ const TABS: { href: string; label: string; icon: IconName }[] = [
   { href: "/discord-stats/channels", label: "Channels", icon: "megaphone" },
   { href: "/discord-stats/hall-of-fame", label: "Hall of Fame", icon: "trophy" },
   { href: "/discord-stats/rhythms", label: "Rhythms", icon: "clock" },
-  { href: "/discord-stats/soulmates", label: "Soulmates", icon: "heart" },
+  { href: "/discord-stats/soulmates", label: "Social", icon: "heart" },
   { href: "/discord-stats/lexicon", label: "Lexicon", icon: "book-open" },
 ];
 

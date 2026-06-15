@@ -7,9 +7,9 @@ import {
   getActivityByMonth,
   getLeaderboard,
   getNightOwls,
-  getRepliedToLeaders,
+  getConnectorLeaders,
   getHallOfFame,
-  getPowerPairs,
+  getSocialEdges,
   getTimeMachine,
 } from "@/modules/discord-stats/queries";
 import { resolveIdentities } from "@/modules/discord-stats/identity";
@@ -28,27 +28,28 @@ import { compact, full, shortDate } from "@/modules/discord-stats/format";
 export const dynamic = "force-dynamic";
 
 export default async function DiscordStatsOverview() {
-  const [totals, byMonth, leaders, nightOwls, repliedTo, fame, pairs, timeMachine] = await Promise.all([
+  const [totals, byMonth, leaders, nightOwls, connectors, fame, edges, timeMachine] = await Promise.all([
     getOverviewTotals(),
     getActivityByMonth(),
     getLeaderboard(),
     getNightOwls(),
-    getRepliedToLeaders(),
+    getConnectorLeaders(),
     getHallOfFame({ limit: 3 }),
-    getPowerPairs(),
+    getSocialEdges(),
     getTimeMachine(),
   ]);
 
-  const superlatives = computeSuperlatives({ leaders, nightOwls, repliedTo, topFame: fame[0] ?? null });
+  const superlatives = computeSuperlatives({ leaders, nightOwls, connectors, topFame: fame[0] ?? null });
+  const pairs = edges.slice(0, 6);
 
   // Resolve every author we're about to render in one batch.
   const authorSeed = [
     ...leaders.map((l) => ({ authorId: l.authorId, authorName: l.authorName })),
-    ...repliedTo.map((r) => ({ authorId: r.authorId, authorName: r.authorName })),
+    ...connectors.map((r) => ({ authorId: r.authorId, authorName: r.authorName })),
     ...fame.map((f) => ({ authorId: f.authorId, authorName: f.authorName })),
     ...pairs.flatMap((p) => [
-      { authorId: p.replierId, authorName: p.replierName },
-      { authorId: p.targetId, authorName: p.targetName },
+      { authorId: p.a1, authorName: p.a1Name },
+      { authorId: p.a2, authorName: p.a2Name },
     ]),
   ];
   const ids = await resolveIdentities(authorSeed);
@@ -134,18 +135,18 @@ export default async function DiscordStatsOverview() {
       {pairs.length > 0 && (
         <section className="space-y-2">
           <div className="flex items-center justify-between">
-            <SectionTitle>Power pairs</SectionTitle>
+            <SectionTitle>Inseparable (most shared conversations)</SectionTitle>
             <Link href="/discord-stats/soulmates" className="font-mono text-xs uppercase text-accent-blurple no-underline">
-              soulmates →
+              the graph →
             </Link>
           </div>
           <Card className="flex flex-wrap gap-x-6 gap-y-2">
-            {pairs.slice(0, 6).map((p, i) => (
+            {pairs.map((p, i) => (
               <div key={i} className="flex items-center gap-2">
-                <AuthorChip identity={ids.get(p.replierId)!} />
+                <AuthorChip identity={ids.get(p.a1)!} />
                 <PixelIcon name="arrows-horizontal" size={14} />
-                <AuthorChip identity={ids.get(p.targetId)!} />
-                <span className="font-mono text-xs text-ink/50">×{p.count}</span>
+                <AuthorChip identity={ids.get(p.a2)!} />
+                <span className="font-mono text-xs text-ink/50">{p.shared.toLocaleString()}</span>
               </div>
             ))}
           </Card>

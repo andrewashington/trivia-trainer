@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Avatar, Card, Badge } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
-import { getMemberProfile, getLeaderboard } from "@/modules/discord-stats/queries";
+import { getMemberProfile, getLeaderboard, getConversationPartners } from "@/modules/discord-stats/queries";
 import { getFingerprint } from "@/modules/discord-stats/fingerprint";
 import { getDossier, getSoulmates } from "@/modules/discord-stats/insights";
 import { resolveIdentities, resolveIdentity } from "@/modules/discord-stats/identity";
@@ -23,20 +23,20 @@ export default async function MemberProfilePage({ params }: { params: { authorId
   const [profile, leaders] = await Promise.all([getMemberProfile(authorId), getLeaderboard()]);
   if (!profile) notFound();
 
-  const [fingerprint, dossier, soulmates] = await Promise.all([
+  const [fingerprint, dossier, soulmates, partners] = await Promise.all([
     getFingerprint(authorId),
     getDossier(authorId),
     getSoulmates(authorId),
+    getConversationPartners(authorId),
   ]);
 
   const me = await resolveIdentity(authorId, profile.authorName);
   const rank = leaders.findIndex((l) => l.authorId === authorId);
   const row = rank >= 0 ? leaders[rank] : null;
 
-  // Resolve everyone referenced (reply partners + soulmates).
+  // Resolve everyone referenced (conversation partners + soulmates).
   const partnerSeed = [
-    ...profile.repliesTo.map((p) => ({ authorId: p.targetId, authorName: p.targetName })),
-    ...profile.repliedBy.map((p) => ({ authorId: p.replierId, authorName: p.replierName })),
+    ...partners.map((p) => ({ authorId: p.authorId, authorName: p.authorName })),
     ...soulmates.map((s) => ({ authorId: s.authorId, authorName: s.authorName })),
   ];
   const ids = await resolveIdentities(partnerSeed);
@@ -119,32 +119,17 @@ export default async function MemberProfilePage({ params }: { params: { authorId
           <SectionTitle>Who they talk to</SectionTitle>
           <Card className="space-y-3">
             <div>
-              <p className="brutal-label text-ink/50">Replies most to</p>
+              <p className="brutal-label text-ink/50">Talks alongside (shared conversations)</p>
               <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-                {profile.repliesTo.length ? (
-                  profile.repliesTo.map((p) => (
-                    <span key={p.targetId} className="flex items-center gap-1">
-                      <AuthorChip identity={ids.get(p.targetId)!} />
-                      <span className="font-mono text-xs text-ink/40">×{p.count}</span>
+                {partners.length ? (
+                  partners.map((p) => (
+                    <span key={p.authorId} className="flex items-center gap-1">
+                      <AuthorChip identity={ids.get(p.authorId)!} />
+                      <span className="font-mono text-xs text-ink/40">{p.shared.toLocaleString()}</span>
                     </span>
                   ))
                 ) : (
                   <span className="text-sm text-ink/40">A lone wolf.</span>
-                )}
-              </div>
-            </div>
-            <div>
-              <p className="brutal-label text-ink/50">Gets replies from</p>
-              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-                {profile.repliedBy.length ? (
-                  profile.repliedBy.map((p) => (
-                    <span key={p.replierId} className="flex items-center gap-1">
-                      <AuthorChip identity={ids.get(p.replierId)!} />
-                      <span className="font-mono text-xs text-ink/40">×{p.count}</span>
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-sm text-ink/40">Speaks into the void.</span>
                 )}
               </div>
             </div>

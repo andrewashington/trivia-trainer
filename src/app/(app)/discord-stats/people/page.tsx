@@ -20,7 +20,6 @@ export default async function PeoplePage() {
       reactionsReceived: l.reactionsReceived,
       reactionRate: l.reactionRate,
       avgLen: l.avgLen,
-      repliesSent: l.repliesSent,
       channels: l.channels,
     };
   });

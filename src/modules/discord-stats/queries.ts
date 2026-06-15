@@ -85,7 +85,6 @@ export type LeaderRow = {
   reactionRate: number; // reactions received per message
   avgLen: number;
   maxLen: number;
-  repliesSent: number;
   channels: number;
   firstAt: Date | null;
   lastAt: Date | null;
@@ -101,7 +100,6 @@ async function leaderboardUncached(): Promise<LeaderRow[]> {
       reacted_msgs: number;
       avg_len: number | null;
       max_len: number | null;
-      replies_sent: number;
       channels: number;
       first_at: Date | null;
       last_at: Date | null;
@@ -115,7 +113,6 @@ async function leaderboardUncached(): Promise<LeaderRow[]> {
       count(*) FILTER (WHERE reaction_count > 0)::int AS reacted_msgs,
       avg(length(content)) FILTER (WHERE content <> '')::float8 AS avg_len,
       coalesce(max(length(content)), 0)::int AS max_len,
-      count(*) FILTER (WHERE reply_to_id IS NOT NULL)::int AS replies_sent,
       count(DISTINCT channel_id)::int AS channels,
       min(sent_at) AS first_at,
       max(sent_at) AS last_at
@@ -134,7 +131,6 @@ async function leaderboardUncached(): Promise<LeaderRow[]> {
     reactionRate: r.messages ? r.reactions_received / r.messages : 0,
     avgLen: Math.round(r.avg_len ?? 0),
     maxLen: r.max_len ?? 0,
-    repliesSent: r.replies_sent,
     channels: r.channels,
     firstAt: r.first_at,
     lastAt: r.last_at,
@@ -333,69 +329,95 @@ export async function getHallOfFame(opts: { year?: number; limit?: number } = {}
   }));
 }
 
-export type ReplyPair = {
-  replierId: string;
-  replierName: string;
-  targetId: string;
-  targetName: string;
-  count: number;
+// ---- The social graph: SEGMENT CO-PARTICIPATION ----
+// This group barely uses Discord replies (~4% of messages) — they converse in
+// bursts, which is exactly why segments exist. So "who's connected to whom" is
+// measured by how many conversation bursts two people BOTH show up in, not by
+// replies. Computing every pair once is cheap (~1s) and there are only a few
+// hundred edges, so we cache the whole edge set and derive per-author partners,
+// the graph, and the "connector" superlative from it in memory.
+export type SocialEdge = {
+  a1: string;
+  a1Name: string;
+  a2: string;
+  a2Name: string;
+  shared: number; // conversation bursts both took part in
 };
 
-async function powerPairsUncached(limit = 20): Promise<ReplyPair[]> {
+async function socialEdgesUncached(): Promise<SocialEdge[]> {
   const rows = await db.$queryRaw<
-    {
-      replier_id: string;
-      replier_name: string;
-      target_id: string;
-      target_name: string;
-      n: number;
-    }[]
+    { a1: string; a1_name: string; a2: string; a2_name: string; shared: number }[]
   >`
-    SELECT r.author_id AS replier_id, r.author_name AS replier_name,
-           p.author_id AS target_id, p.author_name AS target_name,
-           count(*)::int AS n
-    FROM discord_archive.messages r
-    JOIN discord_archive.messages p ON p.id = r.reply_to_id
-    WHERE r.deleted_at IS NULL AND r.is_bot = false AND p.is_bot = false
-      AND r.author_id <> p.author_id
-    GROUP BY 1, 2, 3, 4
-    ORDER BY n DESC
-    LIMIT ${limit}
+    WITH sa AS (
+      SELECT s.id AS seg, m.author_id
+      FROM discord_archive.message_segments s
+      JOIN discord_archive.messages m
+        ON m.channel_id = s.channel_id AND m.sent_at BETWEEN s.start_at AND s.end_at
+       AND m.is_bot = false AND m.deleted_at IS NULL
+      GROUP BY s.id, m.author_id
+    ),
+    names AS (
+      SELECT author_id, (array_agg(author_name ORDER BY sent_at DESC))[1] AS name
+      FROM discord_archive.messages WHERE deleted_at IS NULL AND is_bot = false GROUP BY author_id
+    ),
+    edges AS (
+      SELECT a.author_id AS a1, b.author_id AS a2, count(*)::int AS shared
+      FROM sa a JOIN sa b ON a.seg = b.seg AND a.author_id < b.author_id
+      GROUP BY 1, 2
+    )
+    SELECT e.a1, n1.name AS a1_name, e.a2, n2.name AS a2_name, e.shared
+    FROM edges e
+    JOIN names n1 ON n1.author_id = e.a1
+    JOIN names n2 ON n2.author_id = e.a2
+    WHERE e.shared >= 30
+    ORDER BY e.shared DESC
   `;
   return rows.map((r) => ({
-    replierId: r.replier_id,
-    replierName: r.replier_name,
-    targetId: r.target_id,
-    targetName: r.target_name,
-    count: r.n,
+    a1: r.a1,
+    a1Name: r.a1_name,
+    a2: r.a2,
+    a2Name: r.a2_name,
+    shared: r.shared,
   }));
 }
 
-export const getPowerPairs = unstable_cache(
-  () => powerPairsUncached(24),
-  ["dstats-powerpairs"],
-  { revalidate: 1800 },
-);
+export const getSocialEdges = unstable_cache(socialEdgesUncached, ["dstats-social-edges"], {
+  revalidate: 1800,
+});
 
-export type RepliedToRow = { authorId: string; authorName: string; count: number };
+export type Partner = { authorId: string; authorName: string; shared: number };
 
-/** Who gets replied to the most — the group's main characters. */
-export const getRepliedToLeaders = unstable_cache(
-  async (): Promise<RepliedToRow[]> => {
-    const rows = await db.$queryRaw<{ author_id: string; author_name: string; n: number }[]>`
-      SELECT p.author_id, (array_agg(p.author_name ORDER BY p.sent_at DESC))[1] AS author_name,
-             count(*)::int AS n
-      FROM discord_archive.messages r
-      JOIN discord_archive.messages p ON p.id = r.reply_to_id
-      WHERE r.deleted_at IS NULL AND r.is_bot = false AND p.is_bot = false
-        AND r.author_id <> p.author_id
-      GROUP BY p.author_id ORDER BY n DESC LIMIT 30
-    `;
-    return rows.map((r) => ({ authorId: r.author_id, authorName: r.author_name, count: r.n }));
-  },
-  ["dstats-repliedto"],
-  { revalidate: 1800 },
-);
+/** One author's top conversation partners (derived from the cached edge set). */
+export async function getConversationPartners(authorId: string, limit = 8): Promise<Partner[]> {
+  const edges = await getSocialEdges();
+  const partners: Partner[] = [];
+  for (const e of edges) {
+    if (e.a1 === authorId) partners.push({ authorId: e.a2, authorName: e.a2Name, shared: e.shared });
+    else if (e.a2 === authorId) partners.push({ authorId: e.a1, authorName: e.a1Name, shared: e.shared });
+  }
+  partners.sort((a, b) => b.shared - a.shared);
+  return partners.slice(0, limit);
+}
+
+export type ConnectorRow = { authorId: string; authorName: string; total: number };
+
+/** Total co-participation per author — the social hubs (for the superlative). */
+export async function getConnectorLeaders(limit = 30): Promise<ConnectorRow[]> {
+  const edges = await getSocialEdges();
+  const totals = new Map<string, { name: string; total: number }>();
+  for (const e of edges) {
+    const x = totals.get(e.a1) ?? { name: e.a1Name, total: 0 };
+    x.total += e.shared;
+    totals.set(e.a1, x);
+    const y = totals.get(e.a2) ?? { name: e.a2Name, total: 0 };
+    y.total += e.shared;
+    totals.set(e.a2, y);
+  }
+  return [...totals.entries()]
+    .map(([authorId, v]) => ({ authorId, authorName: v.name, total: v.total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+}
 
 export type SpikeDay = {
   date: string;
@@ -485,8 +507,6 @@ export type MemberProfile = {
   busiestChannel: { channelId: string; name: string | null; count: number } | null;
   busiestHour: number | null;
   byYear: YearRow[];
-  repliesTo: ReplyPair[];
-  repliedBy: ReplyPair[];
   longest: { content: string; sentAt: Date; channelName: string | null } | null;
   hallOfFame: FameMessage[];
 };
@@ -523,28 +543,6 @@ export async function getMemberProfile(authorId: string): Promise<MemberProfile 
     GROUP BY 1 ORDER BY 1 ASC
   `;
 
-  const repliesTo = await db.$queryRaw<
-    { replier_id: string; replier_name: string; target_id: string; target_name: string; n: number }[]
-  >`
-    SELECT r.author_id AS replier_id, r.author_name AS replier_name,
-           p.author_id AS target_id, p.author_name AS target_name, count(*)::int AS n
-    FROM discord_archive.messages r
-    JOIN discord_archive.messages p ON p.id = r.reply_to_id
-    WHERE r.author_id = ${authorId} AND r.deleted_at IS NULL AND p.author_id <> r.author_id
-    GROUP BY 1, 2, 3, 4 ORDER BY n DESC LIMIT 6
-  `;
-
-  const repliedBy = await db.$queryRaw<
-    { replier_id: string; replier_name: string; target_id: string; target_name: string; n: number }[]
-  >`
-    SELECT r.author_id AS replier_id, r.author_name AS replier_name,
-           p.author_id AS target_id, p.author_name AS target_name, count(*)::int AS n
-    FROM discord_archive.messages r
-    JOIN discord_archive.messages p ON p.id = r.reply_to_id
-    WHERE p.author_id = ${authorId} AND r.deleted_at IS NULL AND r.author_id <> p.author_id
-    GROUP BY 1, 2, 3, 4 ORDER BY n DESC LIMIT 6
-  `;
-
   const [longest] = await db.$queryRaw<{ content: string; sent_at: Date; name: string | null }[]>`
     SELECT m.content, m.sent_at, c.name
     FROM discord_archive.messages m
@@ -571,20 +569,6 @@ export async function getMemberProfile(authorId: string): Promise<MemberProfile 
     ORDER BY m.reaction_count DESC, m.sent_at DESC LIMIT 5
   `;
 
-  const mapPair = (r: {
-    replier_id: string;
-    replier_name: string;
-    target_id: string;
-    target_name: string;
-    n: number;
-  }): ReplyPair => ({
-    replierId: r.replier_id,
-    replierName: r.replier_name,
-    targetId: r.target_id,
-    targetName: r.target_name,
-    count: r.n,
-  });
-
   return {
     authorId,
     authorName: name.author_name,
@@ -593,8 +577,6 @@ export async function getMemberProfile(authorId: string): Promise<MemberProfile 
       : null,
     busiestHour: hour?.hour ?? null,
     byYear,
-    repliesTo: repliesTo.map(mapPair),
-    repliedBy: repliedBy.map(mapPair),
     longest: longest
       ? { content: longest.content, sentAt: longest.sent_at, channelName: longest.name }
       : null,

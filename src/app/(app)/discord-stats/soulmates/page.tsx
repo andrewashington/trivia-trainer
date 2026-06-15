@@ -1,37 +1,75 @@
 import { Card } from "@/components/ui";
 import { PixelIcon } from "@/components/icons";
 import { getSoulmateBoard } from "@/modules/discord-stats/insights";
-import { getPowerPairs } from "@/modules/discord-stats/queries";
+import { getSocialEdges, getLeaderboard } from "@/modules/discord-stats/queries";
 import { resolveIdentities } from "@/modules/discord-stats/identity";
 import { AuthorChip, NeedsBuild, SectionTitle } from "@/modules/discord-stats/components/parts";
+import { SocialGraph, type GraphNode, type GraphEdge } from "@/modules/discord-stats/components/SocialGraph";
 
 export const dynamic = "force-dynamic";
 
-export default async function SoulmatesPage() {
-  const [board, pairs] = await Promise.all([getSoulmateBoard(), getPowerPairs()]);
+const MAX_NODES = 18;
+
+export default async function SocialPage() {
+  const [edges, leaders, board] = await Promise.all([
+    getSocialEdges(),
+    getLeaderboard(),
+    getSoulmateBoard(),
+  ]);
+
+  // Graph nodes: the most active authors who appear in the edge set; edges
+  // among them only, capped, so the graph stays legible.
+  const messagesById = new Map(leaders.map((l) => [l.authorId, l.messages]));
+  const inEdges = new Set(edges.flatMap((e) => [e.a1, e.a2]));
+  const nodeIds = leaders
+    .filter((l) => inEdges.has(l.authorId))
+    .slice(0, MAX_NODES)
+    .map((l) => l.authorId);
+  const nodeSet = new Set(nodeIds);
+  const graphEdges: GraphEdge[] = edges
+    .filter((e) => nodeSet.has(e.a1) && nodeSet.has(e.a2))
+    .map((e) => ({ a: e.a1, b: e.a2, shared: e.shared }));
 
   const ids = await resolveIdentities([
+    ...edges.flatMap((e) => [
+      { authorId: e.a1, authorName: e.a1Name },
+      { authorId: e.a2, authorName: e.a2Name },
+    ]),
     ...board.flatMap((b) => [
       { authorId: b.authorId, authorName: b.authorName },
       { authorId: b.matchId, authorName: b.matchName },
     ]),
-    ...pairs.flatMap((p) => [
-      { authorId: p.replierId, authorName: p.replierName },
-      { authorId: p.targetId, authorName: p.targetName },
-    ]),
   ]);
+
+  const nodes: GraphNode[] = nodeIds.map((id) => {
+    const idn = ids.get(id)!;
+    return { authorId: id, name: idn.name, avatarUrl: idn.avatarUrl, weight: messagesById.get(id) ?? 1 };
+  });
 
   const tightest = [...board].sort((a, b) => b.similarity - a.similarity)[0] ?? null;
 
   return (
     <div className="space-y-8">
       <section className="space-y-2">
-        <SectionTitle>Who thinks alike</SectionTitle>
+        <SectionTitle>The social graph · who shares conversations</SectionTitle>
         <p className="max-w-2xl text-sm text-ink/65">
-          Each person becomes a single vector — the average of everything they&apos;ve ever said. The
-          closest match is who they&apos;re most semantically alike, regardless of who replies to whom.
+          The group barely uses replies — you talk in bursts. So this maps who actually shows up in
+          the same conversations: thicker lines = more shared bursts, bigger dots = more active.
+          Hover anyone to isolate their circle.
         </p>
+        {nodes.length >= 2 ? (
+          <SocialGraph nodes={nodes} edges={graphEdges} />
+        ) : (
+          <p className="text-sm text-ink/50">Not enough conversation data yet.</p>
+        )}
+      </section>
 
+      <section className="space-y-2">
+        <SectionTitle>Who thinks alike (semantic)</SectionTitle>
+        <p className="max-w-2xl text-sm text-ink/65">
+          A different lens: each person becomes the average of everything they&apos;ve said, then
+          matched on meaning — independent of who they hang out with.
+        </p>
         {board.length === 0 ? (
           <NeedsBuild what="Semantic soulmates" />
         ) : (
@@ -66,22 +104,6 @@ export default async function SoulmatesPage() {
           </>
         )}
       </section>
-
-      {pairs.length > 0 && (
-        <section className="space-y-2">
-          <SectionTitle>Power pairs (who actually replies to whom)</SectionTitle>
-          <Card className="space-y-1.5">
-            {pairs.map((p, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <AuthorChip identity={ids.get(p.replierId)!} />
-                <PixelIcon name="chevron-right" size={12} />
-                <AuthorChip identity={ids.get(p.targetId)!} />
-                <span className="ml-auto font-mono text-xs text-ink/50">{p.count.toLocaleString()} replies</span>
-              </div>
-            ))}
-          </Card>
-        </section>
-      )}
     </div>
   );
 }

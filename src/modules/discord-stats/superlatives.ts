@@ -1,5 +1,5 @@
 import type { IconName } from "@/components/icons";
-import type { LeaderRow, RepliedToRow, FameMessage } from "./queries";
+import type { LeaderRow, ConnectorRow, FameMessage } from "./queries";
 
 /**
  * The UDMies — satirical, auto-computed awards derived purely from the already-
@@ -21,10 +21,10 @@ const RATE_FLOOR = 500; // min messages to qualify for per-message awards
 export function computeSuperlatives(input: {
   leaders: LeaderRow[];
   nightOwls: { authorId: string; authorName: string; lateShare: number }[];
-  repliedTo: RepliedToRow[];
+  connectors: ConnectorRow[];
   topFame: FameMessage | null;
 }): Superlative[] {
-  const { leaders, nightOwls, repliedTo, topFame } = input;
+  const { leaders, nightOwls, connectors, topFame } = input;
   const qualified = leaders.filter((l) => l.messages >= RATE_FLOOR);
   const out: Superlative[] = [];
 
@@ -59,11 +59,8 @@ export function computeSuperlatives(input: {
   const fewWords = min(qualified, (l) => l.avgLen);
   add("few-words", "Man Of Few Words", "check", "Brevity. The whole bit.", fewWords, fewWords ? `${fewWords.avgLen} chars / msg avg` : "");
 
-  const replyGuy = max(leaders, (l) => l.repliesSent);
-  add("reply-guy", "The Reply Guy", "arrows-horizontal", "Has an opinion on everything you said.", replyGuy, replyGuy ? `${replyGuy.repliesSent.toLocaleString()} replies sent` : "");
-
-  const mainChar = repliedTo[0] ?? null;
-  add("main-character", "The Main Character", "crown", "Everything orbits this person.", mainChar, mainChar ? `replied to ${mainChar.count.toLocaleString()} times` : "");
+  const connector = connectors[0] ?? null;
+  add("connector", "The Connector", "users", "In the room for everything. The social glue.", connector, connector ? `${connector.total.toLocaleString()} shared conversations` : "");
 
   const owl = nightOwls[0] ?? null;
   add("night-creature", "Night Creature", "moon", "Most active when sane people sleep.", owl, owl ? `${Math.round(owl.lateShare * 100)}% of posts after midnight` : "");

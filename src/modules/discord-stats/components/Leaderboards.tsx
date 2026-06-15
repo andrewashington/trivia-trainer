@@ -12,7 +12,6 @@ export type LeaderView = {
   reactionsReceived: number;
   reactionRate: number;
   avgLen: number;
-  repliesSent: number;
   channels: number;
 };
 
@@ -23,7 +22,6 @@ const METRICS: { key: MetricKey; label: string; fmt: (n: number) => string }[] =
   { key: "reactionsReceived", label: "Reactions won", fmt: (n) => n.toLocaleString() },
   { key: "reactionRate", label: "Reaction rate", fmt: (n) => `${n.toFixed(2)}/msg` },
   { key: "avgLen", label: "Avg length", fmt: (n) => `${n} ch` },
-  { key: "repliesSent", label: "Replies sent", fmt: (n) => n.toLocaleString() },
   { key: "channels", label: "Channels", fmt: (n) => `${n}` },
 ];
 
