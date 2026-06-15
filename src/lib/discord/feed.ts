@@ -1,6 +1,7 @@
 import type { OutboxEventType } from "@/lib/outbox";
 import type { IconName } from "@/components/icons";
 import { feedContribution } from "@/lib/discord/registry";
+import { BOOK_DISCORD_STAKE } from "@/modules/book/constants";
 
 /**
  * Phase-1 Discord feed: which outbox events get announced, and how.
@@ -34,6 +35,8 @@ export type CardExtras = {
   options?: string[];
   /** Labeled rows (when/where, detail). */
   facts?: { label: string; value: string }[];
+  /** Bettor avatar collage (The Book): inlined data URIs per side + overflow. */
+  avatars?: { yes: string[]; no: string[]; yesMore?: number; noMore?: number };
 };
 
 export type ModuleKey =
@@ -135,6 +138,17 @@ export function componentsFor(type: OutboxEventType, payload: Payload): object[]
       const id = str(payload, "ideaId");
       if (!id) return null;
       return [row(btn(1, "▲ Upvote", `idea:up:${id}`))];
+    }
+    case "book.bet.placed": {
+      const id = str(payload, "marketId");
+      if (!id) return null;
+      // One-tap bets at a fixed unit — custom_id is book:<outcome>:<marketId>.
+      return [
+        row(
+          btn(3, `Bet Yes · ${BOOK_DISCORD_STAKE}`, `book:Yes:${id}`),
+          btn(4, `Bet No · ${BOOK_DISCORD_STAKE}`, `book:No:${id}`)
+        ),
+      ];
     }
     default:
       return null;

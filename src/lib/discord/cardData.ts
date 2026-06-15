@@ -62,6 +62,12 @@ export async function cardExtras(
       const when = formatWhen(str("targetAt"));
       return when ? { facts: [{ label: "LANDS", value: when }] } : {};
     }
+    case "book.bet.placed": {
+      const id = str("marketId");
+      if (!id) return {};
+      const { bookAvatars } = await import("@/modules/book/discordCard");
+      return { avatars: await bookAvatars(id) };
+    }
     default:
       return {};
   }

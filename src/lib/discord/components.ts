@@ -144,6 +144,29 @@ export async function editV2(
 }
 
 /**
+ * Edit a Components-V2 message AND replace its image with a freshly-uploaded
+ * PNG, in one multipart PATCH. The new file becomes attachment 0 (referenced by
+ * a mediaGallery via `attachment://card.png`); the old upload is dropped. Used
+ * to live-update a card whose picture changes (e.g. The Book's avatar collage).
+ */
+export async function editCardImageV2(
+  channelId: string,
+  messageId: string,
+  components: object[],
+  png: Buffer
+): Promise<void> {
+  const payload = {
+    flags: IS_COMPONENTS_V2,
+    components,
+    attachments: [{ id: 0, filename: "card.png" }],
+  };
+  const form = new FormData();
+  form.append("payload_json", JSON.stringify(payload));
+  form.append("files[0]", new Blob([new Uint8Array(png)], { type: "image/png" }), "card.png");
+  await discordApi(`/channels/${channelId}/messages/${messageId}`, { method: "PATCH", body: form });
+}
+
+/**
  * Replace components by id within a V2 container tree, preserving everything
  * else (text, the image with its resolved CDN url, the link button). A null
  * replacement drops that component. Used to live-edit a tracked card without

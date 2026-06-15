@@ -39,6 +39,11 @@ const FACT_ROW_H = 32;
 const ROW_GAP = 8;
 const MORE_ROW_H = 24;
 
+// Avatar-collage block (The Book): two sides of overlapping bettor faces.
+const AVATAR_BLOCK_H = 64;
+const AV_SIZE = 40;
+const AV_OVERLAP = 12;
+
 // Usable text width inside both paddings + the border, for line estimation.
 const CONTENT_W = W - OUTER_PAD * 2 - INNER_PAD_X * 2 - BORDER * 2;
 
@@ -102,14 +107,18 @@ export async function renderCardPng(
       ? facts.length * FACT_ROW_H + (facts.length - 1) * ROW_GAP
       : 0;
 
+  const avatars = extras.avatars;
+  const avatarsH = avatars ? AVATAR_BLOCK_H : 0;
+
   // Exact content height = chip + headline + optional badge + optional body +
-  // footer, with one GAP between each present block.
+  // optional avatar collage + footer, with one GAP between each present block.
   const content =
     CHIP_H +
     GAP +
     headlineH +
     (extras.badge ? GAP + BADGE_H : 0) +
     (bodyH ? GAP + bodyH : 0) +
+    (avatarsH ? GAP + avatarsH : 0) +
     GAP +
     FOOTER_H;
   const H = OUTER_PAD * 2 + BORDER * 2 + INNER_PAD_TOP + INNER_PAD_BOTTOM + content + 4;
@@ -302,6 +311,112 @@ export async function renderCardPng(
                   </div>
                   <div style={{ display: "flex", fontSize: 22, lineHeight: `${FACT_ROW_H}px`, color: INK }}>
                     {clamp(f.value, 44)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {/* avatar collage: bettors stacked on each side of the line */}
+          {avatars ? (
+            <div
+              style={{
+                display: "flex",
+                height: AVATAR_BLOCK_H,
+                flexShrink: 0,
+                alignItems: "center",
+                border: `3px solid ${INK}`,
+                backgroundColor: "#F4F1EA",
+              }}
+            >
+              {([
+                ["YES", "#3DDC4E", avatars.yes, avatars.yesMore ?? 0, "flex-start"],
+                ["NO", "#FF4D2E", avatars.no, avatars.noMore ?? 0, "flex-end"],
+              ] as const).map(([label, color, faces, more, justify], side) => (
+                <div
+                  key={label}
+                  style={{
+                    display: "flex",
+                    width: "50%",
+                    height: "100%",
+                    alignItems: "center",
+                    justifyContent: justify,
+                    gap: 10,
+                    padding: "0 14px",
+                    flexDirection: side === 1 ? "row-reverse" : "row",
+                    borderLeft: side === 1 ? `3px solid ${INK}` : undefined,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      height: 26,
+                      alignItems: "center",
+                      backgroundColor: color,
+                      color: INK,
+                      border: `2px solid ${INK}`,
+                      padding: "0 8px",
+                      fontFamily: "Space Mono",
+                      fontSize: 15,
+                      lineHeight: "26px",
+                      letterSpacing: 1,
+                    }}
+                  >
+                    {label}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    {faces.length === 0 ? (
+                      <span
+                        style={{
+                          display: "flex",
+                          fontFamily: "Space Mono",
+                          fontSize: 15,
+                          color: INK,
+                          opacity: 0.4,
+                        }}
+                      >
+                        no takers yet
+                      </span>
+                    ) : (
+                      faces.map((src, i) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={i}
+                          src={src}
+                          width={AV_SIZE}
+                          height={AV_SIZE}
+                          alt=""
+                          style={{
+                            width: AV_SIZE,
+                            height: AV_SIZE,
+                            borderRadius: AV_SIZE,
+                            border: `2px solid ${INK}`,
+                            backgroundColor: "#FFFFFF",
+                            marginLeft: i === 0 ? 0 : -AV_OVERLAP,
+                          }}
+                        />
+                      ))
+                    )}
+                    {more > 0 ? (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: AV_SIZE,
+                          height: AV_SIZE,
+                          marginLeft: -AV_OVERLAP,
+                          borderRadius: AV_SIZE,
+                          border: `2px solid ${INK}`,
+                          backgroundColor: "#FFFFFF",
+                          fontFamily: "Space Mono",
+                          fontSize: 14,
+                          color: INK,
+                        }}
+                      >
+                        +{more}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ))}

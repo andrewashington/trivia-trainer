@@ -204,8 +204,35 @@ async function handleComponent(
       return handleIdeaUpvote(user, rest[1]);
     case "pet":
       return handlePetNudge(user);
+    case "book":
+      return handleBookBet(user, rest[0], rest[1]);
     default:
       return ephemeralReply("That button isn't wired to anything.");
+  }
+}
+
+async function handleBookBet(user: User, outcome: string, marketId: string): Promise<object> {
+  if (outcome !== "Yes" && outcome !== "No") return ephemeralReply("Unknown side.");
+  if (!marketId) return ephemeralReply("That line fell off the board.");
+  try {
+    const [{ placeBookBet }, { BOOK_DISCORD_STAKE }] = await Promise.all([
+      import("@/modules/book/place"),
+      import("@/modules/book/constants"),
+    ]);
+    // placeBookBet re-renders the card (collage + tally) on its own, fire-and-
+    // forget — so the ack still lands well inside Discord's 3s window.
+    const res = await placeBookBet({
+      userId: user.id,
+      marketId,
+      outcome,
+      stake: BOOK_DISCORD_STAKE,
+      refresh: false,
+    });
+    return ephemeralReply(
+      `🎟️ You're on **${outcome}** for ${BOOK_DISCORD_STAKE} coins — pays **${res.payout.toLocaleString()}** if it hits. (${res.yesCount} yes · ${res.noCount} no)`
+    );
+  } catch (e) {
+    return ephemeralReply(e instanceof Error ? e.message : "The ticket window jammed.");
   }
 }
 

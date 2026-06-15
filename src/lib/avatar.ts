@@ -80,6 +80,22 @@ export function dicebearUrl(seed: string): string {
 }
 
 /**
+ * A PNG (not SVG) avatar URL at a fixed size — for places that rasterize the
+ * face server-side (Satori / the Discord card collage), where remote SVG is
+ * unreliable. Reuses the member's denormalized URL when present, else seeds
+ * from their name.
+ */
+export function avatarPngUrl(
+  user: { avatarUrl?: string | null; displayName?: string | null; id?: string | null },
+  size = 80
+): string {
+  const base = user.avatarUrl || dicebearUrl(user.displayName || user.id || "friend");
+  const png = base.replace("/svg", "/png");
+  const sep = png.includes("?") ? "&" : "?";
+  return png.includes("size=") ? png : `${png}${sep}size=${size}`;
+}
+
+/**
  * Earlier configs pinned open-peeps parts as top-level fields. Fold
  * them into the generic options map so old saves keep rendering.
  */

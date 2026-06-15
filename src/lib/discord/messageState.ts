@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { discordApi, botConfig } from "@/lib/discord/bot";
 import {
   editV2,
+  editCardImageV2,
   patchCardComponents,
   textDisplay,
   mediaGallery,
@@ -79,5 +80,39 @@ export async function editTrackedMessage(
   } catch (err) {
     // A deleted message / closed channel shouldn't break the originating action.
     console.error(`[discord] editTrackedMessage failed for ${kind}:${refId}`, err);
+  }
+}
+
+/**
+ * Like editTrackedMessage, but ALSO swaps the card's image for a freshly-
+ * rendered PNG (the status line comes along for the ride). Used when the
+ * picture itself changes — The Book re-renders its bettor collage on each new
+ * bet. Buttons and the link row are left untouched. No-op if unconfigured / the
+ * card isn't tracked / the message is gone.
+ */
+export async function restyleTrackedCard(
+  kind: string,
+  refId: string,
+  patch: { png: Buffer; status?: string }
+): Promise<void> {
+  if (!botConfig().canPost) return;
+  const ref = await db.discordMessageRef.findUnique({ where: { kind_refId: { kind, refId } } });
+  if (!ref) return;
+  try {
+    const res = await discordApi(`/channels/${ref.channelId}/messages/${ref.messageId}`, {
+      method: "GET",
+    });
+    const msg = (await res.json()) as { components?: object[] };
+    const replacements: Record<number, object | null> = {
+      // Repoint the gallery at the new upload (editCardImageV2 sends the file).
+      [CARD_IDS.media]: { ...mediaGallery([{ url: "attachment://card.png" }]), id: CARD_IDS.media },
+    };
+    if (patch.status !== undefined) {
+      replacements[CARD_IDS.status] = { ...textDisplay(patch.status), id: CARD_IDS.status };
+    }
+    const next = patchCardComponents(msg.components ?? [], replacements);
+    await editCardImageV2(ref.channelId, ref.messageId, next, patch.png);
+  } catch (err) {
+    console.error(`[discord] restyleTrackedCard failed for ${kind}:${refId}`, err);
   }
 }
