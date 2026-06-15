@@ -39,6 +39,29 @@ export const GET = apiHandler(async () => {
     select: { id: true, fact: true, subject: true, createdAt: true },
   });
 
+  // Recent run traces for the troubleshooting panel (best-effort: the table may
+  // not exist until this feature's migration has run in prod).
+  const runs = await db.discordAssistantRun
+    .findMany({
+      orderBy: { createdAt: "desc" },
+      take: 25,
+      select: {
+        id: true,
+        surface: true,
+        prompt: true,
+        modelRequest: true,
+        modelUsed: true,
+        fellBack: true,
+        ok: true,
+        steps: true,
+        toolCalls: true,
+        latencyMs: true,
+        error: true,
+        createdAt: true,
+      },
+    })
+    .catch(() => []);
+
   const s = await getDiscordSettings();
 
   return NextResponse.json({
@@ -52,6 +75,7 @@ export const GET = apiHandler(async () => {
       embeddingsEnabled: process.env.DISCORD_EMBEDDINGS_ENABLED === "true",
     },
     memories: memories.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() })),
+    runs: runs.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
     settings: {
       aiSystemPrompt: s.aiSystemPrompt,
       aiSemanticSearch: s.aiSemanticSearch,

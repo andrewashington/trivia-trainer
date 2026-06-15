@@ -1577,3 +1577,27 @@ model DiscordTurn {
 
   @@index([channelId, createdAt])
 }
+
+// Per-invocation trace of the assistant brain (runAssistant) so the admin
+// Assistant tab can show *why* a run failed without digging through Railway
+// logs. One row per /udm, @mention or spontaneous post. Best-effort: writing a
+// run row never blocks or breaks the actual reply.
+model DiscordAssistantRun {
+  id           String   @id @default(cuid())
+  surface      String // "udm" | "mention" | "spontaneous"
+  userId       String? // UDM+ user id, when there is one
+  channelId    String?
+  prompt       String // the user's text (truncated)
+  modelRequest String // the configured aiModel ("" = default)
+  modelUsed    String // what actually ran (may be the fallback default)
+  fellBack     Boolean  @default(false) // the requested model errored → used default
+  ok           Boolean // did the run produce a reply?
+  steps        Int      @default(0) // tool-loop steps consumed
+  toolCalls    Int      @default(0) // total tool invocations
+  latencyMs    Int      @default(0)
+  error        String? // truncated error message when ok=false
+  reply        String? // truncated final reply (handy for eyeballing quality)
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}

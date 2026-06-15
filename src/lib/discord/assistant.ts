@@ -32,6 +32,8 @@ export type AssistantInput = {
   recentMessages?: { author: string; text: string }[];
   /** The channel the request came from, so read tools can pull more history. */
   channelId?: string;
+  /** Where the request came from — recorded on the run trace for the admin tab. */
+  surface?: "udm" | "mention" | "spontaneous";
 };
 
 const SYSTEM = `You are UDM+, the in-house AI assistant for a private friends-and-family web app, reachable from Discord. You're a genuinely useful all-purpose assistant: you answer questions (about this group's data AND general knowledge), create content, take actions, and pull more channel history when you need it — all as the user talking to you.
@@ -619,20 +621,51 @@ async function route(input: AssistantInput): Promise<string> {
     ? `${SYSTEM}\n\nADMIN NOTES (extra operator guidance — follow these):\n${settings.aiSystemPrompt.trim()}`
     : SYSTEM;
 
-  const reply = await runToolLoop({
-    system,
-    user: buildUserPrompt(input, ctx),
-    tools: TOOL_DEFS,
-    execute,
-    history,
-    model: settings.aiModel || undefined,
-    // Headroom to retrieve → (refine) → act → answer without hanging: simple
-    // asks still return in one round-trip (tool_choice auto), complex ones get
-    // room to dig. Generous tool-result cap so rich search context survives.
-    maxSteps: settings.aiMaxSteps,
-    maxTokens: settings.aiMaxTokens,
-    maxToolResult: 8000,
+  // Capture the run trace (model used, steps, fallback, latency, outcome) so the
+  // admin Assistant tab can show *why* a run failed without trawling Railway
+  // logs. Best-effort: a failed log write never affects the reply.
+  const startedAt = Date.now();
+  let meta = { steps: 0, toolCalls: 0, modelUsed: settings.aiModel || "default", fellBack: false };
+  let reply = "";
+  let runErr: unknown = null;
+  try {
+    reply = await runToolLoop({
+      system,
+      user: buildUserPrompt(input, ctx),
+      tools: TOOL_DEFS,
+      execute,
+      history,
+      model: settings.aiModel || undefined,
+      // Headroom to retrieve → (refine) → act → answer without hanging: simple
+      // asks still return in one round-trip (tool_choice auto), complex ones get
+      // room to dig. Generous tool-result cap so rich search context survives.
+      maxSteps: settings.aiMaxSteps,
+      maxTokens: settings.aiMaxTokens,
+      maxToolResult: 8000,
+      onMeta: (m) => {
+        meta = m;
+      },
+    });
+  } catch (e) {
+    runErr = e;
+  }
+  const ok = !runErr && reply.trim().length > 0;
+  await logAssistantRun({
+    surface: input.surface ?? "udm",
+    userId: input.userId,
+    channelId: input.channelId,
+    prompt: input.text,
+    modelRequest: settings.aiModel || "",
+    modelUsed: meta.modelUsed,
+    fellBack: meta.fellBack,
+    ok,
+    steps: meta.steps,
+    toolCalls: meta.toolCalls,
+    latencyMs: Date.now() - startedAt,
+    error: runErr ? (runErr instanceof Error ? runErr.message : String(runErr)) : ok ? null : "empty reply (steps exhausted)",
+    reply: ok ? reply : null,
   });
+  if (runErr) throw runErr; // let runAssistant() turn it into a friendly line
 
   const finalReply = reply || "Done.";
   // Persist this exchange so the next turn in this channel can see it.
@@ -649,6 +682,43 @@ async function route(input: AssistantInput): Promise<string> {
       .catch((err) => console.error("[discord] saveTurn failed", err));
   }
   return finalReply;
+}
+
+/** Best-effort write of one assistant run trace (never throws). */
+async function logAssistantRun(run: {
+  surface: string;
+  userId: string;
+  channelId?: string;
+  prompt: string;
+  modelRequest: string;
+  modelUsed: string;
+  fellBack: boolean;
+  ok: boolean;
+  steps: number;
+  toolCalls: number;
+  latencyMs: number;
+  error: string | null;
+  reply: string | null;
+}): Promise<void> {
+  await db.discordAssistantRun
+    .create({
+      data: {
+        surface: run.surface,
+        userId: run.userId || null,
+        channelId: run.channelId || null,
+        prompt: run.prompt.slice(0, 500),
+        modelRequest: run.modelRequest,
+        modelUsed: run.modelUsed,
+        fellBack: run.fellBack,
+        ok: run.ok,
+        steps: run.steps,
+        toolCalls: run.toolCalls,
+        latencyMs: run.latencyMs,
+        error: run.error ? run.error.slice(0, 500) : null,
+        reply: run.reply ? run.reply.slice(0, 500) : null,
+      },
+    })
+    .catch((err) => console.error("[discord] logAssistantRun failed", err));
 }
 
 /** Load the last few assistant exchanges for a channel as oldest→newest turns. */

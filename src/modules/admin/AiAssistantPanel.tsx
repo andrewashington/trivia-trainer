@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { Button } from "@/components/ui";
+import { ModelPicker, type AssistantModel } from "./ModelPicker";
 
 type Funnel = {
   messages: number;
@@ -24,13 +25,32 @@ type AiSettings = {
   aiModel: string;
   spontaneousEnabled: boolean;
 };
-type Payload = { funnel: Funnel; memories: Memory[]; settings: AiSettings };
+type Run = {
+  id: string;
+  surface: string;
+  prompt: string;
+  modelRequest: string;
+  modelUsed: string;
+  fellBack: boolean;
+  ok: boolean;
+  steps: number;
+  toolCalls: number;
+  latencyMs: number;
+  error: string | null;
+  createdAt: string;
+};
+type Payload = { funnel: Funnel; memories: Memory[]; settings: AiSettings; runs: Run[] };
 type InsightsStatus = {
   status: string;
   detail: string;
   startedAt: string | null;
   lastBuiltAt: string | null;
 };
+/** Clamp a possibly-NaN value into [min,max], falling back when it's not a number. */
+function clampInt(v: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(v)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(v)));
+}
 
 function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string }) {
   return (
@@ -51,6 +71,8 @@ export function AiAssistantPanel() {
   const [status, setStatus] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [insights, setInsights] = useState<InsightsStatus | null>(null);
+  const [models, setModels] = useState<AssistantModel[] | null>(null);
+  const [modelsErr, setModelsErr] = useState(false);
 
   async function load() {
     try {
@@ -68,9 +90,20 @@ export function AiAssistantPanel() {
       /* table may not exist before first deploy — ignore */
     }
   }
+  async function loadModels() {
+    try {
+      const r = await api<{ models: AssistantModel[] }>("/api/admin/discord/models");
+      setModels(r.models);
+      setModelsErr(false);
+    } catch {
+      // OpenRouter unreachable / no key — fall back to a plain text field.
+      setModelsErr(true);
+    }
+  }
   useEffect(() => {
     load();
     loadInsights();
+    loadModels();
   }, []);
 
   async function rebuildInsights() {
@@ -96,8 +129,19 @@ export function AiAssistantPanel() {
     if (!settings) return;
     setBusy(true);
     setStatus(null);
+    // Clamp the numeric knobs to the server's accepted range here so a value
+    // that's mid-edit, blank, or out of bounds can never 400 the save. The
+    // clamped values are written back so the inputs reflect what was saved.
+    const clean: AiSettings = {
+      ...settings,
+      aiSearchLimit: clampInt(settings.aiSearchLimit, 1, 30, 12),
+      aiMaxSteps: clampInt(settings.aiMaxSteps, 1, 12, 6),
+      aiMaxTokens: clampInt(settings.aiMaxTokens, 200, 8000, 1800),
+      aiModel: settings.aiModel.trim().slice(0, 100),
+    };
+    setSettings(clean);
     try {
-      await api("/api/admin/discord/ai", { method: "PUT", body: settings });
+      await api("/api/admin/discord/ai", { method: "PUT", body: clean });
       setStatus("Saved — live on the next message.");
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Save failed.");
@@ -274,14 +318,14 @@ export function AiAssistantPanel() {
             className="mt-1 w-full border-2 border-ink bg-card px-2 py-1 font-mono text-xs"
           />
         </label>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
             <span className="brutal-label">Search limit</span>
             <input
               type="number"
               min={1}
               max={30}
-              value={settings.aiSearchLimit}
+              value={Number.isFinite(settings.aiSearchLimit) ? settings.aiSearchLimit : ""}
               onChange={(e) => set("aiSearchLimit", Number(e.target.value))}
               className="mt-1 w-full border-2 border-ink bg-card px-2 py-1 font-mono text-sm"
             />
@@ -291,8 +335,8 @@ export function AiAssistantPanel() {
             <input
               type="number"
               min={1}
-              max={10}
-              value={settings.aiMaxSteps}
+              max={12}
+              value={Number.isFinite(settings.aiMaxSteps) ? settings.aiMaxSteps : ""}
               onChange={(e) => set("aiMaxSteps", Number(e.target.value))}
               className="mt-1 w-full border-2 border-ink bg-card px-2 py-1 font-mono text-sm"
             />
@@ -302,24 +346,32 @@ export function AiAssistantPanel() {
             <input
               type="number"
               min={200}
-              max={4000}
+              max={8000}
               step={100}
-              value={settings.aiMaxTokens}
+              value={Number.isFinite(settings.aiMaxTokens) ? settings.aiMaxTokens : ""}
               onChange={(e) => set("aiMaxTokens", Number(e.target.value))}
               className="mt-1 w-full border-2 border-ink bg-card px-2 py-1 font-mono text-sm"
             />
           </label>
-          <label className="block">
-            <span className="brutal-label">Model override</span>
+        </div>
+        <label className="block">
+          <span className="brutal-label">Model</span>
+          {models && !modelsErr ? (
+            <ModelPicker value={settings.aiModel} models={models} onChange={(id) => set("aiModel", id)} />
+          ) : (
             <input
               type="text"
               value={settings.aiModel}
-              placeholder="default"
+              placeholder={modelsErr ? "model id (couldn't reach OpenRouter)" : "loading models…"}
               onChange={(e) => set("aiModel", e.target.value)}
               className="mt-1 w-full border-2 border-ink bg-card px-2 py-1 font-mono text-sm"
             />
-          </label>
-        </div>
+          )}
+          <span className="mt-1 block font-mono text-[10px] text-ink/45">
+            Leave on Default to use the env model. A bad pick can&apos;t brick the bot — it falls back to the default
+            automatically.
+          </span>
+        </label>
         <button
           type="button"
           onClick={() => set("aiSemanticSearch", !settings.aiSemanticSearch)}
@@ -392,6 +444,56 @@ export function AiAssistantPanel() {
           </Button>
           {status && <p className="font-mono text-xs font-bold">{status}</p>}
         </div>
+      </div>
+
+      {/* Recent runs — troubleshooting trace */}
+      <div className="brutal-card space-y-3 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="brutal-label">Recent runs ({data.runs.length})</p>
+          <Button type="button" variant="ghost" onClick={load}>
+            Refresh
+          </Button>
+        </div>
+        <p className="font-mono text-[11px] text-ink/55">
+          The last 25 assistant invocations — what model actually ran, how long it took, and the error if it failed.
+          A <b>fell-back</b> tag means the configured model errored and the default caught it.
+        </p>
+        {data.runs.length === 0 ? (
+          <p className="font-mono text-[11px] text-ink/50">
+            No runs logged yet. Ask the bot something (/udm or @mention) and it&apos;ll show up here.
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {data.runs.map((r) => (
+              <li key={r.id} className="border-2 border-ink bg-card px-2 py-1.5">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px]">
+                  <span
+                    className={`border-2 border-ink px-1 font-bold uppercase ${
+                      r.ok ? "bg-accent-green" : "bg-accent-red text-white"
+                    }`}
+                  >
+                    {r.ok ? "ok" : "fail"}
+                  </span>
+                  <span className="uppercase text-ink/40">{r.surface}</span>
+                  <span className="font-bold">{r.modelUsed}</span>
+                  {r.fellBack && (
+                    <span className="border-2 border-ink bg-accent-yellow px-1 font-bold uppercase" title={`configured: ${r.modelRequest || "default"}`}>
+                      fell-back
+                    </span>
+                  )}
+                  <span className="text-ink/45">
+                    {r.steps} step{r.steps === 1 ? "" : "s"} · {r.toolCalls} tool · {(r.latencyMs / 1000).toFixed(1)}s
+                  </span>
+                  <span className="ml-auto text-ink/40">{new Date(r.createdAt).toLocaleString()}</span>
+                </div>
+                <p className="mt-0.5 truncate text-[11px] text-ink/70" title={r.prompt}>
+                  “{r.prompt}”
+                </p>
+                {r.error && <p className="mt-0.5 font-mono text-[10px] font-bold text-accent-red">{r.error}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

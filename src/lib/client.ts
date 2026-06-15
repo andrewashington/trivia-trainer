@@ -12,9 +12,17 @@ export async function api<T = unknown>(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(
-      (data as { error?: string }).error ?? `Request failed (${res.status})`
-    );
+    const d = data as { error?: string; details?: Record<string, string[]> };
+    // Zod validation errors ship field-level details — fold the first couple
+    // into the message so "Invalid input." actually says which field is wrong.
+    const fieldHint = d.details
+      ? Object.entries(d.details)
+          .map(([f, msgs]) => `${f}: ${msgs?.[0] ?? "invalid"}`)
+          .slice(0, 2)
+          .join("; ")
+      : "";
+    const base = d.error ?? `Request failed (${res.status})`;
+    throw new Error(fieldHint ? `${base} (${fieldHint})` : base);
   }
   // Mutations may have earned coins — let the header badge refetch/animate.
   const method = (init?.method ?? "GET").toUpperCase();

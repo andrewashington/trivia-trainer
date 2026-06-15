@@ -124,6 +124,10 @@ export async function runToolLoop(opts: {
   /** Prior conversation turns (oldest→newest), injected before the current user
    * message so the model has real multi-turn memory. */
   history?: { role: "user" | "assistant"; content: string }[];
+  /** Run trace, for observability/logging. Filled in as the loop runs and
+   * reported at the end (whether it succeeds or exhausts its steps). `modelUsed`
+   * reflects the fallback if the requested model errored out. */
+  onMeta?: (meta: { steps: number; toolCalls: number; modelUsed: string; fellBack: boolean }) => void;
 }): Promise<string> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("OPENROUTER_API_KEY not configured");
@@ -142,15 +146,43 @@ export async function runToolLoop(opts: {
     { role: "user", content: opts.user },
   ];
 
+  // Durability net: if an admin saved a model that's bogus or doesn't support
+  // tools, the very first call fails — and the whole assistant would appear
+  // "broken". Instead, on any error from a *custom* model we transparently fall
+  // back to DEFAULT_MODEL (once) and keep going. The default never falls back,
+  // so genuine outages still surface. Lets the owner "play" with the model knob
+  // without bricking the bot.
+  let activeModel = model;
+  let modelFellBack = false;
+  let stepsUsed = 0;
+  let toolCallTotal = 0;
+  const finish = (text: string): string => {
+    opts.onMeta?.({ steps: stepsUsed, toolCalls: toolCallTotal, modelUsed: activeModel, fellBack: modelFellBack });
+    return text;
+  };
+
   for (let step = 0; step < maxSteps; step++) {
+    stepsUsed = step + 1;
     const lastStep = step === maxSteps - 1;
-    const body: Record<string, unknown> = { model, messages, max_tokens: maxTokens };
-    if (opts.temperature != null) body.temperature = opts.temperature;
-    if (!lastStep) {
-      body.tools = toolsPayload;
-      body.tool_choice = "auto";
+    const buildBody = (): Record<string, unknown> => {
+      const b: Record<string, unknown> = { model: activeModel, messages, max_tokens: maxTokens };
+      if (opts.temperature != null) b.temperature = opts.temperature;
+      if (!lastStep) {
+        b.tools = toolsPayload;
+        b.tool_choice = "auto";
+      }
+      return b;
+    };
+    let res = await fetch(ENDPOINT, { method: "POST", headers: headers(key), body: JSON.stringify(buildBody()) });
+    if (!res.ok && !modelFellBack && activeModel !== DEFAULT_MODEL) {
+      const t = await res.text().catch(() => "");
+      console.warn(
+        `[ai] model "${activeModel}" rejected (${res.status}: ${t.slice(0, 200)}) — falling back to ${DEFAULT_MODEL}`,
+      );
+      activeModel = DEFAULT_MODEL;
+      modelFellBack = true;
+      res = await fetch(ENDPOINT, { method: "POST", headers: headers(key), body: JSON.stringify(buildBody()) });
     }
-    const res = await fetch(ENDPOINT, { method: "POST", headers: headers(key), body: JSON.stringify(body) });
     if (!res.ok) {
       const t = await res.text().catch(() => "");
       throw new Error(`OpenRouter ${res.status}: ${t.slice(0, 300)}`);
@@ -164,8 +196,9 @@ export async function runToolLoop(opts: {
       }[];
     };
     const msg = json.choices?.[0]?.message;
-    if (!msg) return "";
+    if (!msg) return finish("");
     const toolCalls = msg.tool_calls ?? [];
+    toolCallTotal += toolCalls.length;
 
     messages.push({
       role: "assistant",
@@ -175,7 +208,7 @@ export async function runToolLoop(opts: {
         : {}),
     });
 
-    if (!toolCalls.length) return (msg.content ?? "").trim();
+    if (!toolCalls.length) return finish((msg.content ?? "").trim());
 
     // Run all tool calls in this step concurrently — when the model asks for two
     // searches (or a read + a read) at once, they shouldn't serialize. Results
@@ -204,5 +237,5 @@ export async function runToolLoop(opts: {
       messages.push({ role: "tool", tool_call_id: tc.id, content: results[i].slice(0, maxToolResult) });
     });
   }
-  return ""; // exhausted steps without a text answer
+  return finish(""); // exhausted steps without a text answer
 }
