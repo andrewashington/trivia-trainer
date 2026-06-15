@@ -32,7 +32,7 @@ export const GET = apiHandler(async (req: Request) => {
     }),
   ]);
   const stale = !newest || Date.now() - newest.lastSyncedAt.getTime() > 30 * 60_000;
-  if (marketCount < 120 || richCount < 80 || stale) {
+  if (marketCount < 300 || richCount < 180 || stale) {
     await syncBookMarkets().catch(() => 0);
     [marketCount, richCount] = await Promise.all([
       db.bookMarket.count({ where: { active: true, closed: false } }),
@@ -62,7 +62,7 @@ export const GET = apiHandler(async (req: Request) => {
           : sort === "liquid"
             ? [{ liquidity: "desc" }, { volume24hr: "desc" }]
             : [{ volume24hr: "desc" }, { volume: "desc" }, { liquidity: "desc" }],
-      take: 80,
+      take: 240,
     }),
     db.bookBet.findMany({
       where: { userId: user.id },

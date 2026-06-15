@@ -84,6 +84,47 @@ function marketVolume(m: MarketView) {
   return (m.volume24hr ?? 0) * 10 + (m.volume ?? 0) + (m.liquidity ?? 0) * 0.5;
 }
 
+function sortedForMode(markets: MarketView[], sort: "hot" | "soon" | "liquid") {
+  if (sort === "soon") {
+    return [...markets].sort(
+      (a, b) =>
+        (a.endDate ? new Date(a.endDate).getTime() : Number.MAX_SAFE_INTEGER) -
+        (b.endDate ? new Date(b.endDate).getTime() : Number.MAX_SAFE_INTEGER)
+    );
+  }
+  if (sort === "liquid") {
+    return [...markets].sort((a, b) => (b.liquidity ?? 0) - (a.liquidity ?? 0));
+  }
+  return [...markets].sort((a, b) => marketVolume(b) - marketVolume(a));
+}
+
+function interleaveCategories(markets: MarketView[]) {
+  const groups = new Map<string, MarketView[]>();
+  for (const market of markets) {
+    const key = market.category ?? "Other";
+    const group = groups.get(key) ?? [];
+    group.push(market);
+    groups.set(key, group);
+  }
+  const orderedGroups = [...groups.values()].sort(
+    (a, b) => marketVolume(b[0]) - marketVolume(a[0])
+  );
+  const out: MarketView[] = [];
+  let i = 0;
+  while (out.length < markets.length) {
+    let added = false;
+    for (const group of orderedGroups) {
+      if (group[i]) {
+        out.push(group[i]);
+        added = true;
+      }
+    }
+    if (!added) break;
+    i += 1;
+  }
+  return out;
+}
+
 export function BookBoard({
   initialMarkets,
   initialBets,
@@ -131,8 +172,13 @@ export function BookBoard({
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12);
   }, [markets]);
 
+  const displayedMarkets = useMemo(() => {
+    const sorted = sortedForMode(filtered, sort);
+    return sort === "hot" && category === "All" ? interleaveCategories(sorted) : sorted;
+  }, [filtered, sort, category]);
+
   const spotlights = useMemo(() => {
-    const priced = filtered
+    const priced = displayedMarkets
       .map((market) => ({ market, prices: parsePrices(market.outcomePrices) }))
       .filter((x): x is { market: MarketView; prices: [number, number] } => !!x.prices);
     const hot = [...priced].sort((a, b) => marketVolume(b.market) - marketVolume(a.market))[0];
@@ -151,7 +197,7 @@ export function BookBoard({
       .filter((x) => x.price > 0.01)
       .sort((a, b) => a.price - b.price)[0];
     return { hot, soon, moonshot };
-  }, [filtered]);
+  }, [displayedMarkets]);
 
   async function refresh() {
     setNotice("Checking the board...");
@@ -237,7 +283,7 @@ export function BookBoard({
       <Card className="space-y-4">
         <div className="flex flex-wrap gap-2">
           {([
-            ["lines", "Lines", filtered.length],
+            ["lines", "Lines", displayedMarkets.length],
             ["open", "Open slips", openBets.length],
             ["settled", "Settled", resolvedBets.length],
           ] as const).map(([key, label, count]) => (
@@ -314,7 +360,7 @@ export function BookBoard({
       </Card>
 
       {view === "lines" ? (
-        filtered.length === 0 ? (
+        displayedMarkets.length === 0 ? (
           <EmptyState icon="notebook" title="No lines on the board" hint="Refresh The Book or try a broader search." />
         ) : (
           <>
@@ -361,7 +407,7 @@ export function BookBoard({
             </div>
 
             <ul className="space-y-5">
-              {filtered.map((market) => {
+              {displayedMarkets.map((market) => {
               const prices = parsePrices(market.outcomePrices);
               if (!prices) return null;
               const [yes, no] = prices;

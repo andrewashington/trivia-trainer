@@ -32,13 +32,13 @@ export default async function BookPage() {
     }),
   ]);
   const stale = !newest || Date.now() - newest.lastSyncedAt.getTime() > 30 * 60_000;
-  if (activeCount < 120 || richCount < 80 || stale) await syncBookMarkets().catch(() => 0);
+  if (activeCount < 300 || richCount < 180 || stale) await syncBookMarkets().catch(() => 0);
 
   const [markets, bets, me] = await Promise.all([
     db.bookMarket.findMany({
       where: { active: true, closed: false },
       orderBy: [{ volume24hr: "desc" }, { volume: "desc" }, { liquidity: "desc" }],
-      take: 80,
+      take: 240,
     }),
     db.bookBet.findMany({
       where: { userId: user.id },

@@ -2,8 +2,29 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
 const GAMMA = "https://gamma-api.polymarket.com";
-const SYNC_LIMIT = 240;
+const SYNC_LIMIT = 700;
 const EVENT_PAGE_SIZE = 100;
+const TOPICAL_EVENT_LIMIT = 30;
+
+const TOPICAL_SHELVES = [
+  "sports",
+  "nba",
+  "nfl",
+  "mlb",
+  "soccer",
+  "tennis",
+  "crypto",
+  "tech",
+  "ai",
+  "science",
+  "music",
+  "movies",
+  "business",
+  "finance",
+  "politics",
+  "world",
+  "elections",
+] as const;
 
 type RawMarket = Record<string, unknown>;
 type RawEvent = Record<string, unknown>;
@@ -116,10 +137,26 @@ function tagLabels(v: unknown): string[] | null {
   return tags?.length ? [...new Set(tags)] : null;
 }
 
-function categoryFrom(tags: string[] | null, fallback: string | null): string | null {
-  const preferred = ["Sports", "Politics", "Crypto", "Tech", "Finance", "Culture", "World", "Business", "Elections"];
-  const found = preferred.find((p) => tags?.some((t) => t.toLowerCase() === p.toLowerCase()));
-  return found ?? fallback;
+function canonicalCategory(v: string | null): string | null {
+  const s = v?.toLowerCase().trim();
+  if (!s) return null;
+  if (["sports", "nba", "nfl", "mlb", "nhl", "soccer", "tennis", "fifa", "football", "baseball", "basketball"].includes(s)) return "Sports";
+  if (["crypto", "bitcoin", "ethereum", "solana"].includes(s)) return "Crypto";
+  if (["tech", "technology", "ai", "openai", "artificial intelligence"].includes(s)) return "Tech";
+  if (["culture", "music", "movies", "movie", "film", "television", "tv", "entertainment", "celebrity"].includes(s)) return "Culture";
+  if (["business", "finance", "fed", "rates", "economy", "stocks", "ipos"].includes(s)) return "Business";
+  if (["politics", "elections", "election"].includes(s)) return "Politics";
+  if (["world", "international affairs", "geopolitics"].includes(s)) return "World";
+  if (["science", "space", "weather", "climate"].includes(s)) return "Science";
+  return null;
+}
+
+function categoryFrom(tags: string[] | null, fallback: string | null, sourceTag: string | null): string | null {
+  for (const tag of tags ?? []) {
+    const category = canonicalCategory(tag);
+    if (category) return category;
+  }
+  return canonicalCategory(fallback) ?? canonicalCategory(sourceTag) ?? fallback;
 }
 
 function extractMarkets(payload: unknown): RawMarket[] {
@@ -155,7 +192,12 @@ export function normalizeMarket(m: RawMarket): NormalizedBookMarket | null {
   const tokenIds = parseArray(m.clobTokenIds)?.map(String) ?? parseArray(m.clobTokenIdsRaw)?.map(String) ?? null;
   const event = (m.__event as RawEvent | undefined) ?? {};
   const tags = tagLabels(m.tags) ?? tagLabels(event.tags);
-  const category = categoryFrom(tags, asString(m.category) ?? asString(event.category) ?? asString(m.groupItemTitle));
+  const sourceTag = asString(event.__sourceTag) ?? asString(m.__sourceTag);
+  const category = categoryFrom(
+    tags,
+    asString(m.category) ?? asString(event.category) ?? asString(m.groupItemTitle),
+    sourceTag
+  );
 
   return {
     polymarketId: id,
@@ -183,13 +225,13 @@ export function normalizeMarket(m: RawMarket): NormalizedBookMarket | null {
 
 export async function fetchPolymarketMarkets(limit = SYNC_LIMIT): Promise<NormalizedBookMarket[]> {
   const payload: unknown[] = [];
-  for (let offset = 0; offset < limit; offset += EVENT_PAGE_SIZE) {
+  for (let offset = 0; offset < Math.min(240, limit); offset += EVENT_PAGE_SIZE) {
     const url = new URL(`${GAMMA}/events`);
     url.searchParams.set("active", "true");
     url.searchParams.set("closed", "false");
-    url.searchParams.set("order", "volume_24hr");
+    url.searchParams.set("order", "volume24hr");
     url.searchParams.set("ascending", "false");
-    url.searchParams.set("limit", String(Math.min(EVENT_PAGE_SIZE, limit - offset)));
+    url.searchParams.set("limit", String(Math.min(EVENT_PAGE_SIZE, Math.min(240, limit) - offset)));
     url.searchParams.set("offset", String(offset));
 
     const res = await fetch(url, { next: { revalidate: 60 } });
@@ -199,6 +241,23 @@ export async function fetchPolymarketMarkets(limit = SYNC_LIMIT): Promise<Normal
     payload.push(...page);
   }
 
+  await Promise.all(
+    TOPICAL_SHELVES.map(async (tagSlug) => {
+      const url = new URL(`${GAMMA}/events`);
+      url.searchParams.set("active", "true");
+      url.searchParams.set("closed", "false");
+      url.searchParams.set("order", "volume24hr");
+      url.searchParams.set("ascending", "false");
+      url.searchParams.set("tag_slug", tagSlug);
+      url.searchParams.set("limit", String(TOPICAL_EVENT_LIMIT));
+      const res = await fetch(url, { next: { revalidate: 60 } });
+      if (!res.ok) return;
+      const page = await res.json();
+      if (!Array.isArray(page)) return;
+      payload.push(...page.map((event) => ({ ...(event as RawEvent), __sourceTag: tagSlug })));
+    })
+  );
+
   const seen = new Set<string>();
   return extractMarkets(payload)
     .map(normalizeMarket)
@@ -207,6 +266,7 @@ export async function fetchPolymarketMarkets(limit = SYNC_LIMIT): Promise<Normal
       seen.add(m.polymarketId);
       return true;
     })
+    .sort((a, b) => (b.volume24hr ?? 0) - (a.volume24hr ?? 0) || (b.volume ?? 0) - (a.volume ?? 0))
     .slice(0, limit);
 }
 
