@@ -11,8 +11,15 @@ type MarketView = {
   id: string;
   question: string;
   category: string | null;
+  eventTitle: string | null;
+  description: string | null;
   image: string | null;
   outcomePrices: unknown;
+  tags: unknown;
+  volume: number | null;
+  volume24hr: number | null;
+  liquidity: number | null;
+  spread: number | null;
   endDate: string | null;
 };
 
@@ -52,6 +59,15 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric" });
 }
 
+function compactMoney(n: number | null) {
+  if (!n) return "0";
+  return Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+}
+
+function tagList(v: unknown): string[] {
+  return Array.isArray(v) ? v.map(String).filter(Boolean).slice(0, 4) : [];
+}
+
 function StatusBadge({ status }: { status: string }) {
   const cls =
     status === "won"
@@ -78,6 +94,8 @@ export function BookBoard({
   const [bets, setBets] = useState(initialBets);
   const [coins, setCoins] = useState(initialCoins);
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("All");
+  const [sort, setSort] = useState<"hot" | "soon" | "liquid">("hot");
   const [stake, setStake] = useState(Math.max(MIN_BET, 25));
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -89,15 +107,35 @@ export function BookBoard({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return markets;
-    return markets.filter((m) => `${m.question} ${m.category ?? ""}`.toLowerCase().includes(q));
-  }, [markets, query]);
+    return markets.filter((m) => {
+      const matchesCategory = category === "All" || m.category === category;
+      const matchesQuery =
+        !q ||
+        `${m.question} ${m.category ?? ""} ${tagList(m.tags).join(" ")} ${m.eventTitle ?? ""}`
+          .toLowerCase()
+          .includes(q);
+      return matchesCategory && matchesQuery;
+    });
+  }, [markets, query, category]);
+
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const market of markets) {
+      if (!market.category) continue;
+      counts.set(market.category, (counts.get(market.category) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12);
+  }, [markets]);
 
   async function refresh() {
     setNotice("Checking the board...");
     try {
+      const params = new URLSearchParams();
+      if (query.trim()) params.set("q", query.trim());
+      if (category !== "All") params.set("category", category);
+      params.set("sort", sort);
       const data = await api<{ markets: MarketView[]; bets: BetView[]; coins: number }>(
-        `/api/book${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""}`
+        `/api/book${params.size ? `?${params}` : ""}`
       );
       setMarkets(data.markets);
       setBets(data.bets);
@@ -191,24 +229,59 @@ export function BookBoard({
         </div>
 
         {view === "lines" && (
-          <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search politics, sports, crypto..."
-            />
-            <Input
-              type="number"
-              min={MIN_BET}
-              max={MAX_BET}
-              step={1}
-              value={stake}
-              onChange={(e) => setStake(Math.max(MIN_BET, Math.min(MAX_BET, Math.round(Number(e.target.value)))))}
-              aria-label="Stake"
-            />
-            <Button type="button" variant="ghost" onClick={refresh}>
-              Refresh
-            </Button>
+          <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-[1fr_150px_150px_auto]">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search questions, tags, events..."
+              />
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as "hot" | "soon" | "liquid")}
+                className="brutal-input"
+                aria-label="Sort lines"
+              >
+                <option value="hot">Hot first</option>
+                <option value="soon">Closing soon</option>
+                <option value="liquid">Most liquid</option>
+              </select>
+              <Input
+                type="number"
+                min={MIN_BET}
+                max={MAX_BET}
+                step={1}
+                value={stake}
+                onChange={(e) => setStake(Math.max(MIN_BET, Math.min(MAX_BET, Math.round(Number(e.target.value)))))}
+                aria-label="Stake"
+              />
+              <Button type="button" variant="ghost" onClick={refresh}>
+                Refresh
+              </Button>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              <button
+                type="button"
+                onClick={() => setCategory("All")}
+                className={`shrink-0 border-2 border-ink px-3 py-1 font-mono text-[10px] font-bold uppercase shadow-brutal-sm ${
+                  category === "All" ? "bg-accent-yellow text-ink" : "bg-card text-ink"
+                }`}
+              >
+                All ({markets.length})
+              </button>
+              {categories.map(([name, count]) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setCategory(name)}
+                  className={`shrink-0 border-2 border-ink px-3 py-1 font-mono text-[10px] font-bold uppercase shadow-brutal-sm ${
+                    category === name ? "bg-accent-yellow text-ink" : "bg-card text-ink"
+                  }`}
+                >
+                  {name} ({count})
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {notice && <p className="font-mono text-xs uppercase text-ink/50">{notice}</p>}
@@ -250,6 +323,23 @@ export function BookBoard({
                           <p className="mt-2 font-mono text-[11px] uppercase text-ink/45">
                             closes {fmtDate(market.endDate)}
                           </p>
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            <Badge className="bg-paper text-ink">24h {compactMoney(market.volume24hr)}</Badge>
+                            <Badge className="bg-paper text-ink">vol {compactMoney(market.volume)}</Badge>
+                            <Badge className="bg-paper text-ink">liq {compactMoney(market.liquidity)}</Badge>
+                            {market.spread !== null && (
+                              <Badge className="bg-paper text-ink">
+                                spread {Math.round(market.spread * 100)}%
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {tagList(market.tags).map((tag) => (
+                              <span key={tag} className="font-mono text-[10px] font-bold uppercase text-ink/45">
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
                         </div>
 
                         <div className="mt-auto grid gap-3 sm:grid-cols-2">

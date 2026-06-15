@@ -2,18 +2,27 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
 const GAMMA = "https://gamma-api.polymarket.com";
-const SYNC_LIMIT = 60;
+const SYNC_LIMIT = 240;
+const EVENT_PAGE_SIZE = 100;
 
 type RawMarket = Record<string, unknown>;
+type RawEvent = Record<string, unknown>;
 
 export type NormalizedBookMarket = {
   polymarketId: string;
   slug: string | null;
   question: string;
   category: string | null;
+  eventTitle: string | null;
+  description: string | null;
   image: string | null;
   outcomes: ["Yes", "No"];
   outcomePrices: [number, number];
+  tags: string[] | null;
+  volume: number | null;
+  volume24hr: number | null;
+  liquidity: number | null;
+  spread: number | null;
   conditionId: string | null;
   clobTokenIds: string[] | null;
   endDate: Date | null;
@@ -28,6 +37,11 @@ function asString(v: unknown): string | null {
 
 function asBool(v: unknown, fallback: boolean): boolean {
   return typeof v === "boolean" ? v : fallback;
+}
+
+function asNumber(v: unknown): number | null {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : Number.NaN;
+  return Number.isFinite(n) ? n : null;
 }
 
 function asDate(v: unknown): Date | null {
@@ -92,12 +106,30 @@ function inferResolvedOutcome(rawOutcomes: unknown, rawPrices: unknown, closed: 
   return null;
 }
 
+function tagLabels(v: unknown): string[] | null {
+  const tags = parseArray(v)
+    ?.map((tag) => {
+      if (typeof tag === "string") return tag;
+      return asString((tag as Record<string, unknown>)?.label);
+    })
+    .filter((x): x is string => !!x);
+  return tags?.length ? [...new Set(tags)] : null;
+}
+
+function categoryFrom(tags: string[] | null, fallback: string | null): string | null {
+  const preferred = ["Sports", "Politics", "Crypto", "Tech", "Finance", "Culture", "World", "Business", "Elections"];
+  const found = preferred.find((p) => tags?.some((t) => t.toLowerCase() === p.toLowerCase()));
+  return found ?? fallback;
+}
+
 function extractMarkets(payload: unknown): RawMarket[] {
   if (Array.isArray(payload)) {
     return payload.flatMap((item) => {
-      const event = item as Record<string, unknown>;
+      const event = item as RawEvent;
       const markets = parseArray(event.markets);
-      return markets ? (markets as RawMarket[]) : [event as RawMarket];
+      return markets
+        ? (markets as RawMarket[]).map((m) => ({ ...m, __event: event }))
+        : [event as RawMarket];
     });
   }
   const data = (payload as Record<string, unknown>)?.data;
@@ -121,15 +153,25 @@ export function normalizeMarket(m: RawMarket): NormalizedBookMarket | null {
   if (!closed && endDate && endDate.getTime() < Date.now()) return null;
 
   const tokenIds = parseArray(m.clobTokenIds)?.map(String) ?? parseArray(m.clobTokenIdsRaw)?.map(String) ?? null;
+  const event = (m.__event as RawEvent | undefined) ?? {};
+  const tags = tagLabels(m.tags) ?? tagLabels(event.tags);
+  const category = categoryFrom(tags, asString(m.category) ?? asString(event.category) ?? asString(m.groupItemTitle));
 
   return {
     polymarketId: id,
     slug: asString(m.slug),
     question,
-    category: asString(m.category) ?? asString(m.groupItemTitle),
+    category,
+    eventTitle: asString(event.title),
+    description: asString(m.description) ?? asString(event.description),
     image: asString(m.image) ?? asString(m.icon),
     outcomes,
     outcomePrices,
+    tags,
+    volume: asNumber(m.volumeNum) ?? asNumber(m.volume) ?? asNumber(event.volume),
+    volume24hr: asNumber(m.volume24hr) ?? asNumber(m.volume24hrClob) ?? asNumber(event.volume24hr),
+    liquidity: asNumber(m.liquidityNum) ?? asNumber(m.liquidity) ?? asNumber(event.liquidity),
+    spread: asNumber(m.spread),
     conditionId: asString(m.conditionId),
     clobTokenIds: tokenIds,
     endDate,
@@ -140,16 +182,23 @@ export function normalizeMarket(m: RawMarket): NormalizedBookMarket | null {
 }
 
 export async function fetchPolymarketMarkets(limit = SYNC_LIMIT): Promise<NormalizedBookMarket[]> {
-  const url = new URL(`${GAMMA}/events`);
-  url.searchParams.set("active", "true");
-  url.searchParams.set("closed", "false");
-  url.searchParams.set("order", "volume_24hr");
-  url.searchParams.set("ascending", "false");
-  url.searchParams.set("limit", String(limit));
+  const payload: unknown[] = [];
+  for (let offset = 0; offset < limit; offset += EVENT_PAGE_SIZE) {
+    const url = new URL(`${GAMMA}/events`);
+    url.searchParams.set("active", "true");
+    url.searchParams.set("closed", "false");
+    url.searchParams.set("order", "volume_24hr");
+    url.searchParams.set("ascending", "false");
+    url.searchParams.set("limit", String(Math.min(EVENT_PAGE_SIZE, limit - offset)));
+    url.searchParams.set("offset", String(offset));
 
-  const res = await fetch(url, { next: { revalidate: 60 } });
-  if (!res.ok) throw new Error(`Polymarket sync failed (${res.status})`);
-  const payload = await res.json();
+    const res = await fetch(url, { next: { revalidate: 60 } });
+    if (!res.ok) throw new Error(`Polymarket sync failed (${res.status})`);
+    const page = await res.json();
+    if (!Array.isArray(page) || page.length === 0) break;
+    payload.push(...page);
+  }
+
   const seen = new Set<string>();
   return extractMarkets(payload)
     .map(normalizeMarket)
@@ -186,9 +235,16 @@ function toDb(m: NormalizedBookMarket): Prisma.BookMarketCreateInput {
     slug: m.slug,
     question: m.question,
     category: m.category,
+    eventTitle: m.eventTitle,
+    description: m.description,
     image: m.image,
     outcomes: m.outcomes,
     outcomePrices: m.outcomePrices,
+    tags: m.tags ?? undefined,
+    volume: m.volume,
+    volume24hr: m.volume24hr,
+    liquidity: m.liquidity,
+    spread: m.spread,
     conditionId: m.conditionId,
     clobTokenIds: m.clobTokenIds ?? undefined,
     endDate: m.endDate,
@@ -210,9 +266,20 @@ export async function refreshBookMarket(marketId: string) {
   if (!local?.slug) return local;
   const fresh = await fetchPolymarketMarketBySlug(local.slug);
   if (!fresh) return local;
+  const merged = {
+    ...fresh,
+    category: fresh.category ?? local.category,
+    eventTitle: fresh.eventTitle ?? local.eventTitle,
+    description: fresh.description ?? local.description,
+    tags: fresh.tags ?? (Array.isArray(local.tags) ? local.tags.map(String) : null),
+    volume: fresh.volume ?? local.volume,
+    volume24hr: fresh.volume24hr ?? local.volume24hr,
+    liquidity: fresh.liquidity ?? local.liquidity,
+    spread: fresh.spread ?? local.spread,
+  };
   return db.bookMarket.update({
     where: { id: marketId },
-    data: toDb(fresh),
+    data: toDb(merged),
   });
 }
 

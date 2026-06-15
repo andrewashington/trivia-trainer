@@ -9,11 +9,19 @@ export const GET = apiHandler(async (req: Request) => {
   const user = await requireUser();
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim();
+  const category = url.searchParams.get("category")?.trim();
+  const sort = url.searchParams.get("sort") ?? "hot";
 
   await settleDueBookBets().catch(() => 0);
 
+  const newest = await db.bookMarket.findFirst({
+    where: { active: true, closed: false },
+    orderBy: { lastSyncedAt: "desc" },
+    select: { lastSyncedAt: true },
+  });
   let marketCount = await db.bookMarket.count({ where: { active: true, closed: false } });
-  if (marketCount === 0) {
+  const stale = !newest || Date.now() - newest.lastSyncedAt.getTime() > 30 * 60_000;
+  if (marketCount < 120 || stale) {
     await syncBookMarkets().catch(() => 0);
     marketCount = await db.bookMarket.count({ where: { active: true, closed: false } });
   }
@@ -24,9 +32,15 @@ export const GET = apiHandler(async (req: Request) => {
         active: true,
         closed: false,
         ...(q ? { question: { contains: q, mode: "insensitive" as const } } : {}),
+        ...(category && category !== "All" ? { category } : {}),
       },
-      orderBy: [{ endDate: "asc" }, { lastSyncedAt: "desc" }],
-      take: 40,
+      orderBy:
+        sort === "soon"
+          ? [{ endDate: "asc" }, { volume24hr: "desc" }]
+          : sort === "liquid"
+            ? [{ liquidity: "desc" }, { volume24hr: "desc" }]
+            : [{ volume24hr: "desc" }, { volume: "desc" }, { liquidity: "desc" }],
+      take: 80,
     }),
     db.bookBet.findMany({
       where: { userId: user.id },
@@ -37,5 +51,18 @@ export const GET = apiHandler(async (req: Request) => {
     db.user.findUniqueOrThrow({ where: { id: user.id }, select: { coins: true } }),
   ]);
 
-  return NextResponse.json({ markets, bets, coins: me.coins });
+  const categories = await db.bookMarket.groupBy({
+    by: ["category"],
+    where: { active: true, closed: false, category: { not: null } },
+    _count: { _all: true },
+    orderBy: { _count: { category: "desc" } },
+    take: 14,
+  });
+
+  return NextResponse.json({
+    markets,
+    bets,
+    coins: me.coins,
+    categories: categories.map((c) => ({ name: c.category!, count: c._count._all })),
+  });
 });

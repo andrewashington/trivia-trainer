@@ -14,14 +14,22 @@ export default async function BookPage() {
   if (!user) redirect("/signin");
 
   await settleDueBookBets().catch(() => 0);
-  const activeCount = await db.bookMarket.count({ where: { active: true, closed: false } });
-  if (activeCount === 0) await syncBookMarkets().catch(() => 0);
+  const [activeCount, newest] = await Promise.all([
+    db.bookMarket.count({ where: { active: true, closed: false } }),
+    db.bookMarket.findFirst({
+      where: { active: true, closed: false },
+      orderBy: { lastSyncedAt: "desc" },
+      select: { lastSyncedAt: true },
+    }),
+  ]);
+  const stale = !newest || Date.now() - newest.lastSyncedAt.getTime() > 30 * 60_000;
+  if (activeCount < 120 || stale) await syncBookMarkets().catch(() => 0);
 
   const [markets, bets, me] = await Promise.all([
     db.bookMarket.findMany({
       where: { active: true, closed: false },
-      orderBy: [{ endDate: "asc" }, { lastSyncedAt: "desc" }],
-      take: 40,
+      orderBy: [{ volume24hr: "desc" }, { volume: "desc" }, { liquidity: "desc" }],
+      take: 80,
     }),
     db.bookBet.findMany({
       where: { userId: user.id },
@@ -45,8 +53,15 @@ export default async function BookPage() {
           id: m.id,
           question: m.question,
           category: m.category,
+          eventTitle: m.eventTitle,
+          description: m.description,
           image: m.image,
           outcomePrices: m.outcomePrices,
+          tags: m.tags,
+          volume: m.volume,
+          volume24hr: m.volume24hr,
+          liquidity: m.liquidity,
+          spread: m.spread,
           endDate: m.endDate?.toISOString() ?? null,
         }))}
         initialBets={bets.map((b) => ({

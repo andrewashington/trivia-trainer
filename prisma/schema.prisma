@@ -1245,9 +1245,16 @@ model BookMarket {
   slug            String?   @unique
   question        String
   category        String?
+  eventTitle      String?
+  description     String?   @db.Text
   image           String?
   outcomes        Json
   outcomePrices   Json
+  tags            Json?
+  volume          Float?
+  volume24hr      Float?
+  liquidity       Float?
+  spread          Float?
   conditionId     String?
   clobTokenIds    Json?
   endDate         DateTime?
@@ -1261,6 +1268,9 @@ model BookMarket {
   bets BookBet[]
 
   @@index([active, closed, endDate])
+  @@index([category])
+  @@index([volume24hr])
+  @@index([liquidity])
   @@index([lastSyncedAt])
 }
 
