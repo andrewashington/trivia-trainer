@@ -8,6 +8,9 @@ import { embedQuery } from "@/lib/discord/embeddings";
 import { searchArchiveMessages } from "@/lib/discord/archive";
 import { rerankHits } from "@/lib/discord/rerank";
 import { runSpontaneousPost } from "@/lib/discord/spontaneous";
+import { getTopicClusters } from "@/modules/discord-stats/insights";
+import { getLeaderboard, getNightOwls, getConnectorLeaders, getHallOfFame } from "@/modules/discord-stats/queries";
+import { computeSuperlatives } from "@/modules/discord-stats/superlatives";
 
 /**
  * The UDM AI assistant brain — one agentic tool-user behind every door (/udm and
@@ -420,7 +423,7 @@ const TOOL_DEFS: ToolSpec[] = [
 /** Compact snapshot of the group's data + the real ids the agent needs to act. */
 export async function assembleContext(userId: string) {
   const now = new Date();
-  const [me, ledger, events, polls, listings, ideas, scores, nowPlaying, birthdays, memories, members] =
+  const [me, ledger, events, polls, listings, ideas, scores, nowPlaying, birthdays, memories, members, clusters, leaders, owls, connectors, fame] =
     await Promise.all([
       db.user.findUnique({ where: { id: userId }, select: { displayName: true, coins: true, discordUserId: true } }),
       db.coinTransaction.findMany({
@@ -488,6 +491,11 @@ export async function assembleContext(userId: string) {
         select: { id: true, fact: true, subject: true },
       }),
       db.user.findMany({ where: { isSystem: false }, select: { id: true, displayName: true, coins: true } }),
+      getTopicClusters().catch(() => []),
+      getLeaderboard().catch(() => []),
+      getNightOwls().catch(() => []),
+      getConnectorLeaders().catch(() => []),
+      getHallOfFame({ limit: 3 }).catch(() => []),
     ]);
 
   return {
@@ -524,6 +532,15 @@ export async function assembleContext(userId: string) {
     birthdays: birthdays.map((b) => ({
       name: b.user.displayName,
       date: b.birthday ? b.birthday.toISOString().slice(0, 10) : null,
+    })),
+    topicClusters: clusters.slice(0, 10).map((c) => ({ label: c.label, summary: c.summary })),
+    superlatives: computeSuperlatives({ leaders, nightOwls: owls, connectors, topFame: fame[0] ?? null })
+      .map((s) => ({ title: s.title, name: s.authorName, stat: s.stat })),
+    hallOfFame: fame.map((m) => ({
+      author: m.authorName,
+      reactions: m.reactionCount,
+      when: m.sentAt.toISOString().slice(0, 10),
+      content: m.content.slice(0, 200),
     })),
   };
 }

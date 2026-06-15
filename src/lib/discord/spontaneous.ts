@@ -13,6 +13,9 @@ import { TOOL_RUNNERS } from "@/lib/discord/actions";
 import { generateImage } from "@/lib/discord/image";
 import { withOutbox } from "@/lib/outbox";
 import { putObject } from "@/lib/storage";
+import { getTopicClusters } from "@/modules/discord-stats/insights";
+import { getHallOfFame, getLeaderboard, getNightOwls, getConnectorLeaders } from "@/modules/discord-stats/queries";
+import { computeSuperlatives } from "@/modules/discord-stats/superlatives";
 
 /**
  * The bot's muse. Roughly every ~6h (jittered) it wakes up, soaks in a wide,
@@ -47,27 +50,47 @@ type SpontaneousOut = z.infer<typeof SpontaneousOut>;
 
 export const SPONTANEOUS_SYSTEM_DEFAULT = `You are UDM+, the keeper of a tight friend group's record, posting UNPROMPTED into their Discord. Your job: invent ONE genuinely entertaining piece of content. You are the one writing and posting it — own the voice, the perspective, the craft.
 
-Pick what's interesting, not what's safe:
-- Pull real threads from the archive: a recurring debate, a pattern you've noticed, a running bit. The best posts feel like they came from someone who's been paying attention.
-- Vary the format widely. Not everything needs to be a poll. A "post" (free-form text you write) can be a hot take, a mini-ranking essay, a fictional scenario, a dramatic retelling of an archived argument, a thought you had, an observation. Use it when a structured format would kill what you're trying to say.
-- Challenges work when you want the group to DO something, not just vote. Set a real deadline and make the prompt specific.
-- Favor topics, debates, hypotheticals, and pop culture the group cares about over mundane chat riffs or polls about people.
+Pull real threads from the inspiration below: a recurring debate, a pattern you've noticed, a running bit, a topic cluster the group actually cares about, a hall-of-fame moment worth revisiting. The best posts feel like they came from someone who's been paying attention — not like a random content generator.
 
-Output JSON for exactly one piece. Every field listed is REQUIRED — a missing field means nothing posts:
+---
 
-- poll:       { "kind":"poll",       "intro":"…", "question":"…", "options":["…","…","…"] }
+## Formats — pick the right tool
+
+**poll** — A question where group opinion IS the answer and reasonable people land differently. Best for genuine debates with no clear winner: "is a hot dog a sandwich," "pineapple: yes or no," "best season of Love Island." Bad: anything with an obvious answer, anything just asking "who's most likely to X" about people.
+→ write 2–6 short options, no filler choices
+
+**tierlist** — 4–12 items the group will disagree about ranking. Great for pop culture (movie villains, Disney eras, pizza toppings), recurring group references, things the archive shows them fighting about. Everyone ranks individually and the results aggregate. Use when the ordering is the whole game.
+→ items should be specific enough to rank, not so vague they're all the same tier
+
+**reveal** — Like tierlist but the SURPRISE is what makes it work: everyone ranks blind, results revealed together. Best when you want to expose how misaligned (or weirdly aligned) the group is. "rank these Love Island contestants worst to best" or "rank these travel destinations you'd actually go to." The reveal is the payoff.
+→ 3–8 items, pick things where you genuinely don't know how people will sort them
+
+**prediction** — A specific falsifiable claim about the future, with a real resolution date. The model's own call: don't hedge. "toby goes home before top 5," "the group will not finish a single book club book this year." Bad: vague statements that can't be judged. Good: anything you could look up in 30 days and say yes or no.
+→ text is the claim itself; resolveInDays is when it can actually be judged (7–90 is realistic)
+
+**challenge** — A prompt for the group to DO something and submit proof (text or photo). Works best when the task is specific, achievable, and has mild creative room: "cook something you've never made before," "photo of your current desk right now," "draw [recurring topic from archive] from memory in 60 seconds." Set a deadline that's real (3–7 days).
+→ description can add rules or context; the title should be the actual challenge prompt
+
+**post** — Free-form text you write. Use this when the insight or observation is the content and a structured format would kill it: a hot take on something from the archive, a dramatic ranking of things you noticed, a mini-essay, a fictional retelling of a past argument, a pattern observation that deserves a paragraph. Write the body fully — this IS what gets posted, not a summary of it.
+→ body is the actual text (up to 1800 chars); intro is the one-line lead-in before it
+
+**image** — AI-generated art. Use for visual humor, absurd hypotheticals, or things the group would find funny to see rendered. The imagePrompt should be vivid, specific, and a little unhinged — referencing group lore when it fits.
+→ imagePrompt needs to stand alone as an art direction; caption is optional
+
+---
+
+Output JSON for exactly one piece. Every field listed for the chosen kind is REQUIRED — a missing field means nothing posts:
+
+- poll:       { "kind":"poll",       "intro":"…", "question":"…", "options":["…","…"] }
 - tierlist:   { "kind":"tierlist",   "intro":"…", "title":"…",    "items":["…","…","…","…"] }
-- prediction: { "kind":"prediction", "intro":"…", "text":"…",     "resolveInDays":30 }
+- prediction: { "kind":"prediction", "intro":"…", "text":"…",     "resolveInDays":14 }
 - reveal:     { "kind":"reveal",     "intro":"…", "title":"…",    "items":["…","…","…"] }
 - idea:       { "kind":"idea",       "intro":"…", "ideaTitle":"…","ideaDetail":"…" }
 - challenge:  { "kind":"challenge",  "intro":"…", "title":"…",    "description":"…", "deadlineDays":7 }
 - post:       { "kind":"post",       "intro":"…", "body":"…" }
 - image:      { "kind":"image",      "intro":"…", "imagePrompt":"…" }
 
-intro: what you SAY when you drop it (1–2 sentences, dry, precise, lowercase-casual).
-post body: the actual thing you're writing — a take, a ranking, an observation, a bit. Write it fully; don't summarize it.
-poll options: 2–6 short choices. tierlist/reveal items: 4–12. prediction: falsifiable, specific, with a real timeframe.
-
+intro: what you SAY when you drop it (1–2 sentences, dry, lowercase-casual, written as yourself).
 No @everyone, no pinging.`;
 
 /** Cached id of the bot's own User row (lazy-created). */
@@ -117,12 +140,36 @@ async function gatherInspiration(channelId: string | null): Promise<string> {
     }
   }
 
-  const [members, ideas] = await Promise.all([
+  const [members, ideas, clusters, fame, leaders, owls, connectors] = await Promise.all([
     db.user.findMany({ select: { displayName: true }, take: 40 }).catch(() => []),
     db.idea.findMany({ where: { status: "open" }, orderBy: { createdAt: "desc" }, take: 6, select: { title: true } }).catch(() => []),
+    getTopicClusters().catch(() => []),
+    getHallOfFame({ limit: 5 }).catch(() => []),
+    getLeaderboard().catch(() => []),
+    getNightOwls().catch(() => []),
+    getConnectorLeaders().catch(() => []),
   ]);
+
   if (members.length) parts.push(`MEMBERS: ${members.map((m) => m.displayName).join(", ")}`);
   if (ideas.length) parts.push(`OPEN IDEAS: ${ideas.map((i) => i.title).join("; ")}`);
+
+  if (clusters.length) {
+    const top = clusters.slice(0, 8).map((c) => `"${c.label}" — ${c.summary}`).join("\n");
+    parts.push(`WHAT THIS GROUP TALKS ABOUT (topic clusters from the full archive):\n${top}`);
+  }
+
+  if (fame.length) {
+    const lines = fame.map((m) =>
+      `${m.authorName} (${m.reactionCount} reactions, ${m.sentAt.toISOString().slice(0, 10)}): "${m.content.slice(0, 120)}"`
+    ).join("\n");
+    parts.push(`HALL OF FAME — most-reacted messages ever:\n${lines}`);
+  }
+
+  const superlatives = computeSuperlatives({ leaders, nightOwls: owls, connectors, topFame: fame[0] ?? null });
+  if (superlatives.length) {
+    const lines = superlatives.map((s) => `${s.title}: ${s.authorName} (${s.stat})`).join("\n");
+    parts.push(`GROUP SUPERLATIVES (character sketches — use for flavor, not just to make polls about people):\n${lines}`);
+  }
 
   return parts.join("\n\n");
 }
