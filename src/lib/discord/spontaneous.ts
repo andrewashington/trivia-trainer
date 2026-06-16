@@ -7,8 +7,8 @@ import { getGameKnobsCached } from "@/lib/knobs";
 import { getDiscordSettings } from "@/lib/discord/settings";
 import { botConfig, discordApi } from "@/lib/discord/bot";
 import { fetchRecentMessages } from "@/lib/discord/history";
-import { searchArchiveMessages } from "@/lib/discord/archive";
-import { embedQuery } from "@/lib/discord/embeddings";
+import { retrieve } from "@/lib/discord/retrieve";
+import { relabelAuthors } from "@/lib/discord/identity-map";
 import { TOOL_RUNNERS } from "@/lib/discord/actions";
 import { generateImage } from "@/lib/discord/image";
 import { withOutbox } from "@/lib/outbox";
@@ -133,10 +133,11 @@ async function gatherInspiration(channelId: string | null): Promise<string> {
   const channelTopics = channels.map((c) => (c.name ?? "").replace(/-/g, " ")).filter(Boolean);
   const seeds = pickRandom([...INTEREST_SEEDS, ...channelTopics], 3);
   for (const seed of seeds) {
-    const emb = await embedQuery(seed).catch(() => null);
-    const hits = await searchArchiveMessages({ query: seed, queryEmbedding: emb ?? undefined, limit: 3 }).catch(() => []);
+    // expand:false — this is a background dig over several random seeds; skip the
+    // per-seed expansion LLM call, just take the cleaned hybrid hits.
+    const { hits } = await retrieve({ query: seed, limit: 3, expand: false }).catch(() => ({ hits: [], variants: [], expanded: false }));
     if (hits.length) {
-      parts.push(`ARCHIVE DIG — "${seed}":\n${hits.map((h) => h.text).join("\n").slice(0, 900)}`);
+      parts.push(`ARCHIVE DIG — "${seed}":\n${hits.map((h) => relabelAuthors(h.text)).join("\n").slice(0, 900)}`);
     }
   }
 

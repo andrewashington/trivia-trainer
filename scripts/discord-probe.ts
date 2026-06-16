@@ -16,15 +16,15 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { searchArchiveMessages } from "../src/lib/discord/archive";
-import { embedQuery } from "../src/lib/discord/embeddings";
+import { retrieve } from "../src/lib/discord/retrieve";
 import { rerankHits } from "../src/lib/discord/rerank";
 import { relabelAuthors } from "../src/lib/discord/identity-map";
 
 loadEnv();
 
 const useRerank = process.argv.includes("--rerank");
-const queries = process.argv.slice(2).filter((a) => a !== "--rerank");
+const noExpand = process.argv.includes("--no-expand");
+const queries = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const PROBE_SET = ["Adam", "best pizza", "who got a promotion", "love island toby", "anthropic"];
 const limit = 12;
 const RERANK_MIN_SURPLUS = 4;
@@ -44,12 +44,14 @@ function daysAgo(iso: string): number {
 
 async function probe(query: string) {
   const fetchLimit = useRerank ? Math.min(30, limit * 3) : limit;
-  const queryEmbedding = (await embedQuery(query)) ?? undefined;
-  let hits = await searchArchiveMessages({ query, queryEmbedding, limit: fetchLimit });
-  if (useRerank && hits.length >= limit + RERANK_MIN_SURPLUS) hits = await rerankHits(query, hits, limit);
-  else hits = hits.slice(0, limit);
+  const { hits: raw, variants, expanded } = await retrieve({ query, limit: fetchLimit, expand: !noExpand });
+  const hits =
+    useRerank && raw.length >= limit + RERANK_MIN_SURPLUS ? await rerankHits(query, raw, limit) : raw.slice(0, limit);
 
-  console.log(`\n${"=".repeat(72)}\nQUERY: "${query}"   embedding=${queryEmbedding ? "yes" : "NO (keyword-only)"}`);
+  console.log(`\n${"=".repeat(72)}\nQUERY: "${query}"   variants=${variants.length}${expanded ? "" : " (no expansion)"}`);
+  variants.forEach((v, i) =>
+    console.log(`    ${i === 0 ? "orig" : v.keyword === false ? "hyde" : "para"}: ${v.text.slice(0, 80)}`),
+  );
   if (!hits.length) {
     console.log("  (no hits)");
     return;

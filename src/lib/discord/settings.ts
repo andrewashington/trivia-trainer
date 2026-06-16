@@ -23,7 +23,9 @@ export type DiscordSettings = {
   aiPromptAssistant: string; // the main assistant brain's base prompt
   aiPromptSpontaneous: string; // the unprompted-post generator's prompt
   aiPromptRerank: string; // the search-rerank judge's prompt
+  aiPromptExpand: string; // the query-expansion (multi-query/HyDE) prompt
   aiSemanticSearch: boolean; // use embeddings for archive search (vs keyword only)
+  aiQueryExpansion: boolean; // fan one search into paraphrases + a HyDE probe (recall boost)
   aiRerank: boolean; // LLM rerank pass over search results (precision boost)
   aiSearchLimit: number; // default segments per search_messages call
   aiMaxSteps: number; // agentic tool-loop step budget
@@ -44,7 +46,9 @@ export const DISCORD_SETTINGS_DEFAULTS: DiscordSettings = {
   aiPromptAssistant: "",
   aiPromptSpontaneous: "",
   aiPromptRerank: "",
+  aiPromptExpand: "",
   aiSemanticSearch: true,
+  aiQueryExpansion: true,
   aiRerank: true,
   aiSearchLimit: 12,
   aiMaxSteps: 6,

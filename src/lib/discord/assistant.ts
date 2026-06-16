@@ -4,8 +4,8 @@ import { getDiscordSettings } from "@/lib/discord/settings";
 import { getGameKnobsCached } from "@/lib/knobs";
 import { TOOL_RUNNERS } from "@/lib/discord/actions";
 import { fetchRecentMessages } from "@/lib/discord/history";
-import { embedQuery } from "@/lib/discord/embeddings";
-import { searchArchiveMessages } from "@/lib/discord/archive";
+import { retrieve } from "@/lib/discord/retrieve";
+import type { ArchiveSearchHit } from "@/lib/discord/archive";
 import { relabelAuthors } from "@/lib/discord/identity-map";
 import { rerankHits } from "@/lib/discord/rerank";
 import { runSpontaneousPost } from "@/lib/discord/spontaneous";
@@ -692,25 +692,24 @@ async function route(input: AssistantInput): Promise<string> {
       if (!after && Number.isFinite(recentMonths) && recentMonths > 0) {
         after = new Date(Date.now() - recentMonths * 30 * 24 * 60 * 60 * 1000);
       }
-      const queryEmbedding = settings.aiSemanticSearch
-        ? await embedQuery(query).catch((err) => {
-            console.error("[discord] embedQuery failed", err);
-            return null;
-          })
-        : null;
       // Over-fetch when reranking so the LLM has a wider pool to judge from.
       const fetchLimit = settings.aiRerank ? Math.min(30, limit * 3) : limit;
-      const raw = await searchArchiveMessages({
+      // One call fans out into paraphrases + a HyDE probe (when enabled) and runs
+      // the hybrid multi-query search — so a single search_messages casts wide.
+      const { hits: raw } = await retrieve({
         query,
-        queryEmbedding: queryEmbedding ?? undefined,
         channelId,
         authorId,
         after,
         before,
         limit: fetchLimit,
+        expand: settings.aiQueryExpansion,
+        semantic: settings.aiSemanticSearch,
+        expandModel: settings.aiModel || undefined,
+        expandSystem: settings.aiPromptExpand || undefined,
       }).catch((err) => {
-        console.error("[discord] searchArchiveMessages failed", err);
-        return [];
+        console.error("[discord] retrieve failed", err);
+        return { hits: [] as ArchiveSearchHit[], variants: [], expanded: false };
       });
       // Only pay for the rerank call when there's a real surplus to prune —
       // reranking 13→12 is latency for nothing. Need a few extra to be worth it.

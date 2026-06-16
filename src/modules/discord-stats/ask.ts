@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { chatJSON, aiConfigured } from "@/lib/ai";
-import { embedQuery } from "@/lib/discord/embeddings";
-import { searchArchiveMessages, type ArchiveSearchHit } from "@/lib/discord/archive";
+import { retrieve } from "@/lib/discord/retrieve";
+import type { ArchiveSearchHit } from "@/lib/discord/archive";
+import { relabelAuthors } from "@/lib/discord/identity-map";
 import { getDiscordSettings } from "@/lib/discord/settings";
 
 /**
@@ -46,15 +47,14 @@ export async function askArchive(question: string): Promise<AskResult> {
   }
 
   const settings = await getDiscordSettings();
-  const queryEmbedding = settings.aiSemanticSearch
-    ? await embedQuery(q).catch(() => null)
-    : null;
-
-  const hits = await searchArchiveMessages({
+  const { hits } = await retrieve({
     query: q,
-    queryEmbedding: queryEmbedding ?? undefined,
     limit: 14,
-  }).catch(() => [] as ArchiveSearchHit[]);
+    expand: settings.aiQueryExpansion,
+    semantic: settings.aiSemanticSearch,
+    expandModel: settings.aiModel || undefined,
+    expandSystem: settings.aiPromptExpand || undefined,
+  }).catch(() => ({ hits: [], variants: [], expanded: false }));
 
   if (!hits.length) {
     return { answer: "I searched the whole archive and came up empty on that one.", citations: [] };
@@ -64,7 +64,7 @@ export async function askArchive(question: string): Promise<AskResult> {
   const context = hits
     .map((h) => {
       const where = h.channelName ? `#${h.channelName}` : h.channelId;
-      return `[${h.segmentId} · ${h.at.slice(0, 10)} · ${where}]\n${h.text}`;
+      return `[${h.segmentId} · ${h.at.slice(0, 10)} · ${where}]\n${relabelAuthors(h.text)}`;
     })
     .join("\n\n=====\n\n")
     .slice(0, 12_000);

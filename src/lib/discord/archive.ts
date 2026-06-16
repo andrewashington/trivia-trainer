@@ -272,17 +272,28 @@ function mmrSelect(candidates: { hit: RawSegmentHit; rrf: number }[], k: number)
   return chosen.map((c) => c.hit);
 }
 
+// One query phrasing. `text` drives the keyword leg (unless keyword === false,
+// e.g. a HyDE hypothetical that's only useful as a vector); `embedding` (when
+// present) drives the semantic leg. Multi-query search passes several of these.
+export type QueryVariant = { text: string; embedding?: number[]; keyword?: boolean };
+
 export async function searchArchiveMessages(opts: {
-  query: string;
-  queryEmbedding?: number[];
+  variants: QueryVariant[];
   channelId?: string;
   authorId?: string;
   after?: Date;
   before?: Date;
   limit?: number;
 }): Promise<ArchiveSearchHit[]> {
-  const query = opts.query.trim();
-  if (!query) return [];
+  // Dedup identical phrasings so we don't fire (and over-weight) the same query.
+  const seenText = new Set<string>();
+  const variants = opts.variants.filter((v) => {
+    const t = v.text.trim().toLowerCase();
+    if (!t || seenText.has(t)) return false;
+    seenText.add(t);
+    return true;
+  });
+  if (!variants.length) return [];
   const limit = Math.min(30, Math.max(1, opts.limit ?? 12));
   const channelId = opts.channelId ?? null;
   const authorId = opts.authorId ?? null;
@@ -290,14 +301,14 @@ export async function searchArchiveMessages(opts: {
   const before = opts.before ?? null;
 
   // Keyword search over segment content (full burst), not single messages.
-  const keywordHits = await db.$queryRaw<RawSegmentHit[]>`
+  const runKeyword = (text: string) => db.$queryRaw<RawSegmentHit[]>`
     -- OR-match: websearch_to_tsquery AND-joins terms, so a multi-word query
     -- only hits segments containing EVERY term — terrible recall on fuzzy asks.
     -- Rewriting the '&' operators to '|' keeps the parser's stemming/stopword/
     -- phrase handling while matching segments with ANY term; ts_rank still
     -- floats the segments that match more terms to the top.
     WITH q AS (
-      SELECT replace(websearch_to_tsquery('english', ${query})::text, '&', '|')::tsquery AS tsq
+      SELECT replace(websearch_to_tsquery('english', ${text})::text, '&', '|')::tsquery AS tsq
     )
     SELECT
       s.id AS "segmentId",
@@ -328,12 +339,11 @@ export async function searchArchiveMessages(opts: {
     LIMIT ${limit}
   `;
 
-  let semanticHits: RawSegmentHit[] = [];
-  if (opts.queryEmbedding?.length) {
+  const runSemantic = (embedding: number[]) => {
     // pgvector: `<=>` is cosine distance (0 = identical), so similarity = 1 - dist.
     // Order by raw distance ascending so the HNSW index can serve the query.
-    const vec = `[${opts.queryEmbedding.join(",")}]`;
-    semanticHits = await db.$queryRaw<RawSegmentHit[]>`
+    const vec = `[${embedding.join(",")}]`;
+    return db.$queryRaw<RawSegmentHit[]>`
       SELECT
         s.id AS "segmentId",
         s.channel_id AS "channelId",
@@ -359,12 +369,18 @@ export async function searchArchiveMessages(opts: {
       ORDER BY e.embedding <=> ${vec}::vector
       LIMIT ${limit}
     `;
-  }
+  };
 
-  // Reciprocal Rank Fusion: keyword ts_rank and semantic cosine scores live on
-  // different scales, so we fuse by *rank* instead of raw score — each list
-  // contributes 1/(k + rank), summed per segment. A segment that ranks high in
-  // both lists wins; one strong signal still surfaces a hit.
+  // Every variant contributes a keyword list (unless keyword:false) and, when it
+  // carries an embedding, a semantic list. Fire them all in parallel.
+  const lists = await Promise.all([
+    ...variants.filter((v) => v.keyword !== false).map((v) => runKeyword(v.text)),
+    ...variants.filter((v) => v.embedding?.length).map((v) => runSemantic(v.embedding!)),
+  ]);
+
+  // Reciprocal Rank Fusion across ALL lists: ts_rank and cosine live on different
+  // scales, so we fuse by *rank* — each list contributes 1/(k + rank), summed per
+  // segment. A segment surfaced by several phrasings, or strongly by one, wins.
   const fused = new Map<string, { hit: RawSegmentHit; rrf: number }>();
   const fuse = (list: RawSegmentHit[]) => {
     list.forEach((hit, i) => {
@@ -374,8 +390,7 @@ export async function searchArchiveMessages(opts: {
       else fused.set(hit.segmentId, { hit, rrf: inc });
     });
   };
-  fuse(semanticHits);
-  fuse(keywordHits);
+  for (const list of lists) fuse(list);
 
   // Order by fused relevance, then re-select with MMR so the returned set is
   // relevant AND diverse (no eight-near-identical-bursts).

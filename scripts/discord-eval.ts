@@ -13,9 +13,9 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { searchArchiveMessages } from "../src/lib/discord/archive";
-import { embedQuery } from "../src/lib/discord/embeddings";
+import { retrieve } from "../src/lib/discord/retrieve";
 import { rerankHits } from "../src/lib/discord/rerank";
+import { relabelAuthors } from "../src/lib/discord/identity-map";
 
 loadEnv();
 
@@ -46,10 +46,9 @@ async function run() {
     let blob = "";
     let topNote = "";
     try {
-      const queryEmbedding = (await embedQuery(c.query)) ?? undefined;
-      let hits = await searchArchiveMessages({ query: c.query, queryEmbedding, after, limit: useRerank ? limit * 3 : limit });
-      if (useRerank && hits.length > limit) hits = await rerankHits(c.query, hits, limit);
-      blob = hits.map((h) => h.text).join("\n").toLowerCase();
+      const { hits: raw } = await retrieve({ query: c.query, after, limit: useRerank ? limit * 3 : limit });
+      const hits = useRerank && raw.length > limit ? await rerankHits(c.query, raw, limit) : raw.slice(0, limit);
+      blob = hits.map((h) => relabelAuthors(h.text)).join("\n").toLowerCase();
       topNote = hits[0] ? `top: ${hits[0].text.replace(/\s+/g, " ").slice(0, 80)}…` : "no hits";
     } catch (err) {
       console.log(`✗ ${c.id} — ERROR: ${err instanceof Error ? err.message : err}`);
