@@ -6,6 +6,7 @@ import { TOOL_RUNNERS } from "@/lib/discord/actions";
 import { fetchRecentMessages } from "@/lib/discord/history";
 import { embedQuery } from "@/lib/discord/embeddings";
 import { searchArchiveMessages } from "@/lib/discord/archive";
+import { relabelAuthors } from "@/lib/discord/identity-map";
 import { rerankHits } from "@/lib/discord/rerank";
 import { runSpontaneousPost } from "@/lib/discord/spontaneous";
 import { getTopicClusters } from "@/modules/discord-stats/insights";
@@ -133,7 +134,7 @@ const TOOL_DEFS: ToolSpec[] = [
   {
     name: "get_group_data",
     description:
-      "Fetch live data on demand. Call this when you need remembered facts about people, before any action requiring real ids (rsvp, poll_vote, claim_listing, idea_upvote), or when the user asks about events, polls, listings, ideas, now-playing, birthdays, coin history, arcade scores, or group stats. Pass only the sections you actually need. Available sections: memories, events, polls, listings, ideas, nowplaying, birthdays, coins, arcade, stats.",
+      "Fetch live data on demand. Call this when you need remembered facts about people, before any action requiring real ids (rsvp, poll_vote, claim_listing, idea_upvote), or when the user asks about events, polls, listings, ideas, now-playing, birthdays, coin balances/history, arcade scores, or group stats. Coin balances are NOT in GROUP CONTEXT — pass the 'coins' section to get everyone's wallet + your recent transactions (needed before any adjust_coins ruling or 'who's richest' question). Pass only the sections you actually need. Available sections: memories, events, polls, listings, ideas, nowplaying, birthdays, coins, arcade, stats.",
     parameters: {
       type: "object",
       properties: {
@@ -158,7 +159,7 @@ const TOOL_DEFS: ToolSpec[] = [
   {
     name: "search_messages",
     description:
-      "Search the group's archived Discord history across channels. Returns whole CONVERSATION SEGMENTS (bursts of messages, stitched with nearby context), not single lines — so each result is a self-contained snippet of who said what. Use for old topics, decisions, quotes, summaries, or anything needing recall beyond recent channel context. For a broad 'gather everything we've said about X' ask, raise limit. RECENCY USUALLY WINS: if the question is about what's current/latest, or implies a timeframe, set recentMonths (or after/before) so you don't surface stale matches.",
+      "Search the group's archived Discord history across channels. Returns whole CONVERSATION SEGMENTS (bursts of messages, stitched with nearby context), not single lines — so each result is a self-contained snippet of who said what. Use for old topics, decisions, quotes, summaries, or anything needing recall beyond recent channel context. Results are ranked by RELEVANCE, not date, and span the group's whole history — so READ ACROSS several segments and synthesize; don't just lean on the first or the newest one. For a broad 'gather everything we've said about X' ask, raise limit and fire a few searches with different phrasings. Only narrow time when the question is genuinely about what's current/latest or names a timeframe — set recentMonths (or after/before) THEN; otherwise leave it open so older, more relevant moments aren't filtered out.",
     parameters: {
       type: "object",
       properties: {
@@ -437,18 +438,23 @@ const TOOL_DEFS: ToolSpec[] = [
   },
 ];
 
-/** Lean base context — just identity + member roster. Everything else is lazy via get_group_data. */
+/**
+ * Lean base context — just identity + member roster. Everything else (including
+ * coin balances) is lazy via get_group_data: balances are rarely relevant to a
+ * request and baking them into every prompt was noise that nudged the model
+ * toward coin talk. It calls get_group_data(["coins"]) when it actually needs them.
+ */
 export async function assembleContext(userId: string) {
   const now = new Date();
   const [me, members] = await Promise.all([
-    db.user.findUnique({ where: { id: userId }, select: { displayName: true, coins: true, discordUserId: true } }),
-    db.user.findMany({ where: { isSystem: false }, select: { id: true, displayName: true, coins: true } }),
+    db.user.findUnique({ where: { id: userId }, select: { displayName: true, discordUserId: true } }),
+    db.user.findMany({ where: { isSystem: false }, select: { id: true, displayName: true } }),
   ]);
 
   return {
     now: now.toISOString(),
-    you: { name: me?.displayName ?? "you", coins: me?.coins ?? 0, discordUserId: me?.discordUserId ?? null },
-    members: members.map((m) => ({ id: m.id, name: m.displayName, coins: m.coins })),
+    you: { name: me?.displayName ?? "you", discordUserId: me?.discordUserId ?? null },
+    members: members.map((m) => ({ id: m.id, name: m.displayName })),
   };
 }
 
@@ -531,13 +537,19 @@ export async function fetchGroupData(userId: string, sections: GroupDataSection[
       out.birthdays = rows.map((b) => ({ name: b.user.displayName, date: b.birthday?.toISOString().slice(0, 10) ?? null }));
     }),
 
-    want.has("coins") && db.coinTransaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { amount: true, reason: true, createdAt: true },
-    }).then((rows) => {
-      out.recentCoins = rows.map((t) => ({ amount: t.amount, reason: t.reason, when: t.createdAt.toISOString() }));
+    want.has("coins") && Promise.all([
+      db.coinTransaction.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { amount: true, reason: true, createdAt: true },
+      }),
+      // Balances live here now (no longer baked into GROUP CONTEXT) — fetched
+      // only when a request actually needs the wallet/leaderboard picture.
+      db.user.findMany({ where: { isSystem: false }, orderBy: { coins: "desc" }, select: { id: true, displayName: true, coins: true } }),
+    ]).then(([recent, balances]) => {
+      out.recentCoins = recent.map((t) => ({ amount: t.amount, reason: t.reason, when: t.createdAt.toISOString() }));
+      out.coinBalances = balances.map((u) => ({ id: u.id, name: u.displayName, coins: u.coins }));
     }),
 
     want.has("arcade") && db.arcadeScore.findMany({
@@ -717,7 +729,10 @@ async function route(input: AssistantInput): Promise<string> {
             ? `https://discord.com/channels/${h.guildId}/${h.channelId}/${h.segmentId}`
             : null;
           const header = link ? `[${h.at.slice(0, 16)} · ${where}] ${link}` : `[${h.at.slice(0, 16)} · ${where}]`;
-          return `${header}\n${h.text}`;
+          // Relabel baked archived handles -> canonical names so the model gets
+          // consistent attribution (e.g. "chan5538:" -> "Chandler:"). Display-only;
+          // embeddings stay frozen.
+          return `${header}\n${relabelAuthors(h.text)}`;
         })
         .join("\n\n=====\n\n")
         .slice(0, 8000);

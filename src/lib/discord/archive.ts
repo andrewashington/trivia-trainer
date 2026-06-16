@@ -246,8 +246,14 @@ function jaccard(a: Set<string>, b: Set<string>): number {
  */
 function mmrSelect(candidates: { hit: RawSegmentHit; rrf: number }[], k: number): RawSegmentHit[] {
   if (candidates.length <= 1) return candidates.map((c) => c.hit);
-  const maxRrf = Math.max(...candidates.map((c) => c.rrf)) || 1;
-  const pool = candidates.map((c) => ({ hit: c.hit, rel: c.rrf / maxRrf, tok: tokenize(c.hit.text) }));
+  // Min-max normalize RRF into a full [0,1] spread. Dividing by max alone left
+  // the values bunched near 1 (RRF with k=60 is intrinsically flat), so MMR's
+  // relevance term barely moved and diversity — plus whatever order the pool
+  // arrived in — dominated. Min-max restores real discrimination between hits.
+  const rrfs = candidates.map((c) => c.rrf);
+  const minRrf = Math.min(...rrfs);
+  const span = Math.max(...rrfs) - minRrf || 1;
+  const pool = candidates.map((c) => ({ hit: c.hit, rel: (c.rrf - minRrf) / span, tok: tokenize(c.hit.text) }));
   const chosen: typeof pool = [];
   while (pool.length && chosen.length < k) {
     let bestIdx = 0;
@@ -285,7 +291,14 @@ export async function searchArchiveMessages(opts: {
 
   // Keyword search over segment content (full burst), not single messages.
   const keywordHits = await db.$queryRaw<RawSegmentHit[]>`
-    WITH q AS (SELECT websearch_to_tsquery('english', ${query}) AS tsq)
+    -- OR-match: websearch_to_tsquery AND-joins terms, so a multi-word query
+    -- only hits segments containing EVERY term — terrible recall on fuzzy asks.
+    -- Rewriting the '&' operators to '|' keeps the parser's stemming/stopword/
+    -- phrase handling while matching segments with ANY term; ts_rank still
+    -- floats the segments that match more terms to the top.
+    WITH q AS (
+      SELECT replace(websearch_to_tsquery('english', ${query})::text, '&', '|')::tsquery AS tsq
+    )
     SELECT
       s.id AS "segmentId",
       s.channel_id AS "channelId",
@@ -309,7 +322,9 @@ export async function searchArchiveMessages(opts: {
         WHERE m.channel_id = s.channel_id AND m.author_id = ${authorId}
           AND m.sent_at BETWEEN s.start_at AND s.end_at
       ))
-    ORDER BY score DESC, s.start_at DESC
+    -- Tiebreak on s.id (stable, deterministic) rather than start_at DESC, which
+    -- silently handed equal-rank keyword ties to the most RECENT segment.
+    ORDER BY score DESC, s.id
     LIMIT ${limit}
   `;
 
@@ -364,8 +379,11 @@ export async function searchArchiveMessages(opts: {
 
   // Order by fused relevance, then re-select with MMR so the returned set is
   // relevant AND diverse (no eight-near-identical-bursts).
+  // Tiebreak on segmentId (stable, non-temporal) instead of recency, which used
+  // to push the newest segment to the top of every RRF tie — a big driver of the
+  // "always answers from one recent burst" feel.
   const byRelevance = [...fused.values()].sort(
-    (a, b) => b.rrf - a.rrf || Date.parse(b.hit.at) - Date.parse(a.hit.at),
+    (a, b) => b.rrf - a.rrf || (a.hit.segmentId < b.hit.segmentId ? -1 : 1),
   );
   const ranked = mmrSelect(byRelevance, limit);
 
@@ -383,11 +401,15 @@ async function expandHits(hits: RawSegmentHit[]): Promise<ArchiveSearchHit[]> {
   if (!hits.length) return [];
 
   const out: ArchiveSearchHit[] = [];
-  const usedSegments = new Set<string>();
+  // Every hit becomes its OWN result — we never drop a hit just because an
+  // earlier hit's ±window happened to cover it (that silently shrank a request
+  // for 12 down to a handful). We only (a) never stitch one primary hit's text
+  // into another's window, and (b) never reuse the same NEIGHBOR in two windows,
+  // so the returned set is `hits.length` distinct, non-overlapping snippets.
+  const hitIds = new Set(hits.map((h) => h.segmentId));
+  const usedNeighbors = new Set<string>();
 
   for (const hit of hits) {
-    if (usedSegments.has(hit.segmentId)) continue; // already swallowed by a stronger hit's window
-
     const neighbors = await db.$queryRaw<{ segmentId: string; text: string; at: string }[]>`
       (
         SELECT s.id AS "segmentId", s.content AS text, s.start_at::text AS at
@@ -411,7 +433,9 @@ async function expandHits(hits: RawSegmentHit[]): Promise<ArchiveSearchHit[]> {
     `;
 
     const pieces = [{ segmentId: hit.segmentId, text: hit.text, at: hit.at }, ...neighbors]
-      .filter((p) => !usedSegments.has(p.segmentId))
+      // Keep the hit itself; drop neighbors that are themselves primary hits
+      // (they get their own result) or already stitched into an earlier window.
+      .filter((p) => p.segmentId === hit.segmentId || (!hitIds.has(p.segmentId) && !usedNeighbors.has(p.segmentId)))
       .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 
     let text = "";
@@ -421,7 +445,7 @@ async function expandHits(hits: RawSegmentHit[]): Promise<ArchiveSearchHit[]> {
       if (next.length > EXPAND_CHAR_BUDGET && text) break;
       text = next;
       count++;
-      usedSegments.add(p.segmentId);
+      if (p.segmentId !== hit.segmentId) usedNeighbors.add(p.segmentId);
     }
 
     out.push({
