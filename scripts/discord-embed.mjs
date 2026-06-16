@@ -19,6 +19,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
+import { buildResolvers, cleanLine } from "./discord-clean.mjs";
 
 const ROOT = join(process.cwd());
 loadEnv();
@@ -27,6 +28,9 @@ const db = new PrismaClient();
 const model = process.env.DISCORD_EMBEDDING_MODEL || "openai/text-embedding-3-small";
 const batchSize = Math.min(100, Math.max(1, Number(process.env.DISCORD_EMBED_BATCH_SIZE || 50)));
 const estimateOnly = process.argv.includes("--estimate");
+// Rebuild + clean segment content (and content_tsv, which is GENERATED) without
+// spending on embeddings. This is the content backfill; re-embed separately.
+const rebuildOnly = process.argv.includes("--rebuild-only");
 
 // Segmentation knobs — tunable, just rebuild to apply. No re-backfill needed.
 const GAP_SECONDS = Number(process.env.DISCORD_SEGMENT_GAP_SECONDS || 2700); // 45 min
@@ -55,6 +59,11 @@ async function main() {
         2,
       ),
     );
+    return;
+  }
+
+  if (rebuildOnly) {
+    console.log("[archive] --rebuild-only: content (+ generated content_tsv) refreshed, skipping embeddings");
     return;
   }
 
@@ -110,10 +119,17 @@ async function main() {
  * exist. Returns counts.
  */
 async function rebuildSegments() {
+  // Resolvers turn handles/mentions/channels into canonical, RAG-legible names
+  // at build time. Build once, reuse for every line.
+  const resolvers = await buildResolvers(db, ROOT);
+
+  // Include attachment/embed-only messages now (rendered as [image]/[link] by
+  // cleanLine) — previously they were dropped, losing "who shared the photo".
   const messages = await db.$queryRaw`
-    SELECT id, channel_id, guild_id, author_name, content, sent_at
+    SELECT id, channel_id, guild_id, author_id, author_name, content, attachments, has_embed, sent_at
     FROM discord_archive.messages
-    WHERE deleted_at IS NULL AND is_bot = false AND length(trim(content)) >= 1
+    WHERE deleted_at IS NULL AND is_bot = false
+      AND (length(trim(content)) >= 1 OR attachments IS NOT NULL OR has_embed = true)
     ORDER BY channel_id ASC, sent_at ASC, id ASC
   `;
 
@@ -138,9 +154,12 @@ async function rebuildSegments() {
   };
 
   for (const m of messages) {
-    // Sanitize AFTER slicing: truncating at PER_MSG_CHARS can split an emoji's
-    // surrogate pair, so the final oneLine() pass cleans the boundary surrogate.
-    const line = oneLine(`${m.author_name}: ${oneLine(m.content).slice(0, PER_MSG_CHARS)}`);
+    // Clean to a canonical, RAG-legible "Name: text" line (handles, mentions,
+    // channels, emoji, URLs resolved/stripped). null = nothing to index — skip
+    // it entirely so it doesn't affect gap timing or segment composition.
+    const cleaned = cleanLine(m, resolvers, PER_MSG_CHARS);
+    if (cleaned === null) continue;
+    const line = oneLine(cleaned);
     const sentMs = new Date(m.sent_at).getTime();
     const breaks =
       !cur ||

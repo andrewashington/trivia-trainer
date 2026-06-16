@@ -24,6 +24,8 @@
     "discord:backfill": "node scripts/discord-backfill.mjs",
     "discord:embed": "node scripts/discord-embed.mjs",
     "discord:embed:estimate": "node scripts/discord-embed.mjs --estimate",
+    "discord:rebuild": "node scripts/discord-embed.mjs --rebuild-only",
+    "discord:clean:preview": "node scripts/discord-clean-preview.mjs",
     "discord:eval": "tsx scripts/discord-eval.ts",
     "discord:probe": "tsx scripts/discord-probe.ts",
     "discord:insights": "node scripts/discord-insights.mjs",

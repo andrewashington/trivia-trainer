@@ -1,0 +1,18 @@
+{
+  "_comment": "Single source of truth for Discord author identity. Consumed by BOTH src/lib/discord/identity-map.ts (runtime: display relabel + search scoping) and scripts/discord-clean.mjs (build-time: content rebuild + @mention resolution). Keyed by Discord author snowflake. `canonical` is the label shown everywhere; `aliases` are every other string that refers to this person (archived handle, UDM display name, nickname) — used to relabel line prefixes, resolve @mentions, and scope searches by name. Aliases MUST be unique across people (two Brocks => 'Brock' vs 'Brock 2'). Owner-curated.",
+  "authors": [
+    { "authorId": "174673533656367105", "canonical": "Patrick", "aliases": ["VIII", "Schwang Doodler"] },
+    { "authorId": "637518756381196288", "canonical": "Brock", "aliases": ["Ralph"] },
+    { "authorId": "388760699414904832", "canonical": "Scott", "aliases": ["ScottTheAmazing"] },
+    { "authorId": "571012264639987715", "canonical": "Chandler", "aliases": ["chan5538", "nebu"] },
+    { "authorId": "184048471127490560", "canonical": "Andre", "aliases": ["puddlelift", "Puddlelift"] },
+    { "authorId": "610961711352119307", "canonical": "Skylar", "aliases": ["Snake Dr"] },
+    { "authorId": "642253150543413250", "canonical": "Adam", "aliases": ["CasperTheG", "CaspertTheG", "Casper"] },
+    { "authorId": "273656222962417665", "canonical": "Antonio", "aliases": ["Tonesmz"] },
+    { "authorId": "689313647507668993", "canonical": "Jacob", "aliases": ["wake"] },
+    { "authorId": "689995014532497421", "canonical": "Brock 2", "aliases": ["borck"] },
+    { "authorId": "281906820824563712", "canonical": "Dan", "aliases": ["Munky"] },
+    { "authorId": "382050389022867457", "canonical": "Geoff", "aliases": ["HugoStiglitz"] },
+    { "authorId": "469525258806755329", "canonical": "Jesse", "aliases": ["Wim"] }
+  ]
+}
