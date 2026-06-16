@@ -28,6 +28,7 @@
     "discord:clean:preview": "node scripts/discord-clean-preview.mjs",
     "discord:eval": "tsx scripts/discord-eval.ts",
     "discord:probe": "tsx scripts/discord-probe.ts",
+    "discord:answer-eval": "tsx scripts/discord-answer-eval.ts",
     "discord:insights": "node scripts/discord-insights.mjs",
     "postinstall": "prisma generate"
   },
