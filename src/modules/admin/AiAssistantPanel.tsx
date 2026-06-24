@@ -70,12 +70,6 @@ function Stat({ label, value, sub }: { label: string; value: React.ReactNode; su
   );
 }
 
-/**
- * One full system-prompt override. Empty value = "use the shipped default"
- * (the default is shown as placeholder / in a reference panel). "Load default
- * to edit" copies the baked-in text into the box so you can tweak it; "Reset"
- * clears the override so the code default takes over again.
- */
 function PromptEditor({
   title,
   blurb,
@@ -89,7 +83,7 @@ function PromptEditor({
   defaultText: string;
   onChange: (v: string) => void;
 }) {
-  const overridden = value.trim().length > 0;
+  const overridden = value.trim() !== defaultText.trim();
   return (
     <details className="border-2 border-ink bg-card">
       <summary className="flex cursor-pointer items-center justify-between gap-2 px-2 py-1.5">
@@ -108,25 +102,13 @@ function PromptEditor({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={10}
-          placeholder="(empty — using the shipped default shown below)"
           className="w-full border-2 border-ink bg-bg px-2 py-1 font-mono text-[11px] leading-snug"
         />
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="ghost" onClick={() => onChange(defaultText)} disabled={value === defaultText}>
-            Load default to edit
-          </Button>
-          <Button type="button" variant="ghost" onClick={() => onChange("")} disabled={!overridden}>
+          <Button type="button" variant="ghost" onClick={() => onChange(defaultText)} disabled={!overridden}>
             Reset to default
           </Button>
         </div>
-        <details className="border-2 border-ink/30">
-          <summary className="cursor-pointer px-2 py-1 font-mono text-[10px] uppercase text-ink/50">
-            View shipped default
-          </summary>
-          <pre className="max-h-60 overflow-auto whitespace-pre-wrap px-2 py-1 font-mono text-[10px] leading-snug text-ink/60">
-            {defaultText}
-          </pre>
-        </details>
       </div>
     </details>
   );
@@ -148,7 +130,12 @@ export function AiAssistantPanel() {
     try {
       const d = await api<Payload>("/api/admin/discord/ai");
       setData(d);
-      setSettings(d.settings);
+      setSettings({
+        ...d.settings,
+        aiPromptAssistant: d.settings.aiPromptAssistant || d.promptDefaults.assistant,
+        aiPromptSpontaneous: d.settings.aiPromptSpontaneous || d.promptDefaults.spontaneous,
+        aiPromptRerank: d.settings.aiPromptRerank || d.promptDefaults.rerank,
+      });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to load.");
     }
