@@ -5,7 +5,6 @@ import { botConfig, discordApi } from "@/lib/discord/bot";
 import { getDiscordSettings } from "@/lib/discord/settings";
 import { runAssistant } from "@/lib/discord/assistant";
 import { splitForDiscord } from "@/lib/discord/split";
-import { fetchRecentMessages } from "@/lib/discord/history";
 
 /**
  * Forward endpoint for the @mention sidecar (services/discord-gateway). The
@@ -90,19 +89,15 @@ async function handleMention(input: {
     // Typing indicator while the model thinks (best-effort).
     await discordApi(`/channels/${input.channelId}/typing`, { method: "POST" }).catch(() => {});
 
-    // Pull the live thread (author-labeled, canonical names) so a multi-person
-    // @mention exchange reads as the several people it actually is — excluding
-    // the triggering message, which is passed as the USER MESSAGE.
-    const recentMessages = await fetchRecentMessages(input.channelId, 12, input.messageId).catch(
-      () => []
-    );
-
+    // runAssistant fetches the thin recent-channel slice itself (same path as
+    // /udm); we just tell it which message to exclude — the @mention itself,
+    // which is already the USER MESSAGE.
     const reply = await runAssistant({
       userId: user.id,
       text: input.text,
       sourceMessage: input.sourceMessage,
-      recentMessages,
       channelId: input.channelId,
+      excludeMessageId: input.messageId,
       surface: "mention",
     });
     await postChannel(input.channelId, `<@${input.discordUserId}> ${reply}`);
