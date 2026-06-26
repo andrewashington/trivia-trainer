@@ -43,6 +43,20 @@ export function canonicalRoster(): CanonicalAuthor[] {
   return CANONICAL_AUTHORS;
 }
 
+// Discord author snowflake -> canonical name, for labeling live messages/turns
+// by the person's real name instead of whatever handle Discord hands back.
+const AUTHOR_ID_TO_CANONICAL: Map<string, string> = (() => {
+  const m = new Map<string, string>();
+  for (const a of CANONICAL_AUTHORS) m.set(a.authorId, a.canonical);
+  return m;
+})();
+
+/** Canonical name for a Discord author snowflake, or null if unmapped. */
+export function canonicalForAuthorId(authorId: string | null | undefined): string | null {
+  if (!authorId) return null;
+  return AUTHOR_ID_TO_CANONICAL.get(authorId) ?? null;
+}
+
 /** Resolve a name/alias the user typed to a Discord author snowflake, or null. */
 export function resolveScopeAuthorId(name: string): string | null {
   return LABEL_TO_AUTHOR_ID.get(name.trim().toLowerCase()) ?? null;

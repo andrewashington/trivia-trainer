@@ -1,4 +1,5 @@
 import { discordApi } from "@/lib/discord/bot";
+import { canonicalForAuthorId } from "@/lib/discord/identity-map";
 
 /**
  * Fetch the most recent messages in a channel (oldest→newest), for assistant
@@ -31,9 +32,11 @@ export async function fetchRecentMessages(
       .map((m) => {
         const isSelf = !!selfId && m.author?.id === selfId;
         return {
+          // Prefer the curated real name over Discord's handle so attribution is
+          // consistent with PEOPLE and the model never has to guess who's who.
           author: isSelf
             ? "UDM+ (you, the assistant — your earlier reply)"
-            : m.author?.global_name || m.author?.username || "someone",
+            : canonicalForAuthorId(m.author?.id) || m.author?.global_name || m.author?.username || "someone",
           // Keep our own replies fuller so a follow-up ("add that") can recover
           // what we just surfaced; human messages stay tighter.
           text: (m.content ?? "").replace(/\s+/g, " ").trim().slice(0, isSelf ? 700 : 300),
