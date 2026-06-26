@@ -52,7 +52,7 @@ export const DISCORD_SETTINGS_DEFAULTS: DiscordSettings = {
   aiRerank: true,
   aiSearchLimit: 12,
   aiMaxSteps: 6,
-  aiMaxTokens: 1800,
+  aiMaxTokens: 1000,
   spontaneousEnabled: true,
 };
 

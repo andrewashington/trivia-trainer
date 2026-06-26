@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { botConfig, discordApi } from "@/lib/discord/bot";
 import { getDiscordSettings } from "@/lib/discord/settings";
 import { runAssistant } from "@/lib/discord/assistant";
+import { splitForDiscord } from "@/lib/discord/split";
 
 /**
  * Forward endpoint for the @mention sidecar (services/discord-gateway). The
@@ -102,12 +103,15 @@ async function handleMention(input: {
 }
 
 async function postChannel(channelId: string, content: string) {
-  await discordApi(`/channels/${channelId}/messages`, {
-    method: "POST",
-    body: {
-      content: content.slice(0, 2000),
-      // Only ping the user we're replying to — never @everyone / roles.
-      allowed_mentions: { parse: ["users"] },
-    },
-  }).catch((err) => console.error("[discord] gateway post failed", err));
+  // A long reply becomes several in-order messages instead of one truncated one.
+  for (const part of splitForDiscord(content)) {
+    await discordApi(`/channels/${channelId}/messages`, {
+      method: "POST",
+      body: {
+        content: part,
+        // Only ping the user we're replying to — never @everyone / roles.
+        allowed_mentions: { parse: ["users"] },
+      },
+    }).catch((err) => console.error("[discord] gateway post failed", err));
+  }
 }

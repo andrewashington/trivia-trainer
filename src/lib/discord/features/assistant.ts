@@ -2,6 +2,7 @@ import type { User } from "@prisma/client";
 import { DISCORD_API, botConfig } from "@/lib/discord/bot";
 import { registerFeature } from "@/lib/discord/registry";
 import { runAssistant } from "@/lib/discord/assistant";
+import { splitForDiscord } from "@/lib/discord/split";
 import type { Interaction } from "@/lib/discord/interactions";
 import { db } from "@/lib/db";
 
@@ -38,11 +39,23 @@ async function handleUdm(user: User, interaction: Interaction): Promise<object> 
       content = "Something broke on my end — try again.";
     }
     if (appId && token) {
-      await fetch(`${DISCORD_API}/webhooks/${appId}/${token}/messages/@original`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: content.slice(0, 2000) }),
-      }).catch((err) => console.error("[discord] /udm follow-up failed", err));
+      // First chunk edits the deferred (ephemeral) reply; any overflow posts as
+      // further ephemeral follow-ups so a long answer is never cut off.
+      const parts = splitForDiscord(content);
+      if (parts.length) {
+        await fetch(`${DISCORD_API}/webhooks/${appId}/${token}/messages/@original`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: parts[0] }),
+        }).catch((err) => console.error("[discord] /udm follow-up failed", err));
+        for (const part of parts.slice(1)) {
+          await fetch(`${DISCORD_API}/webhooks/${appId}/${token}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: part, flags: EPHEMERAL }),
+          }).catch((err) => console.error("[discord] /udm follow-up failed", err));
+        }
+      }
     }
   };
   void finish();
