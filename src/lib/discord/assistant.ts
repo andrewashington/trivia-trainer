@@ -3,6 +3,8 @@ import { runToolLoop, aiConfigured, type ToolSpec } from "@/lib/ai";
 import { getDiscordSettings } from "@/lib/discord/settings";
 import { getGameKnobsCached } from "@/lib/knobs";
 import { TOOL_RUNNERS } from "@/lib/discord/actions";
+import { discordApi } from "@/lib/discord/bot";
+import { generateImage } from "@/lib/discord/image";
 import { fetchRecentMessages } from "@/lib/discord/history";
 import { retrieve } from "@/lib/discord/retrieve";
 import type { ArchiveSearchHit } from "@/lib/discord/archive";
@@ -83,7 +85,7 @@ Cast wide on fuzzy asks — fire 2–3 \`search_messages\` in one step with diff
 
 - **Multi-turn:** the messages above are your real prior exchange. "add that," "do it," "the second one" resolve from there — don't make people repeat themselves.
 - **Memory:** \`remember_fact\` proactively when you learn something load-bearing (a real name behind a handle, an allergy, a standing plan, a correction, an in-joke that'll matter). Skip the ephemeral. \`get_group_data(['memories'])\` for facts about *other* people when they'd change your answer (the asker's own are already ON FILE); \`forget_fact\` what's wrong. Keep it current — add, correct, prune.
-- **Actions & making things:** \`rsvp\`/\`poll_vote\`/\`claim_listing\`/\`idea_upvote\` need real ids — \`get_group_data\` first; if it's not there, say so, don't guess. \`create_*\` makes the *real* thing (a feed card, coins fire) — resolve "next Friday"/"8pm" against the **now** in context, output ISO-8601, then confirm in a line.
+- **Actions & making things:** \`rsvp\`/\`poll_vote\`/\`claim_listing\`/\`idea_upvote\` need real ids — \`get_group_data\` first; if it's not there, say so, don't guess. \`create_*\` makes the *real* thing (a feed card, coins fire) — resolve "next Friday"/"8pm" against the **now** in context, output ISO-8601, then confirm in a line. \`create_image\` when someone wants a picture drawn/made/rendered — you write the actual prompt (don't parrot theirs), it posts to the channel with your caption, so keep your reply tiny.
 
 ## Coins — use them constantly
 
@@ -412,6 +414,23 @@ const TOOL_DEFS: ToolSpec[] = [
     description:
       "When asked to 'make/create something interesting', 'surprise us', 'post something', 'do your thing', 'we're bored', etc. — invent and post one original piece of content (a poll, tier list, prediction, reveal, idea, or AI image) to the channel, as yourself. The content is created and posted for you; just give a tiny one-line ack afterward. Do NOT use this for a SPECIFIC request (use the matching create_* tool instead).",
     parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "create_image",
+    description:
+      "Generate an image from a text prompt and post it straight into the channel. Use when someone asks you to draw / make / generate / render a picture, meme, poster, portrait, scene, etc. Don't echo their words back as the prompt — write a vivid, specific one yourself (subject, style, mood, composition, group lore when it fits); expanding a thin brief into something better is the job. Pass a short caption in your voice to ride along on the image. The image (and caption) post for you, so keep your own reply to a tiny aside or nothing — don't re-describe what you made. Only reach for this when an image is actually what's wanted.",
+    parameters: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description:
+            "The image-generation prompt — vivid and specific (subject, style, mood, composition). You write this, expanding the user's request; don't just copy their phrasing.",
+        },
+        caption: { type: "string", description: "Optional short caption/line posted with the image, in your voice." },
+      },
+      required: ["prompt"],
+    },
   },
   {
     name: "adjust_coins",
@@ -851,6 +870,30 @@ async function route(input: AssistantInput): Promise<string> {
         return "couldn't pull something together";
       });
       return `Done — posted it to the channel (${result}). Give a tiny one-line lead-in; don't repeat the content.`;
+    }
+    if (name === "create_image") {
+      if (!input.channelId) return "No channel to post an image to.";
+      const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
+      if (!prompt) return "Need a prompt describing the image.";
+      const caption = typeof args.caption === "string" ? args.caption.trim() : "";
+      // Same OpenRouter generator + multipart upload the spontaneous path uses —
+      // post to the SOURCE channel (input.channelId), not the default feed.
+      const img = await generateImage(prompt).catch((err) => {
+        console.error("[discord] create_image gen failed", err);
+        return null;
+      });
+      if (!img) return "Image generation came back empty (model returned nothing or the key's missing) — tell them it didn't work this time, briefly.";
+      const ext = img.mimeType.split("/")[1]?.replace("jpeg", "jpg") || "png";
+      const form = new FormData();
+      form.append("payload_json", JSON.stringify(caption ? { content: caption.slice(0, 1900) } : {}));
+      form.append("files[0]", new Blob([new Uint8Array(img.buffer)], { type: img.mimeType }), `udm.${ext}`);
+      try {
+        await discordApi(`/channels/${input.channelId}/messages`, { method: "POST", body: form });
+      } catch (err) {
+        console.error("[discord] create_image post failed", err);
+        return "Made the image but couldn't post it to the channel — tell them it failed.";
+      }
+      return "Image posted to the channel (with your caption if you gave one). Keep your own reply to a tiny aside or nothing — don't re-describe the image.";
     }
     const runner = TOOL_RUNNERS[name];
     if (runner) return runner(input.userId, args);
