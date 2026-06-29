@@ -56,6 +56,8 @@ Conversations here are **multi-person** — several people @mention you in the s
 
 The **USER MESSAGE** (and a **QUOTED MESSAGE**, if one's attached) is the request — reply to *that*. **RECENT CHANNEL MESSAGES** are ambient background: useful for reading the room, resolving references, and deciding coin rulings, but they are not a to-do list and not the thing you're answering. Don't run off and act on something someone else said earlier unless the asker actually points you at it.
 
+That ambient slice is deliberately thin, and it resets when someone runs **/clear** — after a reset the thread starts genuinely fresh, so don't reach back for a conversation that was just cleared or treat a new question as a continuation of the old one. The flip side: if you *can tell* a request leans on a beat of the **current** thread you weren't handed (something a few messages up, "what we just decided," a summary/poll of "the last N"), just pull it with **get_more_messages** — it's cheap and stays inside this thread. Don't fly blind when one quick fetch would ground you; only avoid dragging in context from before a clear (for that, or anything genuinely old, it's \`search_messages\`).
+
 ## Triangulate — don't skim
 
 Your most important habit: build a picture from *several* sources, not a snapshot from the nearest one. You've got four —
@@ -130,7 +132,7 @@ const TOOL_DEFS: ToolSpec[] = [
   {
     name: "get_more_messages",
     description:
-      "Fetch more recent messages from this channel (older than the ones already provided), e.g. to base a poll/summary on the conversation. Use only when the request needs more chat context.",
+      "Pull more of THIS channel's recent conversation when the thin ambient slice isn't enough to answer well — e.g. the request leans on something said a few messages up, or you're summarizing / polling 'the last N messages'. Cheap and quick; reach for it whenever you can tell you're missing a beat of the current thread, don't guess. Scope note: it only returns messages from the CURRENT thread (anything before the channel's last /clear is intentionally invisible) — so it gathers more of the live conversation, never a way to resurrect a reset one. For genuinely older recall (past topics, old quotes, decisions, 'have we ever…'), use search_messages instead.",
     parameters: {
       type: "object",
       properties: { limit: { type: "integer", description: "How many recent messages (max 50)." } },
@@ -656,7 +658,9 @@ function buildUserPrompt(input: AssistantInput, ctx: AssistantContext | null): s
 
 // Recent channel messages are ambient context, not the request — keep the slice
 // thin so the model stays anchored on the USER MESSAGE it's actually answering.
-const RECENT_CONTEXT_LIMIT = 8;
+// Deliberately small: if a request genuinely needs more of the conversation, the
+// model reaches for get_more_messages (which respects the same /clear boundary).
+const RECENT_CONTEXT_LIMIT = 4;
 
 /**
  * Run the assistant for one message and return a natural-language reply to post.
@@ -710,6 +714,18 @@ async function route(input: AssistantInput): Promise<string> {
     console.error("[discord] assembleContext failed", err);
   }
 
+  // The channel's `/clear` watermark, loaded once and applied to BOTH ways the
+  // model can see raw chatter: the ambient slice below and the get_more_messages
+  // tool. Past a clear, neither crosses back over it — so a reset thread can't
+  // quietly continue the old conversation. (Deliberate recall of older history
+  // still has a door: search_messages, which is an explicit, query-driven act.)
+  const clearedAt = input.channelId
+    ? await db.discordChannelState
+        .findUnique({ where: { channelId: input.channelId }, select: { clearedAt: true } })
+        .then((s) => s?.clearedAt ?? null)
+        .catch(() => null)
+    : null;
+
   // Trace collector — captures tool calls + results for the admin run log.
   type TraceEntry = { step: number; tool: string; args: Record<string, unknown>; result: string };
   const traceEntries: TraceEntry[] = [];
@@ -732,8 +748,13 @@ async function route(input: AssistantInput): Promise<string> {
     if (name === "get_more_messages") {
       if (!input.channelId) return "No channel history is available for this request.";
       const n = Math.min(50, Math.max(1, Math.round(Number(args.limit) || 30)));
-      const msgs = await fetchRecentMessages(input.channelId, n);
-      if (!msgs.length) return "No earlier messages found.";
+      // Same /clear watermark as the ambient slice — more of THIS thread, never
+      // a way back across a reset.
+      const msgs = await fetchRecentMessages(input.channelId, n, input.excludeMessageId, clearedAt);
+      if (!msgs.length)
+        return clearedAt
+          ? "No messages in this channel since the last reset — this thread is fresh. For anything from before, use search_messages."
+          : "No earlier messages found.";
       return msgs.map((m) => `${m.author}: ${m.text}`).join("\n").slice(0, 1800);
     }
     if (name === "search_messages") {
@@ -856,9 +877,12 @@ async function route(input: AssistantInput): Promise<string> {
   // whatever else was said. fetchRecentMessages canonicalizes author names.
   let recentMessages = input.recentMessages;
   if (!recentMessages?.length && input.channelId) {
-    recentMessages = await fetchRecentMessages(input.channelId, RECENT_CONTEXT_LIMIT, input.excludeMessageId).catch(
-      () => []
-    );
+    recentMessages = await fetchRecentMessages(
+      input.channelId,
+      RECENT_CONTEXT_LIMIT,
+      input.excludeMessageId,
+      clearedAt
+    ).catch(() => []);
   }
 
   const userPrompt = buildUserPrompt({ ...input, recentMessages }, ctx);

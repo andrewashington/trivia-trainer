@@ -68,7 +68,20 @@ async function handleClear(_user: User, interaction: Interaction): Promise<objec
   if (!channelId) {
     return { type: 4, data: { content: "No channel to clear.", flags: EPHEMERAL } };
   }
-  const { count } = await db.discordTurn.deleteMany({ where: { channelId } });
+  // Two things make /clear a real boundary: wipe the stored multi-turn history
+  // AND stamp a watermark so the live "recent channel messages" the assistant
+  // pulls each run skip everything said up to now. Without the watermark, /clear
+  // only cleared half the memory — the ambient channel slice kept dragging the
+  // prior conversation back in.
+  const now = new Date();
+  const [{ count }] = await Promise.all([
+    db.discordTurn.deleteMany({ where: { channelId } }),
+    db.discordChannelState.upsert({
+      where: { channelId },
+      create: { channelId, clearedAt: now },
+      update: { clearedAt: now },
+    }),
+  ]);
   const msg =
     count === 0
       ? "nothing in the record for this channel. a clean slate either way."

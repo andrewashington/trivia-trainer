@@ -12,7 +12,10 @@ import { canonicalForAuthorId } from "@/lib/discord/identity-map";
 export async function fetchRecentMessages(
   channelId: string,
   limit = 18,
-  excludeMessageId?: string
+  excludeMessageId?: string,
+  // The channel's `/clear` watermark. When set, messages sent on/before this
+  // moment are dropped, so a reset thread never drags pre-clear chatter back in.
+  clearedAt?: Date | null
 ): Promise<{ author: string; text: string }[]> {
   try {
     const selfId = process.env.DISCORD_APP_ID || null;
@@ -21,11 +24,14 @@ export async function fetchRecentMessages(
     const msgs = (await res.json()) as {
       id: string;
       content?: string;
+      timestamp?: string;
       author?: { id?: string; bot?: boolean; global_name?: string | null; username?: string };
     }[];
     return msgs
       .filter((m) => {
         if (m.id === excludeMessageId || !(m.content ?? "").trim()) return false;
+        // Respect the /clear boundary: anything at/before the watermark is gone.
+        if (clearedAt && m.timestamp && new Date(m.timestamp).getTime() <= clearedAt.getTime()) return false;
         const isSelf = !!selfId && m.author?.id === selfId;
         return isSelf || !m.author?.bot; // keep humans + our own replies, drop other bots
       })

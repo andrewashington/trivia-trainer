@@ -1653,6 +1653,17 @@ model DiscordTurn {
   @@index([channelId, createdAt])
 }
 
+// Per-channel assistant state. Right now it holds the `/clear` watermark: the
+// moment the channel's thread was reset. The assistant's ambient context and
+// get_more_messages only look at messages AFTER this, so /clear is a true
+// boundary for raw channel chatter too — not just the stored DiscordTurn
+// history. One row per channel, upserted on /clear.
+model DiscordChannelState {
+  channelId String   @id
+  clearedAt DateTime?
+  updatedAt DateTime @updatedAt
+}
+
 // Per-invocation trace of the assistant brain (runAssistant) so the admin
 // Assistant tab can show *why* a run failed without digging through Railway
 // logs. One row per /udm, @mention or spontaneous post. Best-effort: writing a
