@@ -5,6 +5,13 @@ import { getGameKnobsCached } from "@/lib/knobs";
 import { TOOL_RUNNERS } from "@/lib/discord/actions";
 import { discordApi } from "@/lib/discord/bot";
 import { generateImage } from "@/lib/discord/image";
+import {
+  generateAtlasImage,
+  resolveAtlasModel,
+  atlasSize,
+  atlasConfigured,
+  listAtlasImageModels,
+} from "@/lib/discord/atlasImage";
 import { fetchRecentMessages } from "@/lib/discord/history";
 import { retrieve } from "@/lib/discord/retrieve";
 import type { ArchiveSearchHit } from "@/lib/discord/archive";
@@ -418,7 +425,7 @@ const TOOL_DEFS: ToolSpec[] = [
   {
     name: "create_image",
     description:
-      "Generate an image from a text prompt and post it straight into the channel. Use when someone asks you to draw / make / generate / render a picture, meme, poster, portrait, scene, etc. Don't echo their words back as the prompt — write a vivid, specific one yourself (subject, style, mood, composition, group lore when it fits); expanding a thin brief into something better is the job. Pass a short caption in your voice to ride along on the image. The image (and caption) post for you, so keep your own reply to a tiny aside or nothing — don't re-describe what you made. Only reach for this when an image is actually what's wanted.",
+      "Generate an image from a text prompt and post it straight into the channel. Use when someone asks you to draw / make / generate / render a picture, meme, poster, portrait, scene, etc. Don't echo their words back as the prompt — write a vivid, specific one yourself (subject, style, mood, composition, group lore when it fits); expanding a thin brief into something better is the job. Pass a short caption in your voice to ride along on the image. The image (and caption) post for you, so keep your own reply to a tiny aside or nothing — don't re-describe what you made. Only reach for this when an image is actually what's wanted.\n\nModel: leave 'model' off for a solid default. Set it when the request implies a style or the asker names one — handy hints: 'fast' (quick & cheap), 'photoreal' (Imagen), 'flux', 'seedream', 'qwen', 'gpt', 'best'/'pro' (top quality, pricier). You can also pass any exact Atlas model id; call list_image_models if you want the full menu.",
     parameters: {
       type: "object",
       properties: {
@@ -428,9 +435,25 @@ const TOOL_DEFS: ToolSpec[] = [
             "The image-generation prompt — vivid and specific (subject, style, mood, composition). You write this, expanding the user's request; don't just copy their phrasing.",
         },
         caption: { type: "string", description: "Optional short caption/line posted with the image, in your voice." },
+        model: {
+          type: "string",
+          description:
+            "Optional model hint — a friendly keyword ('fast', 'photoreal', 'flux', 'seedream', 'qwen', 'gpt', 'best') or an exact Atlas model id. Omit for the default.",
+        },
+        aspect: {
+          type: "string",
+          enum: ["square", "landscape", "portrait"],
+          description: "Optional shape (default square). Use landscape for scenes/posters, portrait for characters.",
+        },
       },
       required: ["prompt"],
     },
+  },
+  {
+    name: "list_image_models",
+    description:
+      "List the image-generation models available for create_image (with rough per-image price), cheapest first. Use only when someone asks what models you can draw with, or you want to pick an exotic one by exact id. For normal image requests just call create_image directly with a keyword model hint.",
+    parameters: { type: "object", properties: {} },
   },
   {
     name: "adjust_coins",
@@ -871,18 +894,40 @@ async function route(input: AssistantInput): Promise<string> {
       });
       return `Done — posted it to the channel (${result}). Give a tiny one-line lead-in; don't repeat the content.`;
     }
+    if (name === "list_image_models") {
+      const models = await listAtlasImageModels().catch(() => []);
+      if (!models.length) return "No image-model catalog available right now (Atlas key missing or the list call failed).";
+      const lines = models
+        .map((m) => `${m.id} — ${m.name}${m.price != null ? ` (~$${m.price}/img)` : ""}`)
+        .join("\n");
+      return `Image models (cheapest first):\n${lines}\n\nUse any of these ids as create_image's 'model', or a keyword: fast, photoreal, flux, seedream, qwen, gpt, best.`;
+    }
     if (name === "create_image") {
       if (!input.channelId) return "No channel to post an image to.";
       const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
       if (!prompt) return "Need a prompt describing the image.";
       const caption = typeof args.caption === "string" ? args.caption.trim() : "";
-      // Same OpenRouter generator + multipart upload the spontaneous path uses —
-      // post to the SOURCE channel (input.channelId), not the default feed.
-      const img = await generateImage(prompt).catch((err) => {
-        console.error("[discord] create_image gen failed", err);
-        return null;
-      });
-      if (!img) return "Image generation came back empty (model returned nothing or the key's missing) — tell them it didn't work this time, briefly.";
+      const size = atlasSize(typeof args.aspect === "string" ? args.aspect : undefined);
+      // Primary generator is Atlas (lots of model options); OpenRouter is the
+      // fallback so a single model's hiccup still yields an image. Post to the
+      // SOURCE channel (input.channelId), not the default feed.
+      let img = null as Awaited<ReturnType<typeof generateImage>>;
+      if (atlasConfigured()) {
+        const model = await resolveAtlasModel(typeof args.model === "string" ? args.model : undefined).catch(
+          () => undefined
+        );
+        img = await generateAtlasImage(prompt, { model, size }).catch((err) => {
+          console.error("[discord] create_image atlas gen failed", err);
+          return null;
+        });
+      }
+      if (!img) {
+        img = await generateImage(prompt).catch((err) => {
+          console.error("[discord] create_image fallback gen failed", err);
+          return null;
+        });
+      }
+      if (!img) return "Image generation came back empty (both renderers returned nothing or no key's set) — tell them it didn't work this time, briefly.";
       const ext = img.mimeType.split("/")[1]?.replace("jpeg", "jpg") || "png";
       const form = new FormData();
       form.append("payload_json", JSON.stringify(caption ? { content: caption.slice(0, 1900) } : {}));
