@@ -196,13 +196,24 @@ export function AiAssistantPanel() {
       aiMaxTokens: clampInt(settings.aiMaxTokens, 200, 8000, 1800),
       aiModel: settings.aiModel.trim().slice(0, 100),
       aiSystemPrompt: settings.aiSystemPrompt.slice(0, 4000),
-      aiPromptAssistant: settings.aiPromptAssistant.slice(0, 8000),
-      aiPromptSpontaneous: settings.aiPromptSpontaneous.slice(0, 8000),
-      aiPromptRerank: settings.aiPromptRerank.slice(0, 8000),
+      aiPromptAssistant: settings.aiPromptAssistant.slice(0, 24000),
+      aiPromptSpontaneous: settings.aiPromptSpontaneous.slice(0, 24000),
+      aiPromptRerank: settings.aiPromptRerank.slice(0, 24000),
     };
     setSettings(clean);
+    // A prompt that still matches its shipped default is saved as "" (no
+    // override) — the textareas pre-fill with the defaults for editing, and
+    // without this an untouched visit to this tab froze a copy of the default
+    // into the DB (once truncated, which silently ate the Voice section).
+    const unforked = (v: string, def: string | undefined) => (v.trim() === (def ?? "").trim() ? "" : v);
+    const payload: AiSettings = {
+      ...clean,
+      aiPromptAssistant: unforked(clean.aiPromptAssistant, data?.promptDefaults.assistant),
+      aiPromptSpontaneous: unforked(clean.aiPromptSpontaneous, data?.promptDefaults.spontaneous),
+      aiPromptRerank: unforked(clean.aiPromptRerank, data?.promptDefaults.rerank),
+    };
     try {
-      await api("/api/admin/discord/ai", { method: "PUT", body: clean });
+      await api("/api/admin/discord/ai", { method: "PUT", body: payload });
       setStatus("Saved — live on the next message.");
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Save failed.");

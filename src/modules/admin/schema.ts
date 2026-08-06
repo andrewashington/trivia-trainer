@@ -62,9 +62,11 @@ export const discordAdminPut = z.object({
 // AI assistant admin: tuning fields (merged into discord.settings) + memory CRUD.
 export const aiSettingsPut = z.object({
   aiSystemPrompt: z.string().max(4000),
-  aiPromptAssistant: z.string().max(8000),
-  aiPromptSpontaneous: z.string().max(8000),
-  aiPromptRerank: z.string().max(8000),
+  // Roomy caps: the shipped assistant default alone is >10k chars, and an 8000
+  // cap once silently truncated a saved copy of it (losing the Voice section).
+  aiPromptAssistant: z.string().max(24000),
+  aiPromptSpontaneous: z.string().max(24000),
+  aiPromptRerank: z.string().max(24000),
   aiSemanticSearch: z.boolean(),
   aiRerank: z.boolean(),
   aiSearchLimit: z.coerce.number().int().min(1).max(30),
