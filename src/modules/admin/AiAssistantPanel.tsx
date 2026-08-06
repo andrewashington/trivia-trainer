@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { Button } from "@/components/ui";
 import { ModelPicker, type AssistantModel } from "./ModelPicker";
+import { PROMPT_REV } from "./schema";
 
 type Funnel = {
   messages: number;
@@ -213,7 +214,11 @@ export function AiAssistantPanel() {
       aiPromptRerank: unforked(clean.aiPromptRerank, data?.promptDefaults.rerank),
     };
     try {
-      await api("/api/admin/discord/ai", { method: "PUT", body: payload });
+      // promptRev tells the server this panel's prompt-editing rules are
+      // current — without it (a tab loaded before the last deploy) the server
+      // saves knobs/toggles but ignores prompt fields instead of re-freezing
+      // stale prompt text as an override.
+      await api("/api/admin/discord/ai", { method: "PUT", body: { ...payload, promptRev: PROMPT_REV } });
       setStatus("Saved — live on the next message.");
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Save failed.");

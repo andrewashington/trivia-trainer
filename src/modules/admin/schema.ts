@@ -59,8 +59,16 @@ export const discordAdminPut = z.object({
   settings: discordSettingsPut,
 });
 
+// Prompt-editing revision, declared by the panel on save. The PUT route only
+// honors prompt fields when this matches: an admin tab loaded before a deploy
+// otherwise re-freezes an OUTDATED copy of the shipped default as a DB
+// override (exactly how prod twice ran a stale, truncated prompt). Bump it
+// whenever the prompt-editing contract changes shape.
+export const PROMPT_REV = 2;
+
 // AI assistant admin: tuning fields (merged into discord.settings) + memory CRUD.
 export const aiSettingsPut = z.object({
+  promptRev: z.number().int().optional(),
   aiSystemPrompt: z.string().max(4000),
   // Roomy caps: the shipped assistant default alone is >10k chars, and an 8000
   // cap once silently truncated a saved copy of it (losing the Voice section).

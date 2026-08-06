@@ -1039,8 +1039,10 @@ async function route(input: AssistantInput): Promise<string> {
   // guidance — both from the Assistant tab. Empty override → shipped default.
   // The daily seasoning rides along either way; ADMIN NOTES stay last so
   // operator guidance always has the final word.
+  const promptSource = settings.aiPromptAssistant.trim() ? "db-override" : "code-default";
+  const flavor = dailyFlavor();
   const base = settings.aiPromptAssistant.trim() || ASSISTANT_SYSTEM_DEFAULT;
-  const seasoned = `${base}\n\nTODAY'S SEASONING (rotates daily — an undertone, not a costume): ${dailyFlavor()} Let it color at most one line per reply; skip it entirely when it doesn't fit. Never mention that you have a seasoning.`;
+  const seasoned = `${base}\n\nTODAY'S SEASONING (rotates daily — an undertone, not a costume): ${flavor} Let it color at most one line per reply; skip it entirely when it doesn't fit. Never mention that you have a seasoning.`;
   const system = settings.aiSystemPrompt.trim()
     ? `${seasoned}\n\nADMIN NOTES (extra operator guidance — follow these):\n${settings.aiSystemPrompt.trim()}`
     : seasoned;
@@ -1103,7 +1105,16 @@ async function route(input: AssistantInput): Promise<string> {
     latencyMs: Date.now() - startedAt,
     error: runErr ? (runErr instanceof Error ? runErr.message : String(runErr)) : ok ? null : "empty reply (steps exhausted)",
     reply: ok ? reply : null,
-    trace: { userPrompt: userPrompt.slice(0, 6000), toolCalls: traceEntries, reply: ok ? reply : null },
+    // promptSource + seasoning make "which prompt actually ran?" answerable
+    // from the admin run log — a stale DB override once hid for weeks because
+    // nothing recorded which base prompt a reply came from.
+    trace: {
+      userPrompt: userPrompt.slice(0, 6000),
+      toolCalls: traceEntries,
+      reply: ok ? reply : null,
+      promptSource,
+      seasoning: flavor,
+    },
   });
   if (runErr) throw runErr; // let runAssistant() turn it into a friendly line
 

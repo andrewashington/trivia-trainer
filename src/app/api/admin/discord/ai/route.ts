@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getConfig, setConfig } from "@/lib/appConfig";
 import { getDiscordSettings } from "@/lib/discord/settings";
 import { requireAdmin } from "@/lib/session";
-import { aiSettingsPut, memoryCreate } from "@/modules/admin/schema";
+import { aiSettingsPut, memoryCreate, PROMPT_REV } from "@/modules/admin/schema";
 import { ASSISTANT_SYSTEM_DEFAULT } from "@/lib/discord/assistant";
 import { SPONTANEOUS_SYSTEM_DEFAULT } from "@/lib/discord/spontaneous";
 import { RERANK_SYSTEM_DEFAULT } from "@/lib/discord/rerank";
@@ -106,10 +106,32 @@ export const GET = apiHandler(async () => {
 /** PUT — merge the AI tuning fields into discord.settings. */
 export const PUT = apiHandler(async (req: Request) => {
   await requireAdmin();
-  const patch = await parseBody(req, aiSettingsPut);
+  const { promptRev, ...patch } = await parseBody(req, aiSettingsPut);
+  let fields: Partial<typeof patch> = patch;
+  if (promptRev === PROMPT_REV) {
+    // Un-fork server-side: a prompt that still matches its shipped default is
+    // stored as "" (no override) so the code default stays the live one — the
+    // panel pre-fills defaults for editing, and without this an untouched save
+    // freezes a copy that silently goes stale on the next deploy.
+    const unfork = (v: string, def: string) => (v.trim() === def.trim() ? "" : v);
+    fields = {
+      ...patch,
+      aiPromptAssistant: unfork(patch.aiPromptAssistant, ASSISTANT_SYSTEM_DEFAULT),
+      aiPromptSpontaneous: unfork(patch.aiPromptSpontaneous, SPONTANEOUS_SYSTEM_DEFAULT),
+      aiPromptRerank: unfork(patch.aiPromptRerank, RERANK_SYSTEM_DEFAULT),
+    };
+  } else {
+    // Stale-tab guard: a panel loaded before the last deploy carries outdated
+    // prompt text (and outdated saving rules) — honor its knobs and toggles
+    // but drop every prompt field rather than let it re-freeze old prompts.
+    delete fields.aiSystemPrompt;
+    delete fields.aiPromptAssistant;
+    delete fields.aiPromptSpontaneous;
+    delete fields.aiPromptRerank;
+  }
   const current = await getConfig<Record<string, unknown>>("discord.settings");
-  await setConfig("discord.settings", { ...(current ?? {}), ...patch });
-  return NextResponse.json({ ok: true });
+  await setConfig("discord.settings", { ...(current ?? {}), ...fields });
+  return NextResponse.json({ ok: true, promptsSaved: promptRev === PROMPT_REV });
 });
 
 /** POST — add a remembered fact, or ?action=spontaneous to fire a post now. */
