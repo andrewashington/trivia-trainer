@@ -11,6 +11,7 @@ import {
   atlasSize,
   atlasConfigured,
   listAtlasImageModels,
+  defaultAtlasModel,
 } from "@/lib/discord/atlasImage";
 import { fetchRecentMessages } from "@/lib/discord/history";
 import { retrieve } from "@/lib/discord/retrieve";
@@ -993,21 +994,25 @@ async function route(input: AssistantInput): Promise<string> {
       // Primary generator is Atlas (lots of model options); OpenRouter is the
       // fallback so a single model's hiccup still yields an image. Post to the
       // SOURCE channel (input.channelId), not the default feed.
+      // Model precedence: per-call hint from the model > admin picker
+      // (settings.aiImageModel) > env/code default inside resolveAtlasModel.
       let img = null as Awaited<ReturnType<typeof generateImage>>;
+      let renderedBy = "";
       if (atlasConfigured()) {
-        const model = await resolveAtlasModel(typeof args.model === "string" ? args.model : undefined).catch(
-          () => undefined
-        );
+        const hint = typeof args.model === "string" && args.model.trim() ? args.model : settings.aiImageModel;
+        const model = await resolveAtlasModel(hint || undefined).catch(() => undefined);
         img = await generateAtlasImage(prompt, { model, size }).catch((err) => {
           console.error("[discord] create_image atlas gen failed", err);
           return null;
         });
+        if (img) renderedBy = model || defaultAtlasModel();
       }
       if (!img) {
         img = await generateImage(prompt).catch((err) => {
           console.error("[discord] create_image fallback gen failed", err);
           return null;
         });
+        if (img) renderedBy = "openrouter fallback";
       }
       if (!img) return "Image generation came back empty (both renderers returned nothing or no key's set) — tell them it didn't work this time, briefly.";
       const ext = img.mimeType.split("/")[1]?.replace("jpeg", "jpg") || "png";
@@ -1020,7 +1025,9 @@ async function route(input: AssistantInput): Promise<string> {
         console.error("[discord] create_image post failed", err);
         return "Made the image but couldn't post it to the channel — tell them it failed.";
       }
-      return "Image posted to the channel (with your caption if you gave one). Keep your own reply to a tiny aside or nothing — don't re-describe the image.";
+      // renderedBy lands in the run trace, so the admin tab shows which model
+      // actually drew each image (the args only ever show the hint).
+      return `Image posted to the channel (with your caption if you gave one)${renderedBy ? ` — rendered by ${renderedBy}` : ""}. Keep your own reply to a tiny aside or nothing — don't re-describe the image.`;
     }
     const runner = TOOL_RUNNERS[name];
     if (runner) return runner(input.userId, args);

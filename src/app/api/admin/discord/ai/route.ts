@@ -6,6 +6,7 @@ import { getDiscordSettings } from "@/lib/discord/settings";
 import { requireAdmin } from "@/lib/session";
 import { aiSettingsPut, memoryCreate, PROMPT_REV } from "@/modules/admin/schema";
 import { ASSISTANT_SYSTEM_DEFAULT } from "@/lib/discord/assistant";
+import { listAtlasImageModels, defaultAtlasModel } from "@/lib/discord/atlasImage";
 import { SPONTANEOUS_SYSTEM_DEFAULT } from "@/lib/discord/spontaneous";
 import { RERANK_SYSTEM_DEFAULT } from "@/lib/discord/rerank";
 
@@ -69,6 +70,10 @@ export const GET = apiHandler(async () => {
 
   const s = await getDiscordSettings();
 
+  // Atlas text-to-image catalog for the image-model picker (cached ~1h in the
+  // lib; empty when no ATLAS_API_KEY, and the panel falls back to a text field).
+  const imageModels = await listAtlasImageModels().catch(() => []);
+
   return NextResponse.json({
     funnel: {
       messages: Number(funnel?.messages ?? 0),
@@ -92,8 +97,11 @@ export const GET = apiHandler(async () => {
       aiMaxSteps: s.aiMaxSteps,
       aiMaxTokens: s.aiMaxTokens,
       aiModel: s.aiModel,
+      aiImageModel: s.aiImageModel,
       spontaneousEnabled: s.spontaneousEnabled,
     },
+    imageModels,
+    imageModelDefault: defaultAtlasModel(),
     // Baked-in defaults so the admin tab can show / reset each prompt.
     promptDefaults: {
       assistant: ASSISTANT_SYSTEM_DEFAULT,

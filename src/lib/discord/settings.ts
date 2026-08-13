@@ -15,6 +15,7 @@ export type DiscordSettings = {
   digestDay: number; // 0–6 (Sun–Sat) — used for the weekly digest
   digestHour: number; // 0–23, local to FEED_TZ
   aiModel: string; // overrides OPENROUTER_MODEL when non-empty
+  aiImageModel: string; // create_image's default Atlas model (empty = env/code default)
   // AI assistant tuning (admin-editable; all have safe code defaults).
   aiSystemPrompt: string; // appended to the base system prompt when set
   // Full base-prompt overrides (empty = use the baked-in code default). Let the
@@ -42,6 +43,7 @@ export const DISCORD_SETTINGS_DEFAULTS: DiscordSettings = {
   digestDay: 1, // Monday
   digestHour: 9,
   aiModel: "",
+  aiImageModel: "",
   aiSystemPrompt: "",
   aiPromptAssistant: "",
   aiPromptSpontaneous: "",

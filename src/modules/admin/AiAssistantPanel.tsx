@@ -27,8 +27,10 @@ type AiSettings = {
   aiMaxSteps: number;
   aiMaxTokens: number;
   aiModel: string;
+  aiImageModel: string;
   spontaneousEnabled: boolean;
 };
+type ImageModel = { id: string; name: string; price: number | null };
 type TraceToolCall = { step: number; tool: string; args: Record<string, unknown>; result: string };
 type RunTrace = { userPrompt: string; toolCalls: TraceToolCall[]; reply: string | null };
 type Run = {
@@ -48,7 +50,15 @@ type Run = {
   createdAt: string;
 };
 type PromptDefaults = { assistant: string; spontaneous: string; rerank: string };
-type Payload = { funnel: Funnel; memories: Memory[]; settings: AiSettings; runs: Run[]; promptDefaults: PromptDefaults };
+type Payload = {
+  funnel: Funnel;
+  memories: Memory[];
+  settings: AiSettings;
+  runs: Run[];
+  promptDefaults: PromptDefaults;
+  imageModels: ImageModel[];
+  imageModelDefault: string;
+};
 type InsightsStatus = {
   status: string;
   detail: string;
@@ -196,6 +206,7 @@ export function AiAssistantPanel() {
       aiMaxSteps: clampInt(settings.aiMaxSteps, 1, 12, 6),
       aiMaxTokens: clampInt(settings.aiMaxTokens, 200, 8000, 1800),
       aiModel: settings.aiModel.trim().slice(0, 100),
+      aiImageModel: settings.aiImageModel.trim().slice(0, 120),
       aiSystemPrompt: settings.aiSystemPrompt.slice(0, 4000),
       aiPromptAssistant: settings.aiPromptAssistant.slice(0, 24000),
       aiPromptSpontaneous: settings.aiPromptSpontaneous.slice(0, 24000),
@@ -447,6 +458,39 @@ export function AiAssistantPanel() {
           <span className="mt-1 block font-mono text-[10px] text-ink/45">
             Leave on Default to use the env model. A bad pick can&apos;t brick the bot — it falls back to the default
             automatically.
+          </span>
+        </label>
+        <label className="block">
+          <span className="brutal-label">Image model (AI-drawn pictures)</span>
+          {data.imageModels.length > 0 ? (
+            <select
+              value={settings.aiImageModel}
+              onChange={(e) => set("aiImageModel", e.target.value)}
+              className="mt-1 w-full border-2 border-ink bg-card px-2 py-1 font-mono text-sm"
+            >
+              <option value="">Default ({data.imageModelDefault})</option>
+              {settings.aiImageModel && !data.imageModels.some((m) => m.id === settings.aiImageModel) && (
+                <option value={settings.aiImageModel}>{settings.aiImageModel} (custom)</option>
+              )}
+              {data.imageModels.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.id}
+                  {m.price != null ? ` — ~$${m.price}/img` : ""}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={settings.aiImageModel}
+              placeholder="Atlas model id (catalog unavailable — no key or Atlas down)"
+              onChange={(e) => set("aiImageModel", e.target.value)}
+              className="mt-1 w-full border-2 border-ink bg-card px-2 py-1 font-mono text-sm"
+            />
+          )}
+          <span className="mt-1 block font-mono text-[10px] text-ink/45">
+            Atlas catalog, cheapest first. This is the default for create_image — someone naming a model in the ask
+            (&quot;draw it with flux&quot;) still wins.
           </span>
         </label>
         <button

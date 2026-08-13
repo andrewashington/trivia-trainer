@@ -81,6 +81,8 @@ export const aiSettingsPut = z.object({
   aiMaxSteps: z.coerce.number().int().min(1).max(12),
   aiMaxTokens: z.coerce.number().int().min(200).max(8000),
   aiModel: z.string().trim().max(100),
+  // Optional so a panel loaded before this field shipped can still save.
+  aiImageModel: z.string().trim().max(120).optional(),
   spontaneousEnabled: z.boolean(),
 });
 

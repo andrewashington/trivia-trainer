@@ -106,7 +106,9 @@ export async function resolveAtlasModel(hint?: string | null): Promise<string> {
   if (!q) return fallback;
   if (ALIASES[q]) return ALIASES[q];
   const models = await listAtlasImageModels();
-  if (!models.length) return fallback;
+  // Catalog unreachable: an exact-looking id (has a provider/ segment) is
+  // trusted as-is so the admin-picked model still applies; keywords fall back.
+  if (!models.length) return q.includes("/") ? q : fallback;
   const exact = models.find((m) => m.id.toLowerCase() === q);
   if (exact) return exact.id;
   const partial = models.find((m) => m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q));
