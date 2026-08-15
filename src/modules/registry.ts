@@ -641,9 +641,9 @@ export const modules: ModuleDef[] = [
     intro:
       "Post your program. Steal theirs. The Pump remembers every PR and forgives no skipped leg day.",
     tips: [
-      "Paste any program — a note, a spreadsheet, a bro-text — and the Forge hammers it into a card",
-      "Open a friend's program and judge their rest times openly",
-      "Coins for posting programs; glory for everything else",
+      "Paste any program — a note, a screenshot, a bro-text — and the Forge hammers it into a card",
+      "Hit Train Now: one lift per screen, rest timer, confetti if you survive",
+      "PRs go on the Wall. Self-reported. Lying is between you and God",
     ],
   },
   {

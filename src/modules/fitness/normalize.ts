@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { aiConfigured, chatJSON } from "@/lib/ai";
+import { aiConfigured, chatJSON, type UserContentPart } from "@/lib/ai";
 import { planDoc, type PlanDoc } from "@/modules/fitness/schema";
 
 /**
@@ -160,7 +160,11 @@ export function fallbackParse(text: string): PlanDoc {
 
 // ── The entry point ─────────────────────────────────────────────────────────
 
-export async function normalizePlan(input: { text?: string | null; url?: string | null }): Promise<PlanDraft> {
+export async function normalizePlan(input: {
+  text?: string | null;
+  url?: string | null;
+  imageDataUrl?: string | null;
+}): Promise<PlanDraft> {
   const pasted = (input.text ?? "").trim();
   const page = input.url ? await fetchPageText(input.url) : null;
   const material = [
@@ -188,11 +192,25 @@ export async function normalizePlan(input: { text?: string | null; url?: string 
     aiUsed: false,
   };
 
-  if (!aiConfigured() || material.length < 20) return fallback;
+  const hasImage = !!input.imageDataUrl;
+  if (!aiConfigured() || (material.length < 20 && !hasImage)) return fallback;
   try {
+    // A screenshot rides as an image part next to the text (whiteboard
+    // photos, Notes-app screenshots, spreadsheet grabs — the model reads
+    // what the picture SAYS; the same rules apply).
+    const userParts: UserContentPart[] | undefined = hasImage
+      ? [
+          {
+            type: "text",
+            text: material || "The workout program is in the attached screenshot. Read it exactly as written.",
+          },
+          { type: "image_url", image_url: { url: input.imageDataUrl! } },
+        ]
+      : undefined;
     const ai = await chatJSON({
       system: PLAN_SYSTEM,
       user: material,
+      userParts,
       schema: aiPlanReply,
       maxTokens: 4000, // programs are long; the default would truncate real ones
     });

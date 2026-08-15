@@ -6,6 +6,7 @@ import { Avatar, Badge, Card, LinkButton } from "@/components/ui";
 import { DeleteButton } from "@/components/DeleteButton";
 import { CommentThread } from "@/modules/comments/CommentThread";
 import { AdoptButton } from "@/modules/fitness/AdoptButton";
+import { ForkButton } from "@/modules/fitness/ForkButton";
 import { coerceDoc, PlanDocView } from "@/modules/fitness/PlanDocView";
 import { countLifts } from "@/modules/fitness/schema";
 
@@ -35,6 +36,9 @@ export default async function PlanPage({ params }: { params: { id: string } }) {
 
   const canModify = user && (user.id === plan.authorId || user.role === "admin");
   const doc = coerceDoc(plan.doc);
+  const forkedFrom = plan.forkedFromId
+    ? await db.fitnessPlan.findUnique({ where: { id: plan.forkedFromId }, select: { id: true, title: true } })
+    : null;
 
   return (
     <article className="mx-auto max-w-2xl space-y-5">
@@ -59,6 +63,14 @@ export default async function PlanPage({ params }: { params: { id: string } }) {
               year: "numeric",
             })}
           </span>
+          {forkedFrom && (
+            <span>
+              · 🔱 remixed from{" "}
+              <Link href={`/pump/${forkedFrom.id}`} className="font-bold text-ink/60 hover:text-accent-blue">
+                {forkedFrom.title}
+              </Link>
+            </span>
+          )}
         </div>
         <p className="mt-3 flex flex-wrap gap-1.5">
           {plan.goal && <Badge className="bg-accent-bronze/20">{plan.goal}</Badge>}
@@ -71,7 +83,15 @@ export default async function PlanPage({ params }: { params: { id: string } }) {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {user && <AdoptButton planId={plan.id} adopted={viewerRunning} />}
+        <span className="flex flex-wrap gap-3">
+          {user && doc && (
+            <LinkButton href={`/pump/${plan.id}/train`} className="!bg-accent-bronze !text-ink" variant="ghost">
+              🏋️ Train now
+            </LinkButton>
+          )}
+          {user && <AdoptButton planId={plan.id} adopted={viewerRunning} />}
+          {user && user.id !== plan.authorId && doc && <ForkButton planId={plan.id} />}
+        </span>
         {runners.length > 0 && (
           <span className="inline-flex items-center gap-1.5">
             <span className="font-mono text-xs uppercase tracking-wide text-ink/50">running it:</span>

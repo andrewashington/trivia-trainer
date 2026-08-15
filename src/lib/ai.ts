@@ -24,13 +24,24 @@ function stripFences(s: string): string {
 }
 
 /**
+ * Multimodal user-content part (OpenAI wire shape, passed through by
+ * OpenRouter). Images ride as data: URLs — no hosting round-trip.
+ */
+export type UserContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
+/**
  * One JSON-mode chat completion, validated against `schema`. Retries once on a
  * transient / parse / validation failure (the model is nondeterministic, so a
  * re-ask often fixes a malformed reply). Throws if it still fails.
+ * `userParts` (text + images) replaces the plain `user` string when given —
+ * the vision door for screenshot ingestion.
  */
 export async function chatJSON<T>(opts: {
   system: string;
   user: string;
+  userParts?: UserContentPart[];
   schema: ZodType<T>;
   model?: string;
   maxTokens?: number;
@@ -56,7 +67,7 @@ export async function chatJSON<T>(opts: {
         max_tokens: maxTokens,
         messages: [
           { role: "system", content: opts.system },
-          { role: "user", content: opts.user },
+          { role: "user", content: opts.userParts?.length ? opts.userParts : opts.user },
         ],
       }),
     });

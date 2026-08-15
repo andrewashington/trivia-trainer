@@ -53,14 +53,21 @@ export const fitnessPlanPatch = fitnessPlanInput.partial().extend({
   status: z.enum(["active", "retired"]).optional(),
 });
 
-/** POST /api/fitness/normalize — raw text or a URL, at least one. */
+/** POST /api/fitness/normalize — raw text, a URL, or a screenshot; at least one. */
 export const normalizeRequest = z
   .object({
     text: z.string().max(50_000).nullish(),
     url: z.string().trim().url().max(500).nullish(),
+    // Browser-compressed screenshot as a data: URL (~hundreds of KB after the
+    // client's webp downscale; the 8MB cap is a backstop, not a target).
+    imageDataUrl: z
+      .string()
+      .regex(/^data:image\/(png|jpeg|webp|gif);base64,/, "Not an image")
+      .max(8_000_000)
+      .nullish(),
   })
-  .refine((v) => (v.text ?? "").trim().length > 0 || !!v.url, {
-    message: "Paste a program or a link to one.",
+  .refine((v) => (v.text ?? "").trim().length > 0 || !!v.url || !!v.imageDataUrl, {
+    message: "Paste a program, a link, or a screenshot of one.",
   });
 
 /** POST /api/fitness/logs — a training session happened. */

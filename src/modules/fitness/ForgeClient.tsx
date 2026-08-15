@@ -24,9 +24,40 @@ const FLAVOR = [
 
 const emptyExercise = () => ({ name: "", sets: null, reps: null, load: null, rest: null, notes: null });
 
+// Downscale + re-encode a screenshot in the browser before it rides the
+// normalize request as a data: URL (same trick as recipe photos — a phone
+// screenshot is 2-8MB raw, a couple hundred KB as capped webp).
+const MAX_EDGE = 1600;
+async function fileToDataUrl(file: File): Promise<string> {
+  const toDataUrl = (blob: Blob) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(new Error("Couldn't read the image."));
+      r.readAsDataURL(blob);
+    });
+  if (typeof createImageBitmap !== "function") return toDataUrl(file);
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return toDataUrl(file);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close?.();
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/webp", 0.85));
+    return toDataUrl(blob && blob.size < file.size ? blob : file);
+  } catch {
+    return toDataUrl(file);
+  }
+}
+
 export function ForgeClient() {
   const router = useRouter();
   const [raw, setRaw] = useState("");
+  const [image, setImage] = useState<{ dataUrl: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [flavor, setFlavor] = useState(0);
@@ -46,7 +77,10 @@ export function ForgeClient() {
     setBusy(true);
     setError(null);
     try {
-      const body = looksUrl ? { url: raw.trim() } : { text: raw };
+      const body = {
+        ...(looksUrl ? { url: raw.trim() } : { text: raw }),
+        ...(image ? { imageDataUrl: image.dataUrl } : {}),
+      };
       const { draft } = await api<{ draft: PlanDraft }>("/api/fitness/normalize", {
         method: "POST",
         body,
@@ -90,16 +124,45 @@ export function ForgeClient() {
             onChange={(e) => setRaw(e.target.value)}
             rows={12}
             placeholder={
-              "Paste a program, any shape it comes in — a note, a spreadsheet dump, a bro-text, a link.\n\nDay 1 — Push\nBench 3x8-12\nOHP 3x10\nA1 Lateral raise 3x15\nA2 Pushdowns 3x15 …"
+              "Paste a program, any shape it comes in — a note, a spreadsheet dump, a bro-text, a link. Screenshots go below.\n\nDay 1 — Push\nBench 3x8-12\nOHP 3x10\nA1 Lateral raise 3x15\nA2 Pushdowns 3x15 …"
             }
             className="brutal-input min-h-32 font-mono text-sm"
           />
         </Field>
+        <Field label="Or feed it a screenshot (optional)">
+          {image ? (
+            <p className="flex items-center gap-2 font-mono text-xs font-bold uppercase">
+              🖼 {image.name}
+              <button type="button" className="text-ink/40 hover:text-accent-red" onClick={() => setImage(null)}>
+                ✕
+              </button>
+            </p>
+          ) : (
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  setImage({ dataUrl: await fileToDataUrl(file), name: file.name });
+                } catch {
+                  setError("Couldn't read that image.");
+                }
+              }}
+              className="brutal-input file:mr-3 file:border-2 file:border-ink file:bg-accent-yellow file:px-3 file:py-1 file:font-display file:font-bold file:uppercase"
+            />
+          )}
+        </Field>
         {error && (
           <p className="border-2 border-ink bg-accent-red px-3 py-2 text-sm font-bold text-white">{error}</p>
         )}
-        <Button onClick={forge} disabled={busy || !raw.trim()} className="w-full !bg-accent-bronze !text-ink">
-          {busy ? FLAVOR[flavor] : looksUrl ? "Read the link" : "Forge it"}
+        <Button
+          onClick={forge}
+          disabled={busy || (!raw.trim() && !image)}
+          className="w-full !bg-accent-bronze !text-ink"
+        >
+          {busy ? FLAVOR[flavor] : looksUrl ? "Read the link" : image && !raw.trim() ? "Read the screenshot" : "Forge it"}
         </Button>
         <p className="text-center font-mono text-xs uppercase tracking-wide text-ink/50">
           Nothing is posted until you approve the draft
