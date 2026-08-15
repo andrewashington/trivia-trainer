@@ -69,7 +69,23 @@ export async function recentActivity(limit = 16, userId?: string): Promise<Activ
       db.tierList.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
     ]);
 
+  // FitnessPlan keeps a bare authorId (no relation to User, by convention),
+  // so authors resolve in a second query instead of an include.
+  const plans = await db.fitnessPlan.findMany({ ...recent, where: userId ? { authorId: userId } : undefined });
+  const planAuthors = new Map(
+    (
+      await db.user.findMany({
+        where: { id: { in: [...new Set(plans.map((p) => p.authorId))] } },
+        select: { id: true, displayName: true, avatarUrl: true },
+      })
+    ).map((u) => [u.id, u])
+  );
+
   const items: Activity[] = [
+    ...plans.flatMap((p) => {
+      const a = planAuthors.get(p.authorId);
+      return a ? [mk(p.id, "fitness", a, "forged a program", p.title, `/pump/${p.id}`, p.createdAt)] : [];
+    }),
     ...recipes.map((r) => mk(r.id, "cookbook", r.author, "added a recipe", r.title, `/cookbook/${r.id}`, r.createdAt)),
     ...events.map((e) => mk(e.id, "events", e.creator, "planned", e.title, `/events/${e.id}`, e.createdAt)),
     ...listings.map((l) => mk(l.id, "marketplace", l.seller, "listed", l.title, "/marketplace", l.createdAt)),

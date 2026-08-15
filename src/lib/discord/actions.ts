@@ -18,6 +18,8 @@ import { tierListInput } from "@/modules/tiers/schema";
 import { nowPlayingInput } from "@/modules/nowplaying/schema";
 import { mapPinInput } from "@/modules/map/schema";
 import { challengeInput } from "@/modules/challenges/schema";
+import { countLifts, fitnessPlanInput } from "@/modules/fitness/schema";
+import { normalizePlan } from "@/modules/fitness/normalize";
 
 /**
  * The UDM assistant's "tools": create-content and take-action functions, each
@@ -686,6 +688,48 @@ const createChallenge: Runner = async (userId, args) => {
   return `🎯 Challenge posted: **${challenge.title}** — ${deadlineDays} day${deadlineDays === 1 ? "" : "s"} to prove yourselves.`;
 };
 
+const createWorkoutPlan: Runner = async (userId, args) => {
+  // Same pipeline as /pump/new: forge the raw paste into a structured draft,
+  // then save through the identical zod schema + outbox event as the web
+  // route. With AI unconfigured the forge's deterministic fallback still
+  // produces an honest rough cut — the tool never dead-ends.
+  const raw = typeof args.raw_text === "string" ? args.raw_text : "";
+  const draft = await normalizePlan({ text: raw });
+  const data = fitnessPlanInput.parse({
+    ...draft,
+    title: typeof args.title === "string" && args.title.trim() ? args.title.trim() : draft.title,
+  });
+  const plan = await withOutbox(
+    (tx) =>
+      tx.fitnessPlan.create({
+        data: {
+          authorId: userId,
+          title: data.title,
+          blurb: data.blurb ?? null,
+          goal: data.goal ?? null,
+          daysPerWeek: data.daysPerWeek ?? null,
+          equipment: data.equipment ?? null,
+          doc: data.doc,
+          sourceText: data.sourceText ?? null,
+          sourceUrl: data.sourceUrl ?? null,
+          aiUsed: data.aiUsed,
+        },
+      }),
+    (p) => ({
+      type: "fitness.plan.created",
+      payload: {
+        planId: p.id,
+        title: p.title,
+        authorId: userId,
+        days: data.doc.days.length,
+        lifts: countLifts(data.doc),
+      },
+    })
+  );
+  const days = data.doc.days.length;
+  return `🏋️ Forged **${plan.title}** — ${days} day${days === 1 ? "" : "s"}, ${countLifts(data.doc)} lifts. The card lands in the channel shortly. Legs remain your responsibility.`;
+};
+
 /** tool name -> runner. `answer` is handled in the assistant (no side effects). */
 export const TOOL_RUNNERS: Record<string, Runner> = {
   create_poll: createPoll,
@@ -702,6 +746,7 @@ export const TOOL_RUNNERS: Record<string, Runner> = {
   create_nowplaying: createNowPlaying,
   create_map_pin: createMapPin,
   create_challenge: createChallenge,
+  create_workout_plan: createWorkoutPlan,
   adjust_coins: adjustCoins,
   rsvp,
   poll_vote: pollVote,

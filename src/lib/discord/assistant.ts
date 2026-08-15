@@ -300,6 +300,19 @@ const TOOL_DEFS: ToolSpec[] = [
     },
   },
   {
+    name: "create_workout_plan",
+    description:
+      "Turn a workout program into a structured card in The Pump (the fitness module). Pass the FULL raw program text VERBATIM — every day, exercise, and set/rep as the user wrote it; the app's own forge structures it, so never pre-digest, summarize, or reformat it yourself. Use when someone shares/pastes a training program or asks to save one. Posts a program card to the channel + awards coins.",
+    parameters: {
+      type: "object",
+      properties: {
+        raw_text: { type: "string", description: "The complete program text, exactly as given." },
+        title: { type: "string", description: "Optional program name; omit to let the forge name it." },
+      },
+      required: ["raw_text"],
+    },
+  },
+  {
     name: "create_countdown",
     description: "Start a countdown to a future date.",
     parameters: {

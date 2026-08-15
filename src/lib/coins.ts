@@ -63,6 +63,15 @@ export const COIN_RULES: Partial<Record<OutboxEventType, CoinRule>> = {
   "twentyq.created": { amount: 150, userId: (p) => p.hostId, label: "Hosted 20 Questions" },
   "twentyq.solved": { amount: 300, userId: (p) => p.winnerId, label: "Cracked 20 Questions" },
   // treasure.found pays the (variable) pot directly in its route — no fixed rule here.
+
+  // ---- The Pump ----
+  // fitness.log.created only fires for the FIRST log of a user's day (the
+  // route decides), so the daily drip can't be farmed by spam check-ins.
+  "fitness.plan.created": { amount: 150, userId: (p) => p.authorId, label: "Forged a program" },
+  "fitness.plan.adopted": { amount: 25, userId: (p) => p.userId, label: "Enlisted in a program" },
+  "fitness.log.created": { amount: 25, userId: (p) => p.userId, label: "Logged a workout" },
+  "fitness.pr.set": { amount: 100, userId: (p) => p.userId, label: "Set a PR" },
+  "fitness.week.conquered": { amount: 300, userId: (p) => p.userId, label: "Conquered the week" },
 };
 
 /**

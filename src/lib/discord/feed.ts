@@ -59,6 +59,7 @@ export type ModuleKey =
   | "countdowns"
   | "challenges"
   | "book"
+  | "fitness"
   | "home";
 
 /** Accent hexes mirror tailwind.config.ts — Satori can't read Tailwind. */
@@ -85,6 +86,7 @@ export const moduleStyle: Record<
   countdowns: { accent: "#FF3366", accentText: "#FFFFFF", icon: "clock", label: "Countdowns" },
   challenges: { accent: "#C1440E", accentText: "#FFFFFF", icon: "bullseye-arrow", label: "Challenges" },
   book: { accent: "#243B8F", accentText: "#FFFFFF", icon: "notebook", label: "The Book" },
+  fitness: { accent: "#B87333", accentText: "#101010", icon: "dumbbell", label: "The Pump" },
   home: { accent: "#FFD60A", accentText: "#101010", icon: "home", label: "UDM+" },
 };
 
@@ -371,6 +373,17 @@ export function specFor(type: OutboxEventType, payload: Payload): CardSpec | nul
         actorId: str(payload, "userId"),
         path: "/book",
       };
+    case "fitness.plan.created": {
+      const days = num(payload, "days");
+      return {
+        module: "fitness",
+        kicker: "NEW PROGRAM",
+        headline: str(payload, "title") ?? "A program",
+        sub: `${days ? `${days} day${days === 1 ? "" : "s"} of consequences · ` : ""}forged by {actor}`,
+        actorId: str(payload, "authorId"),
+        path: `/pump/${str(payload, "planId") ?? ""}`,
+      };
+    }
     default:
       return null;
   }

@@ -1664,6 +1664,87 @@ model DiscordChannelState {
   updatedAt DateTime @updatedAt
 }
 
+// ── The Pump (fitness) ──────────────────────────────────────────────────────
+// Workout programs forged from raw pastes by AI (src/modules/fitness). Like
+// the Discord tables, these use bare `userId` columns (no relation to User)
+// so the User model stays a conflict-free merge hotspot.
+
+// A shared workout program. `doc` is the structured plan (days → blocks →
+// exercises), zod-validated (planDoc) at every write; the raw paste survives
+// verbatim in sourceText so nothing the author typed is ever lost.
+model FitnessPlan {
+  id           String   @id @default(cuid())
+  authorId     String
+  title        String
+  blurb        String? // one dry sentence for the card — AI-drafted, author-editable
+  goal         String? // "strength" | "hypertrophy" | "fat loss" | freeform
+  daysPerWeek  Int?
+  equipment    String? // "full gym" | "home" | "bands"…
+  doc          Json // planDoc: { days: [{ name, focus, blocks: [{ label, exercises: [...] }] }] }
+  sourceText   String?  @db.Text // the original paste, preserved ("the scripture")
+  sourceUrl    String?
+  aiUsed       Boolean  @default(false) // did the Forge structure it, or a human/fallback?
+  forkedFromId String? // lineage for remixes ("PPL — Chandler's Cut")
+  status       String   @default("active") // "active" | "retired"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  adoptions FitnessAdoption[]
+  logs      FitnessLog[]
+
+  @@index([createdAt])
+}
+
+// "Run it": one row per member per plan they're currently running.
+model FitnessAdoption {
+  id        String   @id @default(cuid())
+  planId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  plan FitnessPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, userId])
+  @@index([userId])
+}
+
+// A logged session ("crushed Push Day A"). Kept when the plan is deleted —
+// the workout still happened.
+model FitnessLog {
+  id          String   @id @default(cuid())
+  userId      String
+  planId      String?
+  dayIndex    Int? // which planDoc day was trained, when known
+  dayName     String? // denormalized so history survives plan edits/deletes
+  note        String?
+  durationMin Int?
+  createdAt   DateTime @default(now())
+
+  plan FitnessPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+// A personal record. `liftKey` is the canonical lift name ("bench press" for
+// "BB Bench") so history and leaderboards group; e1rm is the Epley estimate
+// weight × (1 + reps/30), computed at write time for cross-rep comparison.
+model FitnessPr {
+  id        String   @id @default(cuid())
+  userId    String
+  lift      String // as the lifter typed it
+  liftKey   String // canonicalized (src/modules/fitness/lifts.ts)
+  weight    Float
+  reps      Int      @default(1)
+  unit      String   @default("lb") // "lb" | "kg"
+  e1rm      Float
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([liftKey, e1rm])
+  @@index([userId, liftKey, createdAt])
+}
+
 // Per-invocation trace of the assistant brain (runAssistant) so the admin
 // Assistant tab can show *why* a run failed without digging through Railway
 // logs. One row per /udm, @mention or spontaneous post. Best-effort: writing a

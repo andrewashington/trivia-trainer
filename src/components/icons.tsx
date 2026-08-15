@@ -115,6 +115,9 @@ const PATHS = {
   "fish-solid": "M18 7h2v2h2v6h-2v2h-2v2h-6v-2h-2v-2H8v-2H6v2H4v2H2V7h2v2h2v2h2V9h2V7h2V5h6v2Zm-3 5h2v-2h-2v2Z",
   "settings-cog-solid": "M15 4h2V2h5v5h-2v2h4v6h-4v2h2v5h-5v-2h-2v4H9v-4H7v2H2v-5h2v-2H0V9h4V7H2V2h5v2h2V0h6v4Zm-5 10h4v-4h-4v4Z",
   "user-solid": "M16 16h2v2h2v4H4v-4h2v-2h2v-2h8v2ZM15 4h2v6h-2v2H9v-2H7V4h2V2h6v2Z",
+  // Hand-drawn on the 24px grid (no pixelarticons dumbbell exists): two
+  // plates a side + bar, for The Pump.
+  "dumbbell": "M2 8h2v8H2zM5 6h2v12H5zM7 11h10v2H7zM17 6h2v12h-2zM20 8h2v8h-2z",
 } as const;
 
 /**

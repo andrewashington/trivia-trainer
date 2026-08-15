@@ -631,6 +631,22 @@ export const modules: ModuleDef[] = [
     ],
   },
   {
+    key: "fitness",
+    label: "The Pump",
+    icon: "dumbbell",
+    category: "quests",
+    navOrder: 31,
+    href: "/pump",
+    accentBg: "bg-accent-bronze",
+    intro:
+      "Post your program. Steal theirs. The Pump remembers every PR and forgives no skipped leg day.",
+    tips: [
+      "Paste any program — a note, a spreadsheet, a bro-text — and the Forge hammers it into a card",
+      "Open a friend's program and judge their rest times openly",
+      "Coins for posting programs; glory for everything else",
+    ],
+  },
+  {
     key: "twentyq",
     label: "20 Questions",
     icon: "circle-question",

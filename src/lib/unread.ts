@@ -39,6 +39,7 @@ export async function unreadCounts(user: User): Promise<UnreadCounts> {
     reveal,
     stakes,
     vault,
+    fitness,
   ] = await Promise.all([
     db.recipe.count({ where: { createdAt: after("cookbook"), authorId: { not: me } } }),
     db.event.count({ where: { createdAt: after("events"), creatorId: { not: me } } }),
@@ -52,6 +53,7 @@ export async function unreadCounts(user: User): Promise<UnreadCounts> {
     db.revealPrompt.count({ where: { createdAt: after("reveal"), creatorId: { not: me } } }),
     db.claim.count({ where: { createdAt: after("stakes"), creatorId: { not: me } } }),
     db.vaultEntry.count({ where: { createdAt: after("vault"), creatorId: { not: me } } }),
+    db.fitnessPlan.count({ where: { createdAt: after("fitness"), authorId: { not: me } } }),
   ]);
 
   return {
@@ -67,5 +69,6 @@ export async function unreadCounts(user: User): Promise<UnreadCounts> {
     reveal,
     stakes,
     vault,
+    fitness,
   };
 }

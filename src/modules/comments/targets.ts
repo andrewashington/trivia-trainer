@@ -66,6 +66,10 @@ const OWNER_LOOKUPS: Record<
     const r = await db.smashDeck.findUnique({ where: { id }, select: { creatorId: true } });
     return r?.creatorId ?? null;
   },
+  fitnessplan: async (id) => {
+    const r = await db.fitnessPlan.findUnique({ where: { id }, select: { authorId: true } });
+    return r?.authorId ?? null;
+  },
 };
 
 /**
@@ -95,6 +99,7 @@ export const TARGET_LABEL: Record<CommentTargetType, string> = {
   claim: "stake",
   wish: "wish",
   smashdeck: "smash-or-pass deck",
+  fitnessplan: "program",
 };
 
 /** The canonical href for viewing a given target. */
@@ -114,5 +119,6 @@ export function hrefForTarget(targetType: CommentTargetType, targetId: string): 
     case "claim":     return `/stakes`;
     case "wish":      return `/wishlist`;
     case "smashdeck": return `/smash/${targetId}`;
+    case "fitnessplan": return `/pump/${targetId}`;
   }
 }

@@ -65,6 +65,7 @@ const CREATABLES: Creatable[] = [
   { key: "files", noun: "upload", desc: "Upload a file", form: (p) => <UploadForm maxMb={p.maxMb} /> },
   { key: "vault", noun: "login", desc: "Stash a secret", form: () => <AddEntryForm /> },
   { key: "countdowns", noun: "countdown", desc: "Start a countdown", form: () => <AddCountdownForm /> },
+  { key: "fitness", noun: "program", desc: "Forge a program", linkTo: "/pump/new" },
 ];
 
 export function CommandLauncher(props: LauncherProps) {

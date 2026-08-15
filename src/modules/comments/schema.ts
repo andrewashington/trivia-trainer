@@ -19,6 +19,7 @@ export const COMMENT_TARGETS = [
   "claim",
   "wish",
   "smashdeck",
+  "fitnessplan",
 ] as const;
 export type CommentTargetType = (typeof COMMENT_TARGETS)[number];
 
