@@ -24,4 +24,6 @@ export const DISCORD_EVENTS: DiscordEventDef[] = [
   { type: "map.pin.added", label: "Map pin dropped", group: "Map" },
   { type: "arcade.highscore", label: "New high score", group: "Arcade" },
   { type: "fitness.plan.created", label: "Program forged", group: "The Pump" },
+  { type: "fitness.pr.set", label: "PR set", group: "The Pump" },
+  { type: "fitness.week.conquered", label: "Week conquered (3+ sessions)", group: "The Pump" },
 ];

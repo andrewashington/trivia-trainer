@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/session";
 import { Avatar, Badge, Card, LinkButton } from "@/components/ui";
 import { DeleteButton } from "@/components/DeleteButton";
 import { CommentThread } from "@/modules/comments/CommentThread";
+import { AdoptButton } from "@/modules/fitness/AdoptButton";
 import { coerceDoc, PlanDocView } from "@/modules/fitness/PlanDocView";
 import { countLifts } from "@/modules/fitness/schema";
 
@@ -17,13 +18,20 @@ export default async function PlanPage({ params }: { params: { id: string } }) {
   ]);
   if (!plan) notFound();
 
-  const [author, commentCount] = await Promise.all([
+  const [author, commentCount, adoptions, sessionCount] = await Promise.all([
     db.user.findUnique({
       where: { id: plan.authorId },
       select: { id: true, displayName: true, avatarUrl: true },
     }),
     db.comment.count({ where: { targetType: "fitnessplan", targetId: plan.id } }),
+    db.fitnessAdoption.findMany({ where: { planId: plan.id }, orderBy: { createdAt: "asc" } }),
+    db.fitnessLog.count({ where: { planId: plan.id } }),
   ]);
+  const runners = await db.user.findMany({
+    where: { id: { in: adoptions.map((a) => a.userId) } },
+    select: { id: true, displayName: true, avatarUrl: true },
+  });
+  const viewerRunning = !!user && adoptions.some((a) => a.userId === user.id);
 
   const canModify = user && (user.id === plan.authorId || user.role === "admin");
   const doc = coerceDoc(plan.doc);
@@ -57,12 +65,27 @@ export default async function PlanPage({ params }: { params: { id: string } }) {
           {plan.daysPerWeek && <Badge>{plan.daysPerWeek}×/week</Badge>}
           {doc && <Badge>{countLifts(doc)} lifts</Badge>}
           {plan.equipment && <Badge>{plan.equipment}</Badge>}
+          {sessionCount > 0 && <Badge>{sessionCount} session{sessionCount === 1 ? "" : "s"} logged</Badge>}
           {plan.status === "retired" && <Badge className="bg-ink text-paper">retired</Badge>}
         </p>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {user && <AdoptButton planId={plan.id} adopted={viewerRunning} />}
+        {runners.length > 0 && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="font-mono text-xs uppercase tracking-wide text-ink/50">running it:</span>
+            <span className="flex -space-x-2">
+              {runners.map((r) => (
+                <Avatar key={r.id} name={r.displayName} src={r.avatarUrl} size="sm" title={r.displayName} />
+              ))}
+            </span>
+          </span>
+        )}
+      </div>
+
       {doc ? (
-        <PlanDocView doc={doc} />
+        <PlanDocView doc={doc} planId={user ? plan.id : undefined} />
       ) : (
         <Card>
           <p className="text-sm text-ink/60">

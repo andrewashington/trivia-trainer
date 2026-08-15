@@ -180,13 +180,13 @@ const TOOL_DEFS: ToolSpec[] = [
   {
     name: "get_group_data",
     description:
-      "Fetch live data on demand. Call this when you need remembered facts about people, before any action requiring real ids (rsvp, poll_vote, claim_listing, idea_upvote), or when the user asks about events, polls, listings, ideas, now-playing, birthdays, coin balances/history, arcade scores, or group stats. Coin balances are NOT in GROUP CONTEXT — pass the 'coins' section to get everyone's wallet + your recent transactions (needed before any adjust_coins ruling or 'who's richest' question). Pass only the sections you actually need. Available sections: memories, events, polls, listings, ideas, nowplaying, birthdays, coins, arcade, stats.",
+      "Fetch live data on demand. Call this when you need remembered facts about people, before any action requiring real ids (rsvp, poll_vote, claim_listing, idea_upvote), or when the user asks about events, polls, listings, ideas, now-playing, birthdays, coin balances/history, arcade scores, group stats, or workout programs/PRs/training ('fitness': The Pump's programs + who's running them, recent sessions, and The Wall's PR leaderboard). Coin balances are NOT in GROUP CONTEXT — pass the 'coins' section to get everyone's wallet + your recent transactions (needed before any adjust_coins ruling or 'who's richest' question). Pass only the sections you actually need. Available sections: memories, events, polls, listings, ideas, nowplaying, birthdays, coins, arcade, stats, fitness.",
     parameters: {
       type: "object",
       properties: {
         sections: {
           type: "array",
-          items: { type: "string", enum: ["memories", "events", "polls", "listings", "ideas", "nowplaying", "birthdays", "coins", "arcade", "stats"] },
+          items: { type: "string", enum: ["memories", "events", "polls", "listings", "ideas", "nowplaying", "birthdays", "coins", "arcade", "stats", "fitness"] },
           description: "Which sections to load. Pick only what you need.",
         },
       },
@@ -310,6 +310,35 @@ const TOOL_DEFS: ToolSpec[] = [
         title: { type: "string", description: "Optional program name; omit to let the forge name it." },
       },
       required: ["raw_text"],
+    },
+  },
+  {
+    name: "log_workout",
+    description:
+      "Log that the user trained today (The Pump). Use when someone says they worked out / hit the gym / crushed a session. Optionally name the program they're running (program_title, fuzzy-matched) and what they did in note. First log of the day pays coins; the third training day in a week triggers WEEK CONQUERED.",
+    parameters: {
+      type: "object",
+      properties: {
+        note: { type: "string", description: "What they did, in their words (optional)." },
+        program_title: { type: "string", description: "Program name to attach the session to (optional, fuzzy)." },
+        duration_min: { type: "integer", description: "Session length in minutes (optional)." },
+      },
+    },
+  },
+  {
+    name: "set_pr",
+    description:
+      "Record a personal record on The Wall (The Pump). Use when someone claims a lift PR ('benched 225 for 5'). Weight + reps as stated; unit defaults to lb. If it doesn't beat their ledger best the app rejects it with a taunt — relay the taunt faithfully.",
+    parameters: {
+      type: "object",
+      properties: {
+        lift: { type: "string", description: "The lift, as they said it ('bench', 'squat', 'OHP')." },
+        weight: { type: "number" },
+        reps: { type: "integer", description: "Default 1." },
+        unit: { type: "string", enum: ["lb", "kg"] },
+        note: { type: "string" },
+      },
+      required: ["lift", "weight"],
     },
   },
   {
@@ -609,7 +638,7 @@ export async function assembleContext(userId: string) {
   };
 }
 
-type GroupDataSection = "memories" | "events" | "polls" | "listings" | "ideas" | "nowplaying" | "birthdays" | "coins" | "arcade" | "stats";
+type GroupDataSection = "memories" | "events" | "polls" | "listings" | "ideas" | "nowplaying" | "birthdays" | "coins" | "arcade" | "stats" | "fitness";
 
 /** Fetch one or more sections of live app data on demand. */
 export async function fetchGroupData(userId: string, sections: GroupDataSection[]): Promise<Record<string, unknown>> {
@@ -709,6 +738,52 @@ export async function fetchGroupData(userId: string, sections: GroupDataSection[
       select: { game: true, score: true, user: { select: { displayName: true } } },
     }).then((rows) => {
       out.arcadeTop = rows.map((s) => ({ game: s.game, name: s.user.displayName, score: s.score }));
+    }),
+
+    // The Pump: fitness tables keep bare userIds (no relation), so names
+    // resolve through one users query at the end.
+    want.has("fitness") && Promise.all([
+      db.fitnessPlan.findMany({
+        where: { status: "active" },
+        orderBy: { createdAt: "desc" },
+        take: 12,
+        select: { id: true, title: true, goal: true, daysPerWeek: true, authorId: true },
+      }),
+      db.fitnessAdoption.findMany({ select: { planId: true, userId: true } }),
+      db.fitnessLog.findMany({
+        where: { createdAt: { gte: new Date(Date.now() - 7 * 864e5) } },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        select: { userId: true, dayName: true, note: true, createdAt: true },
+      }),
+      db.fitnessPr.findMany({
+        orderBy: { e1rm: "desc" },
+        take: 40,
+        select: { userId: true, lift: true, liftKey: true, weight: true, reps: true, unit: true, e1rm: true },
+      }),
+    ]).then(async ([plans, adoptions, logs, prs]) => {
+      const ids = new Set<string>();
+      for (const r of [...plans.map((p) => p.authorId), ...adoptions.map((a) => a.userId), ...logs.map((l) => l.userId), ...prs.map((p) => p.userId)]) ids.add(r);
+      const users = await db.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true, displayName: true } });
+      const name = new Map(users.map((u) => [u.id, u.displayName]));
+      out.programs = plans.map((p) => ({
+        id: p.id, title: p.title, goal: p.goal, daysPerWeek: p.daysPerWeek,
+        author: name.get(p.authorId) ?? "?",
+        running: adoptions.filter((a) => a.planId === p.id).map((a) => name.get(a.userId) ?? "?"),
+      }));
+      out.recentSessions = logs.map((l) => ({
+        name: name.get(l.userId) ?? "?", day: l.dayName, note: l.note, when: l.createdAt.toISOString().slice(0, 10),
+      }));
+      // Best e1RM per person per lift only — the raw table repeats history.
+      const best = new Map<string, (typeof prs)[number]>();
+      for (const pr of prs) {
+        const k = `${pr.userId}:${pr.liftKey}`;
+        if (!best.has(k)) best.set(k, pr);
+      }
+      out.wallOfPRs = [...best.values()].map((p) => ({
+        name: name.get(p.userId) ?? "?", lift: p.liftKey,
+        best: `${p.weight} ${p.unit}${p.reps > 1 ? ` × ${p.reps}` : ""}`, e1rmLb: Math.round(p.e1rm),
+      }));
     }),
 
     want.has("stats") && Promise.all([

@@ -21,6 +21,10 @@ export const pollStatus = (total: number) =>
 export const bookStatus = (yes: number, no: number, totalStake: number) =>
   `🟢 ${yes} Yes · 🔴 ${no} No · 💰 ${totalStake.toLocaleString()} coins on the line`;
 
+/** The live line on a program card — who's running it, sessions banked. */
+export const pumpStatus = (running: number, sessions: number) =>
+  `💪 ${running} running · ${sessions} session${sessions === 1 ? "" : "s"} logged`;
+
 const num = (p: Record<string, unknown> | undefined, key: string) =>
   typeof p?.[key] === "number" ? (p[key] as number) : 0;
 
@@ -32,6 +36,8 @@ export function initialStatusFor(
   switch (type) {
     case "event.created":
       return rsvpStatus(0, 0, 0);
+    case "fitness.plan.created":
+      return pumpStatus(0, 0);
     case "listing.created":
       return availableStatus();
     case "poll.created":

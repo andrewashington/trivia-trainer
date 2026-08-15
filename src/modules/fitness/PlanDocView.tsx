@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui";
+import { LogSessionButton } from "@/modules/fitness/LogSessionButton";
 import { planDoc, type PlanDoc } from "@/modules/fitness/schema";
 
 /**
@@ -22,7 +23,7 @@ export function exerciseMeta(ex: PlanDoc["days"][number]["blocks"][number]["exer
   return scheme.join(" · ");
 }
 
-export function PlanDocView({ doc }: { doc: PlanDoc }) {
+export function PlanDocView({ doc, planId }: { doc: PlanDoc; planId?: string }) {
   return (
     <div className="space-y-4">
       {doc.days.map((day, di) => (
@@ -31,7 +32,10 @@ export function PlanDocView({ doc }: { doc: PlanDoc }) {
             <h3 className="font-display text-lg font-bold uppercase tracking-wide text-ink">
               {day.name}
             </h3>
-            {day.focus && <Badge className="bg-paper">{day.focus}</Badge>}
+            <span className="flex items-center gap-2">
+              {day.focus && <Badge className="bg-paper">{day.focus}</Badge>}
+              {planId && <LogSessionButton planId={planId} dayIndex={di} />}
+            </span>
           </header>
           <div className="divide-y-2 divide-ink/10">
             {day.blocks.map((block, bi) => (

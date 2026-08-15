@@ -152,6 +152,12 @@ export function componentsFor(type: OutboxEventType, payload: Payload): object[]
         ),
       ];
     }
+    case "fitness.plan.created": {
+      const id = str(payload, "planId");
+      if (!id) return null;
+      // Handled by the fitness feature module (custom_id head "pumprun").
+      return [row(btn(3, "🏃 Run it", `pumprun:adopt:${id}`))];
+    }
     default:
       return null;
   }
@@ -384,6 +390,24 @@ export function specFor(type: OutboxEventType, payload: Payload): CardSpec | nul
         path: `/pump/${str(payload, "planId") ?? ""}`,
       };
     }
+    case "fitness.pr.set":
+      return {
+        module: "fitness",
+        kicker: "NEW PR",
+        headline: `${str(payload, "lift") ?? "A lift"} — ${str(payload, "display") ?? "?"}`,
+        sub: "{actor} now outlifts 60% of their excuses",
+        actorId: str(payload, "userId"),
+        path: "/pump/wall",
+      };
+    case "fitness.week.conquered":
+      return {
+        module: "fitness",
+        kicker: "WEEK CONQUERED",
+        headline: "Three sessions and counting",
+        sub: "{actor} showed up. again. and again. and again.",
+        actorId: str(payload, "userId"),
+        path: "/pump",
+      };
     default:
       return null;
   }
@@ -416,6 +440,12 @@ export function trackRefFor(
       // (see /api/book/bets → editTrackedMessage) instead of re-posting.
       const id = str(payload, "marketId");
       return id ? { kind: "book", refId: id } : null;
+    }
+    case "fitness.plan.created": {
+      // Adoptions + logged sessions rewrite the status line in place
+      // (src/modules/fitness/service.ts → refreshPlanCard).
+      const id = str(payload, "planId");
+      return id ? { kind: "fitnessplan", refId: id } : null;
     }
     default:
       return null;

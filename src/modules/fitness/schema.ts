@@ -63,6 +63,23 @@ export const normalizeRequest = z
     message: "Paste a program or a link to one.",
   });
 
+/** POST /api/fitness/logs — a training session happened. */
+export const fitnessLogInput = z.object({
+  planId: z.string().nullish(),
+  dayIndex: z.number().int().min(0).max(13).nullish(),
+  note: z.string().trim().max(500).nullish(),
+  durationMin: z.number().int().min(1).max(600).nullish(),
+});
+
+/** POST /api/fitness/prs — a claimed feat of strength. */
+export const fitnessPrInput = z.object({
+  lift: z.string().trim().min(1, "Name the lift").max(80),
+  weight: z.number().positive().max(2000),
+  reps: z.number().int().min(1).max(50).default(1),
+  unit: z.enum(["lb", "kg"]).default("lb"),
+  note: z.string().trim().max(200).nullish(),
+});
+
 /** Count every exercise in a doc — for card chips and confirmations. */
 export function countLifts(doc: PlanDoc): number {
   return doc.days.reduce(

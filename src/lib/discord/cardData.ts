@@ -68,6 +68,28 @@ export async function cardExtras(
       const { bookAvatars } = await import("@/modules/book/discordCard");
       return { avatars: await bookAvatars(id) };
     }
+    case "fitness.plan.created": {
+      const id = str("planId");
+      if (!id) return {};
+      const plan = await db.fitnessPlan.findUnique({
+        where: { id },
+        select: { doc: true, goal: true, equipment: true },
+      });
+      if (!plan) return {};
+      const { coerceDoc } = await import("@/modules/fitness/PlanDocView");
+      const doc = coerceDoc(plan.doc);
+      const facts: { label: string; value: string }[] = [];
+      if (doc) {
+        const names = doc.days.map((d) => d.name.replace(/^day\s*\d+\s*[—–:-]\s*/i, ""));
+        const shown = names.slice(0, 4).join(" / ");
+        facts.push({
+          label: "SPLIT",
+          value: names.length > 4 ? `${shown} +${names.length - 4} more` : shown,
+        });
+      }
+      if (plan.equipment) facts.push({ label: "GEAR", value: plan.equipment });
+      return { badge: plan.goal?.toUpperCase(), facts };
+    }
     default:
       return {};
   }

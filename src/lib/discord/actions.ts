@@ -18,8 +18,10 @@ import { tierListInput } from "@/modules/tiers/schema";
 import { nowPlayingInput } from "@/modules/nowplaying/schema";
 import { mapPinInput } from "@/modules/map/schema";
 import { challengeInput } from "@/modules/challenges/schema";
-import { countLifts, fitnessPlanInput } from "@/modules/fitness/schema";
+import { countLifts, fitnessPlanInput, fitnessLogInput, fitnessPrInput } from "@/modules/fitness/schema";
 import { normalizePlan } from "@/modules/fitness/normalize";
+import { logWorkout, setPr } from "@/modules/fitness/service";
+import { prDisplay } from "@/modules/fitness/lifts";
 
 /**
  * The UDM assistant's "tools": create-content and take-action functions, each
@@ -730,6 +732,49 @@ const createWorkoutPlan: Runner = async (userId, args) => {
   return `🏋️ Forged **${plan.title}** — ${days} day${days === 1 ? "" : "s"}, ${countLifts(data.doc)} lifts. The card lands in the channel shortly. Legs remain your responsibility.`;
 };
 
+const logWorkoutRunner: Runner = async (userId, args) => {
+  // Fuzzy program match: prefer something the user is actually running.
+  let planId: string | null = null;
+  const wanted = typeof args.program_title === "string" ? args.program_title.trim() : "";
+  if (wanted) {
+    const candidates = await db.fitnessPlan.findMany({
+      where: { title: { contains: wanted, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (candidates.length) {
+      const mine = await db.fitnessAdoption.findFirst({
+        where: { userId, planId: { in: candidates.map((c) => c.id) } },
+        select: { planId: true },
+      });
+      planId = mine?.planId ?? candidates[0].id;
+    }
+  }
+  const data = fitnessLogInput.parse({
+    planId,
+    note: opt(args.note),
+    durationMin: args.duration_min == null ? null : Math.round(Number(args.duration_min)) || null,
+  });
+  const result = await logWorkout(userId, data);
+  const bits = [`🏋️ Logged — training day ${result.weekSessions} of the week.`];
+  if (result.weekConquered) bits.push("**WEEK CONQUERED** — 300 coins, and the moral high ground.");
+  else if (!result.firstToday) bits.push("(Second session today: respect, but the daily coin already dropped.)");
+  return bits.join(" ");
+};
+
+const setPrRunner: Runner = async (userId, args) => {
+  const data = fitnessPrInput.parse({
+    lift: args.lift,
+    weight: Number(args.weight),
+    reps: args.reps == null ? undefined : Math.round(Number(args.reps)),
+    unit: args.unit === "kg" ? "kg" : "lb",
+    note: opt(args.note),
+  });
+  // A sub-best claim throws the ledger's taunt; the dispatcher relays it.
+  const { pr, prev } = await setPr(userId, data);
+  const line = `🏆 On the Wall: **${pr.lift} ${prDisplay(pr.weight, pr.reps, pr.unit)}** (~${Math.round(pr.e1rm)} e1RM).`;
+  return prev ? `${line} Previous best: eaten.` : `${line} First entry for that lift — the ledger begins.`;
+};
+
 /** tool name -> runner. `answer` is handled in the assistant (no side effects). */
 export const TOOL_RUNNERS: Record<string, Runner> = {
   create_poll: createPoll,
@@ -747,6 +792,8 @@ export const TOOL_RUNNERS: Record<string, Runner> = {
   create_map_pin: createMapPin,
   create_challenge: createChallenge,
   create_workout_plan: createWorkoutPlan,
+  log_workout: logWorkoutRunner,
+  set_pr: setPrRunner,
   adjust_coins: adjustCoins,
   rsvp,
   poll_vote: pollVote,
