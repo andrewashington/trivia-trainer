@@ -15,6 +15,10 @@ export type UwuLevel = 1 | 2 | 3;
 
 const TOKEN_RE = /<a?:\w+:\d+>|<#\d+>|<@!?\d+>|<@&\d+>|https?:\/\/\S+/g;
 
+/** Light kaomoji / faces. Level 1 tacks one on ~10% of messages. */
+const FACES = [":3", "owo", "uwu", ">w<", "^w^", "(´・ω・`)", "(づ￣ ³￣)づ"];
+const LEVEL_1_FACE_CHANCE = 0.1;
+
 function matchCase(pattern: string, replacement: string): string {
   const n = Math.min(pattern.length, replacement.length);
   let out = "";
@@ -79,6 +83,9 @@ export function uwuify(text: string, level: UwuLevel): string {
   }
 
   out = restore(out, tokens);
+  if (level === 1 && Math.random() < LEVEL_1_FACE_CHANCE) {
+    out = `${out.replace(/\s+$/, "")} ${FACES[Math.floor(Math.random() * FACES.length)]}`;
+  }
   return out.slice(0, 2000);
 }
 
