@@ -9,5 +9,7 @@ export async function register() {
     startDiscordDrainer();
     const { startDiscordScheduler } = await import("@/lib/discord/scheduler");
     startDiscordScheduler();
+    const { startUwuPoller } = await import("@/lib/discord/uwuPoller");
+    startUwuPoller();
   }
 }

@@ -30,13 +30,19 @@ const PORT = Number(process.env.PORT ?? 8082);
 const SECRET = process.env.DISCORD_GATEWAY_SECRET;
 const TOKEN = process.env.DISCORD_BOT_TOKEN;
 const FORWARD_URL = process.env.APP_FORWARD_URL;
-const INGEST_URL = process.env.APP_INGEST_URL;
+const INGEST_URL =
+  process.env.APP_INGEST_URL ||
+  (process.env.APP_FORWARD_URL
+    ? process.env.APP_FORWARD_URL.replace(/\/api\/discord\/gateway\/?$/, "/api/discord/ingest")
+    : "");
 if (!SECRET || !TOKEN || !FORWARD_URL) {
   console.error("DISCORD_GATEWAY_SECRET, DISCORD_BOT_TOKEN and APP_FORWARD_URL are required");
   process.exit(1);
 }
-if (!INGEST_URL) {
+if (!INGEST_URL || !INGEST_URL.includes("/api/discord/ingest")) {
   console.warn("[gateway] APP_INGEST_URL is not set — archive + /uwu live-transform will not run");
+} else {
+  console.log(`[gateway] ingest → ${INGEST_URL}`);
 }
 
 // Plain HTTP underneath so Railway's healthcheck has something to hit.

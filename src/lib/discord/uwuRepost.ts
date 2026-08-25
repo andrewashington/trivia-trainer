@@ -27,7 +27,7 @@ export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
   }
 
   const target = await db.discordUwuTarget.findUnique({
-    where: { discordUserId: message.authorId },
+    where: { discordUserId: String(message.authorId) },
   });
   if (!target) return;
 
@@ -57,13 +57,25 @@ export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
     attachments: message.attachments ?? [],
   };
   let posted = await executeWebhook(hook, body);
-  if (!posted) {
-    hook = await getOrCreateUwuWebhook(webhookChannelId);
-    posted = hook ? await executeWebhook(hook, body) : false;
+  if (!posted && body.avatar_url) {
+    posted = await executeWebhook(hook, { ...body, avatar_url: undefined });
   }
   if (!posted) {
-    console.error(`[discord] uwu webhook post failed for channel ${webhookChannelId}`);
-    return;
+    hook = await getOrCreateUwuWebhook(webhookChannelId);
+    posted = hook ? await executeWebhook(hook, { ...body, avatar_url: undefined }) : false;
+  }
+  if (!posted) {
+    console.error(`[discord] uwu webhook post failed for channel ${webhookChannelId}; falling back to bot post`);
+    try {
+      await discordApi(`/channels/${message.channelId}/messages`, {
+        method: "POST",
+        body: { content: content || "*uwu*" },
+      });
+      posted = true;
+    } catch (err) {
+      console.error("[discord] uwu bot fallback failed", err);
+      return;
+    }
   }
 
   try {
