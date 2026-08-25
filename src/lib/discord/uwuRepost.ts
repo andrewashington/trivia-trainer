@@ -55,6 +55,10 @@ export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
 
   const level = (target.level === 2 || target.level === 3 ? target.level : 1) as UwuLevel;
   const content = uwuify(message.content, level);
+  if (content === message.content) {
+    release();
+    return;
+  }
   const profile = await resolveGuildProfile(message);
   console.log(`[discord] uwu apply user=${message.authorId} level=${level} channel=${message.channelId} as=${profile.name}`);
 

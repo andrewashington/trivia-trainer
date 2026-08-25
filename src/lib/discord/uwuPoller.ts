@@ -89,7 +89,7 @@ async function pollChannel(ch: ChannelRef, wanted: Set<string>, guildId: string)
 async function maybeApply(ch: ChannelRef, msg: ApiMessage, wanted: Set<string>, guildId: string) {
   const author = msg.author;
   const authorId = author?.id;
-  if (!author || !authorId || author.bot || msg.webhook_id) return;
+  if (!author || !authorId || isAppMessage(msg, author)) return;
   if (!wanted.has(authorId)) return;
   console.log(`[discord] uwu poller hit user=${authorId} channel=${ch.id} msg=${msg.id}`);
   await applyUwuIfNeeded({
@@ -137,11 +137,28 @@ async function listTextChannels(guildId: string): Promise<ChannelRef[]> {
 
 type ApiMessage = {
   id: string;
+  type?: number;
   content?: string;
   webhook_id?: string;
-  author?: { id: string; username?: string; global_name?: string | null; avatar?: string | null; bot?: boolean };
+  application_id?: string;
+  author?: { id: string; username?: string; global_name?: string | null; avatar?: string | null; bot?: boolean; system?: boolean };
   attachments?: { url: string; filename?: string; content_type?: string | null }[];
 };
+
+const HUMAN_TYPES = new Set([0, 19]); // DEFAULT, REPLY
+
+function isAppMessage(
+  msg: ApiMessage,
+  author: NonNullable<ApiMessage["author"]>
+): boolean {
+  return Boolean(
+    author.bot ||
+      author.system ||
+      msg.webhook_id ||
+      msg.application_id ||
+      (msg.type != null && !HUMAN_TYPES.has(msg.type))
+  );
+}
 
 async function getMessages(
   channelId: string,

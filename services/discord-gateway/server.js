@@ -181,7 +181,7 @@ function serializeMessage(message) {
     authorName: message.member?.displayName ?? message.author?.globalName ?? message.author?.username ?? "unknown",
     authorAvatarUrl: avatarUrl(message),
     parentChannelId: parentChannelId(message),
-    isBot: (message.author?.bot ?? false) || Boolean(message.webhookId),
+    isBot: (message.author?.bot ?? false) || Boolean(message.webhookId) || Boolean(message.applicationId),
     content: message.content ?? "",
     replyToId: message.reference?.messageId ?? null,
     attachments: [...(message.attachments?.values?.() ?? [])].map((a) => ({
