@@ -2,7 +2,7 @@
  * Uwu-speak transformer.
  *
  * Letter rules adapted from warriordog/discord-uwu-bot (MIT,
- * Copyright 2023 Hazel Koehler): r→w, th→dw, optional ny/fw insertions,
+ * Copyright 2023 Hazel Koehler): r→w, optional ny/fw insertions,
  * optional cute curses. We differ on purpose: `ll` becomes `w` (hello → hewo)
  * instead of the upstream `wl`, leftover `l` also becomes `w`, and intensity
  * is a 1–3 level instead of a pair of booleans.
@@ -61,7 +61,6 @@ export function uwuify(text: string, level: UwuLevel): string {
   out = replaceCI(out, /ll/gi, "w");
   out = replaceCI(out, /r/gi, "w");
   out = replaceCI(out, /l/gi, "w");
-  out = replaceCI(out, /th/gi, "dw");
 
   if (level >= 2) {
     out = out.replace(/(n)([aeiou])/gi, (_, n: string, v: string) => n + matchCase(v, "y") + v);
