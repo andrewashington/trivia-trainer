@@ -9,6 +9,7 @@ import {
   verifyGatewaySignature,
   type ArchiveAttachment,
 } from "@/lib/discord/archive";
+import { applyUwuIfNeeded } from "@/lib/discord/uwuRepost";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ type IngestPayload =
 
 export async function POST(req: Request) {
   const secret = process.env.DISCORD_GATEWAY_SECRET;
-  if (!secret || !archiveEnabled()) {
+  if (!secret) {
     return NextResponse.json({ ok: false }, { status: 503 });
   }
 
@@ -54,8 +55,20 @@ async function handleEvent(payload: IngestPayload) {
     const message = parseMessage(payload.message);
     if (!message) return;
     if (payload.kind === "create") {
-      await upsertArchiveMessage(message);
-    } else {
+      if (archiveEnabled()) await upsertArchiveMessage(message);
+      if (!message.isBot) {
+        await applyUwuIfNeeded({
+          id: message.id,
+          channelId: message.channelId,
+          parentChannelId: message.parentChannelId,
+          authorId: message.authorId,
+          authorName: message.authorName,
+          authorAvatarUrl: message.authorAvatarUrl,
+          content: message.content,
+          attachments: message.attachments,
+        }).catch((err) => console.error("[discord] uwu transform failed", err));
+      }
+    } else if (archiveEnabled()) {
       await updateArchiveMessage({
         id: message.id,
         channelId: message.channelId,
@@ -72,12 +85,14 @@ async function handleEvent(payload: IngestPayload) {
   }
 
   if (payload.kind === "delete") {
+    if (!archiveEnabled()) return;
     const id = typeof payload.id === "string" ? payload.id : null;
     if (id) await softDeleteArchiveMessage(id, parseDate(payload.deletedAt) ?? new Date());
     return;
   }
 
   if (payload.kind === "reaction") {
+    if (!archiveEnabled()) return;
     const messageId = typeof payload.messageId === "string" ? payload.messageId : null;
     const emoji = typeof payload.emoji === "string" ? payload.emoji : null;
     const authorId = typeof payload.userId === "string" ? payload.userId : null;
@@ -107,6 +122,8 @@ function parseMessage(value: unknown) {
     channelKind: typeof msg.channelKind === "string" ? msg.channelKind : null,
     authorId,
     authorName: typeof msg.authorName === "string" ? msg.authorName : "unknown",
+    authorAvatarUrl: typeof msg.authorAvatarUrl === "string" ? msg.authorAvatarUrl : null,
+    parentChannelId: typeof msg.parentChannelId === "string" ? msg.parentChannelId : null,
     isBot: msg.isBot === true,
     content: typeof msg.content === "string" ? msg.content : "",
     replyToId: typeof msg.replyToId === "string" ? msg.replyToId : null,

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { DISCORD_API, botConfig } from "@/lib/discord/bot";
 import { withOutbox } from "@/lib/outbox";
 import { ensureFeatures, commandHandler, componentHandler } from "@/lib/discord/registry";
+import { handleUwu } from "@/lib/discord/features/uwu";
 import { editTrackedMessage } from "@/lib/discord/messageState";
 import { actionRow, button, CARD_IDS } from "@/lib/discord/components";
 import { rsvpStatus, claimedStatus, pollStatus } from "@/lib/discord/cardStatus";
@@ -51,7 +52,7 @@ export type Interaction = {
     resolved?: { messages?: Record<string, ResolvedMessage> };
   };
   message?: { id?: string };
-  member?: { user?: DiscordUser };
+  member?: { user?: DiscordUser; permissions?: string };
   user?: DiscordUser;
 };
 export type CommandOption = {
@@ -98,6 +99,8 @@ export async function handleInteraction(interaction: Interaction): Promise<objec
     const name = interaction.data?.name;
     if (name === "link") return handleLink(discordUser);
     if (name === "unlink") return handleUnlink(discordUser);
+    // Discord Administrator gate — no UDM+ link required.
+    if (name === "uwu") return handleUwu(interaction);
 
     // Every other command acts as a UDM+ user.
     const user = await db.user.findUnique({ where: { discordUserId: discordUser.id } });

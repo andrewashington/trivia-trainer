@@ -170,7 +170,9 @@ function serializeMessage(message) {
     channelKind: message.channel?.type != null ? String(message.channel.type) : null,
     authorId: message.author?.id ?? "",
     authorName: message.member?.displayName ?? message.author?.globalName ?? message.author?.username ?? "unknown",
-    isBot: message.author?.bot ?? false,
+    authorAvatarUrl: avatarUrl(message),
+    parentChannelId: parentChannelId(message),
+    isBot: (message.author?.bot ?? false) || Boolean(message.webhookId),
     content: message.content ?? "",
     replyToId: message.reference?.messageId ?? null,
     attachments: [...(message.attachments?.values?.() ?? [])].map((a) => ({
@@ -187,6 +189,24 @@ function serializeMessage(message) {
 
 function emojiKey(emoji) {
   return emoji.id ? `${emoji.name ?? "emoji"}:${emoji.id}` : emoji.name ?? "";
+}
+
+function avatarUrl(message) {
+  try {
+    const src = message.member ?? message.author;
+    return src?.displayAvatarURL?.({ extension: "png", size: 256 }) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function parentChannelId(message) {
+  const channel = message.channel;
+  if (!channel) return null;
+  if (typeof channel.isThread === "function" && channel.isThread()) {
+    return channel.parentId ?? null;
+  }
+  return null;
 }
 
 function forwardIngest(payload) {

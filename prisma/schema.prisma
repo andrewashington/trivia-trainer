@@ -1659,9 +1659,21 @@ model DiscordTurn {
 // boundary for raw channel chatter too — not just the stored DiscordTurn
 // history. One row per channel, upserted on /clear.
 model DiscordChannelState {
-  channelId String   @id
-  clearedAt DateTime?
-  updatedAt DateTime @updatedAt
+  channelId       String    @id
+  clearedAt       DateTime?
+  uwuWebhookId    String?
+  uwuWebhookToken String?
+  updatedAt       DateTime  @updatedAt
+}
+
+// Discord users currently being uwu-ified. Keyed by Discord snowflake (not
+// UDM+ User) so a server admin can toggle someone who has never linked.
+model DiscordUwuTarget {
+  discordUserId          String   @id
+  level                  Int // 1 | 2 | 3
+  enabledByDiscordUserId String
+  enabledAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 }
 
 // ── The Pump (fitness) ──────────────────────────────────────────────────────

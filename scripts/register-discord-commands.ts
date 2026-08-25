@@ -88,6 +88,27 @@ const COMMANDS = [
     description: "Start a fresh conversation — clears UDM+'s memory of this channel's recent exchanges",
     type: 1,
   },
+  {
+    name: "uwu",
+    description: "Toggle uwu-ify on a member (all channels, until turned off)",
+    type: 1,
+    default_member_permissions: "8",
+    options: [
+      { name: "user", description: "Who to uwu-ify", type: 6, required: true },
+      {
+        name: "level",
+        description: "1 light · 2 medium · 3 heavy · off",
+        type: 3,
+        required: true,
+        choices: [
+          { name: "1 — light (lisp only)", value: "1" },
+          { name: "2 — medium (some uwu)", value: "2" },
+          { name: "3 — heavy (a lot)", value: "3" },
+          { name: "off", value: "off" },
+        ],
+      },
+    ],
+  },
   { name: "marketplace", description: "What's for sale, with claim buttons", type: 1 },
   { name: "ideas", description: "Top open ideas, with upvote buttons", type: 1 },
   { name: "recipes", description: "Latest cookbook additions", type: 1 },

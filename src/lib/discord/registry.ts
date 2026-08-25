@@ -104,5 +104,6 @@ export async function ensureFeatures(): Promise<void> {
   loaded = true;
   await import("@/lib/discord/features/assistant"); // /udm catch-all assistant
   await import("@/lib/discord/features/fitness"); // The Pump's "Run it" button
+  await import("@/lib/discord/features/uwu"); // /uwu live message transform
   // Wave 3: await import("@/lib/discord/features/economy");
 }
