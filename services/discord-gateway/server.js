@@ -35,6 +35,9 @@ if (!SECRET || !TOKEN || !FORWARD_URL) {
   console.error("DISCORD_GATEWAY_SECRET, DISCORD_BOT_TOKEN and APP_FORWARD_URL are required");
   process.exit(1);
 }
+if (!INGEST_URL) {
+  console.warn("[gateway] APP_INGEST_URL is not set — archive + /uwu live-transform will not run");
+}
 
 // Plain HTTP underneath so Railway's healthcheck has something to hit.
 createServer((req, res) => {
@@ -57,7 +60,7 @@ client.once("ready", () => console.log(`discord-gateway logged in as ${client.us
 client.on("messageCreate", async (message) => {
   try {
     if (message.author?.bot || !client.user) return;
-    forwardIngest({
+    await forwardIngest({
       kind: "create",
       message: serializeMessage(message),
     });
@@ -104,7 +107,7 @@ client.on("messageUpdate", async (_oldMessage, newMessage) => {
   try {
     const message = newMessage.partial ? await newMessage.fetch().catch(() => null) : newMessage;
     if (!message || message.author?.bot) return;
-    forwardIngest({ kind: "update", message: serializeMessage(message) });
+    await forwardIngest({ kind: "update", message: serializeMessage(message) });
   } catch (err) {
     console.error("[gateway] messageUpdate error", err);
   }
@@ -112,7 +115,7 @@ client.on("messageUpdate", async (_oldMessage, newMessage) => {
 
 client.on("messageDelete", async (message) => {
   try {
-    forwardIngest({
+    await forwardIngest({
       kind: "delete",
       id: message.id,
       channelId: message.channelId,
@@ -128,7 +131,7 @@ client.on("messageReactionAdd", async (reaction, user) => {
     const fullReaction = reaction.partial ? await reaction.fetch().catch(() => null) : reaction;
     const fullUser = user.partial ? await user.fetch().catch(() => null) : user;
     if (!fullReaction || !fullUser || fullUser.bot) return;
-    forwardIngest({
+    await forwardIngest({
       kind: "reaction",
       op: "add",
       messageId: fullReaction.message.id,
@@ -147,7 +150,7 @@ client.on("messageReactionRemove", async (reaction, user) => {
     const fullReaction = reaction.partial ? await reaction.fetch().catch(() => null) : reaction;
     const fullUser = user.partial ? await user.fetch().catch(() => null) : user;
     if (!fullReaction || !fullUser || fullUser.bot) return;
-    forwardIngest({
+    await forwardIngest({
       kind: "reaction",
       op: "remove",
       messageId: fullReaction.message.id,
@@ -209,15 +212,23 @@ function parentChannelId(message) {
   return null;
 }
 
-function forwardIngest(payload) {
+async function forwardIngest(payload) {
   if (!INGEST_URL) return;
   const body = JSON.stringify(payload);
   const sig = createHmac("sha256", SECRET).update(body).digest("hex");
-  fetch(INGEST_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-udm-signature": sig },
-    body,
-  }).catch((err) => console.error("[gateway] ingest forward failed", err));
+  try {
+    const res = await fetch(INGEST_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-udm-signature": sig },
+      body,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error(`[gateway] ingest ${res.status}: ${text.slice(0, 200)}`);
+    }
+  } catch (err) {
+    console.error("[gateway] ingest forward failed", err);
+  }
 }
 
 client.login(TOKEN);

@@ -44,9 +44,11 @@ export async function POST(req: Request) {
   }
 
   const events = Array.isArray(payload) ? payload : [payload];
-  void Promise.all(events.map((event) => handleEvent(event))).catch((err) =>
-    console.error("[discord] archive ingest failed", err)
-  );
+  try {
+    await Promise.all(events.map((event) => handleEvent(event)));
+  } catch (err) {
+    console.error("[discord] archive ingest failed", err);
+  }
   return NextResponse.json({ ok: true });
 }
 
@@ -55,7 +57,7 @@ async function handleEvent(payload: IngestPayload) {
     const message = parseMessage(payload.message);
     if (!message) return;
     if (payload.kind === "create") {
-      if (archiveEnabled()) await upsertArchiveMessage(message);
+      // Uwu first: archive failures must not skip the live rewrite.
       if (!message.isBot) {
         await applyUwuIfNeeded({
           id: message.id,
@@ -67,6 +69,11 @@ async function handleEvent(payload: IngestPayload) {
           content: message.content,
           attachments: message.attachments,
         }).catch((err) => console.error("[discord] uwu transform failed", err));
+      }
+      if (archiveEnabled()) {
+        await upsertArchiveMessage(message).catch((err) =>
+          console.error("[discord] archive upsert failed", err)
+        );
       }
     } else if (archiveEnabled()) {
       await updateArchiveMessage({

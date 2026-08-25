@@ -21,20 +21,33 @@ export type UwuMessage = {
  * duplicate instead of eating the message.
  */
 export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
-  if (!botConfig().botToken) return;
-  if (!message.content.trim() && !(message.attachments && message.attachments.length)) return;
+  if (!botConfig().botToken) {
+    console.warn("[discord] uwu skipped: DISCORD_BOT_TOKEN missing");
+    return;
+  }
 
   const target = await db.discordUwuTarget.findUnique({
     where: { discordUserId: message.authorId },
   });
   if (!target) return;
 
+  if (!message.content.trim() && !(message.attachments && message.attachments.length)) {
+    console.warn(
+      `[discord] uwu matched ${message.authorId} but content was empty (Message Content intent off?)`
+    );
+    return;
+  }
+
   const level = (target.level === 2 || target.level === 3 ? target.level : 1) as UwuLevel;
   const content = uwuify(message.content, level);
+  console.log(`[discord] uwu apply user=${message.authorId} level=${level} channel=${message.channelId}`);
 
   const webhookChannelId = message.parentChannelId || message.channelId;
   let hook = await getOrCreateUwuWebhook(webhookChannelId);
-  if (!hook) return;
+  if (!hook) {
+    console.error(`[discord] uwu webhook missing for channel ${webhookChannelId}`);
+    return;
+  }
 
   const body = {
     content: content || undefined,
@@ -48,7 +61,10 @@ export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
     hook = await getOrCreateUwuWebhook(webhookChannelId);
     posted = hook ? await executeWebhook(hook, body) : false;
   }
-  if (!posted) return;
+  if (!posted) {
+    console.error(`[discord] uwu webhook post failed for channel ${webhookChannelId}`);
+    return;
+  }
 
   try {
     await discordApi(`/channels/${message.channelId}/messages/${message.id}`, { method: "DELETE" });
