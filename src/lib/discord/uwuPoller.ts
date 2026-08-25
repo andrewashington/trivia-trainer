@@ -13,16 +13,20 @@ import { applyUwuIfNeeded } from "@/lib/discord/uwuRepost";
  * This poller lives in the Next process (which we know deploys) and only
  * runs while someone is actually uwu'd. First sight of a channel records
  * the latest message id and does NOT rewrite history.
+ *
+ * Speed: list channels each tick (cheap) and only GET messages on channels
+ * whose last_message_id moved — polling every text channel was the lag.
  */
 
-const POLL_MS = 2500;
+const POLL_MS = 1000;
+const FETCH_CONCURRENCY = 6;
 const TEXT_TYPES = new Set([0, 5]); // GUILD_TEXT, GUILD_ANNOUNCEMENT
+
+type ChannelRef = { id: string; parentId: string | null; lastMessageId: string | null };
 
 let started = false;
 let ticking = false;
 const cursor = new Map<string, string>();
-let channels: { id: string; parentId: string | null }[] = [];
-let channelsAt = 0;
 
 export function startUwuPoller() {
   if (started) return;
@@ -45,15 +49,20 @@ async function tick(guildId: string) {
     const targets = await db.discordUwuTarget.findMany({ select: { discordUserId: true } });
     if (!targets.length) return;
     const wanted = new Set(targets.map((t) => t.discordUserId));
-
-    if (Date.now() - channelsAt > 60_000) {
-      channels = await listTextChannels(guildId);
-      channelsAt = Date.now();
-    }
+    const channels = await listTextChannels(guildId);
+    const dirty: ChannelRef[] = [];
 
     for (const ch of channels) {
-      await pollChannel(ch, wanted);
+      const after = cursor.get(ch.id);
+      if (!after) {
+        if (ch.lastMessageId) cursor.set(ch.id, ch.lastMessageId);
+        continue;
+      }
+      if (!ch.lastMessageId || ch.lastMessageId === after) continue;
+      dirty.push(ch);
     }
+
+    await mapPool(dirty, FETCH_CONCURRENCY, (ch) => pollChannel(ch, wanted, guildId));
   } catch (err) {
     console.error("[discord] uwu poller tick failed", err);
   } finally {
@@ -61,39 +70,23 @@ async function tick(guildId: string) {
   }
 }
 
-async function pollChannel(
-  ch: { id: string; parentId: string | null },
-  wanted: Set<string>
-) {
+async function pollChannel(ch: ChannelRef, wanted: Set<string>, guildId: string) {
   const after = cursor.get(ch.id);
-  if (!after) {
-    const latest = await getMessages(ch.id, { limit: 1 });
-    if (latest[0]) {
-      cursor.set(ch.id, latest[0].id);
-      // First sight is normally "don't rewrite history." If the latest
-      // message is only a few seconds old (someone testing right after
-      // deploy), transform it — otherwise it looks like the poller is dead.
-      if (Date.now() - snowflakeMs(latest[0].id) < 20_000) {
-        await maybeApply(ch, latest[0], wanted);
-      }
-    }
-    return;
-  }
+  if (!after) return;
 
   const batch = await getMessages(ch.id, { after, limit: 50 });
-  if (!batch.length) return;
+  if (!batch.length) {
+    if (ch.lastMessageId) cursor.set(ch.id, ch.lastMessageId);
+    return;
+  }
   cursor.set(ch.id, batch[0].id);
 
   for (const msg of [...batch].reverse()) {
-    await maybeApply(ch, msg, wanted);
+    await maybeApply(ch, msg, wanted, guildId);
   }
 }
 
-async function maybeApply(
-  ch: { id: string; parentId: string | null },
-  msg: ApiMessage,
-  wanted: Set<string>
-) {
+async function maybeApply(ch: ChannelRef, msg: ApiMessage, wanted: Set<string>, guildId: string) {
   const author = msg.author;
   const authorId = author?.id;
   if (!author || !authorId || author.bot || msg.webhook_id) return;
@@ -102,10 +95,11 @@ async function maybeApply(
   await applyUwuIfNeeded({
     id: msg.id,
     channelId: ch.id,
+    guildId,
     parentChannelId: ch.parentId,
     authorId,
-    authorName: msg.member?.nick || author.global_name || author.username || "member",
-    authorAvatarUrl: avatarUrl(author),
+    authorName: author.global_name || author.username || "member",
+    authorAvatarUrl: author.avatar ? cdnUserAvatar(author.id, author.avatar) : null,
     content: msg.content ?? "",
     attachments: (msg.attachments ?? []).map((a) => ({
       url: a.url,
@@ -115,21 +109,21 @@ async function maybeApply(
   }).catch((err) => console.error("[discord] uwu poller apply failed", err));
 }
 
-async function listTextChannels(guildId: string): Promise<{ id: string; parentId: string | null }[]> {
+async function listTextChannels(guildId: string): Promise<ChannelRef[]> {
   try {
     const rows = (await discordApi(`/guilds/${guildId}/channels`, { method: "GET" }).then((r) =>
       r.json()
-    )) as { id: string; type: number; parent_id?: string | null }[];
+    )) as { id: string; type: number; last_message_id?: string | null }[];
     if (!Array.isArray(rows)) return [];
-    const text: { id: string; parentId: string | null }[] = rows
+    const text: ChannelRef[] = rows
       .filter((c) => TEXT_TYPES.has(c.type))
-      .map((c) => ({ id: c.id, parentId: null }));
+      .map((c) => ({ id: c.id, parentId: null, lastMessageId: c.last_message_id ?? null }));
     try {
       const active = (await discordApi(`/guilds/${guildId}/threads/active`, { method: "GET" }).then((r) =>
         r.json()
-      )) as { threads?: { id: string; parent_id?: string | null }[] };
+      )) as { threads?: { id: string; parent_id?: string | null; last_message_id?: string | null }[] };
       for (const t of active.threads ?? []) {
-        text.push({ id: t.id, parentId: t.parent_id ?? null });
+        text.push({ id: t.id, parentId: t.parent_id ?? null, lastMessageId: t.last_message_id ?? null });
       }
     } catch {
       /* threads are optional — text channels still get polled */
@@ -146,7 +140,6 @@ type ApiMessage = {
   content?: string;
   webhook_id?: string;
   author?: { id: string; username?: string; global_name?: string | null; avatar?: string | null; bot?: boolean };
-  member?: { nick?: string | null };
   attachments?: { url: string; filename?: string; content_type?: string | null }[];
 };
 
@@ -176,15 +169,20 @@ async function getMessages(
   }
 }
 
-function avatarUrl(user: { id: string; avatar?: string | null } | undefined): string | null {
-  if (!user?.avatar) return null;
-  return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=256`;
+function cdnUserAvatar(userId: string, hash: string): string {
+  const ext = hash.startsWith("a_") ? "gif" : "png";
+  return `https://cdn.discordapp.com/avatars/${userId}/${hash}.${ext}?size=256`;
 }
 
-function snowflakeMs(id: string): number {
-  try {
-    return Number((BigInt(id) >> 22n) + 1420070400000n);
-  } catch {
-    return 0;
-  }
+async function mapPool<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) {
+  if (!items.length) return;
+  const queue = [...items];
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+      while (queue.length) {
+        const item = queue.shift();
+        if (item) await fn(item);
+      }
+    })
+  );
 }

@@ -62,6 +62,7 @@ async function handleEvent(payload: IngestPayload) {
         await applyUwuIfNeeded({
           id: message.id,
           channelId: message.channelId,
+          guildId: message.guildId,
           parentChannelId: message.parentChannelId,
           authorId: message.authorId,
           authorName: message.authorName,

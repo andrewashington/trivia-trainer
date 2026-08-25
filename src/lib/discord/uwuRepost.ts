@@ -7,6 +7,7 @@ const WEBHOOK_NAME = "UDM+ uwu";
 export type UwuMessage = {
   id: string;
   channelId: string;
+  guildId?: string | null;
   parentChannelId?: string | null;
   authorId: string;
   authorName: string;
@@ -14,6 +15,10 @@ export type UwuMessage = {
   content: string;
   attachments?: { url: string; name?: string | null; contentType?: string | null }[] | null;
 };
+
+const recentlyApplied = new Set<string>();
+const memberCache = new Map<string, { name: string; avatar: string | null; at: number }>();
+const MEMBER_CACHE_MS = 15_000;
 
 /**
  * If this author is on the uwu list, webhook-repost the transformed text as
@@ -25,6 +30,8 @@ export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
     console.warn("[discord] uwu skipped: DISCORD_BOT_TOKEN missing");
     return;
   }
+
+  if (recentlyApplied.has(message.id)) return;
 
   const target = await db.discordUwuTarget.findUnique({
     where: { discordUserId: String(message.authorId) },
@@ -38,21 +45,31 @@ export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
     return;
   }
 
+  recentlyApplied.add(message.id);
+  if (recentlyApplied.size > 500) {
+    const first = recentlyApplied.values().next().value;
+    if (first) recentlyApplied.delete(first);
+  }
+
+  const release = () => recentlyApplied.delete(message.id);
+
   const level = (target.level === 2 || target.level === 3 ? target.level : 1) as UwuLevel;
   const content = uwuify(message.content, level);
-  console.log(`[discord] uwu apply user=${message.authorId} level=${level} channel=${message.channelId}`);
+  const profile = await resolveGuildProfile(message);
+  console.log(`[discord] uwu apply user=${message.authorId} level=${level} channel=${message.channelId} as=${profile.name}`);
 
   const webhookChannelId = message.parentChannelId || message.channelId;
   let hook = await getOrCreateUwuWebhook(webhookChannelId);
   if (!hook) {
     console.error(`[discord] uwu webhook missing for channel ${webhookChannelId}`);
+    release();
     return;
   }
 
   const body = {
     content: content || undefined,
-    username: webhookUsername(message.authorName),
-    avatar_url: message.authorAvatarUrl || undefined,
+    username: webhookUsername(profile.name),
+    avatar_url: profile.avatar || undefined,
     threadId: message.parentChannelId ? message.channelId : null,
     attachments: message.attachments ?? [],
   };
@@ -74,6 +91,7 @@ export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
       posted = true;
     } catch (err) {
       console.error("[discord] uwu bot fallback failed", err);
+      release();
       return;
     }
   }
@@ -83,6 +101,52 @@ export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
   } catch (err) {
     console.error("[discord] uwu delete failed", err);
   }
+}
+
+type GuildMemberPayload = {
+  nick?: string | null;
+  avatar?: string | null;
+  user?: { username?: string; global_name?: string | null; avatar?: string | null };
+};
+
+async function resolveGuildProfile(message: UwuMessage): Promise<{ name: string; avatar: string | null }> {
+  const fallback = {
+    name: message.authorName,
+    avatar: message.authorAvatarUrl ?? null,
+  };
+  const guildId = message.guildId || process.env.DISCORD_GUILD_ID;
+  if (!guildId) return fallback;
+
+  const cacheKey = `${guildId}:${message.authorId}`;
+  const cached = memberCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < MEMBER_CACHE_MS) {
+    return { name: cached.name, avatar: cached.avatar };
+  }
+
+  try {
+    const member = (await discordApi(`/guilds/${guildId}/members/${message.authorId}`, {
+      method: "GET",
+    }).then((r) => r.json())) as GuildMemberPayload;
+    const name =
+      member.nick || member.user?.global_name || member.user?.username || message.authorName;
+    const avatar = member.avatar
+      ? cdnHashUrl(`guilds/${guildId}/users/${message.authorId}/avatars/${member.avatar}`)
+      : member.user?.avatar
+        ? cdnHashUrl(`avatars/${message.authorId}/${member.user.avatar}`)
+        : fallback.avatar;
+    const profile = { name, avatar };
+    memberCache.set(cacheKey, { ...profile, at: Date.now() });
+    return profile;
+  } catch (err) {
+    console.error("[discord] uwu guild member lookup failed", err);
+    return fallback;
+  }
+}
+
+function cdnHashUrl(pathAndHash: string): string {
+  const hash = pathAndHash.slice(pathAndHash.lastIndexOf("/") + 1);
+  const ext = hash.startsWith("a_") ? "gif" : "png";
+  return `https://cdn.discordapp.com/${pathAndHash}.${ext}?size=256`;
 }
 
 function webhookUsername(name: string): string {
