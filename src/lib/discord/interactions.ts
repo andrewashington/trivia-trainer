@@ -5,6 +5,7 @@ import { DISCORD_API, botConfig } from "@/lib/discord/bot";
 import { withOutbox } from "@/lib/outbox";
 import { ensureFeatures, commandHandler, componentHandler } from "@/lib/discord/registry";
 import { handleUwu } from "@/lib/discord/features/uwu";
+import { handleOxford } from "@/lib/discord/features/oxford";
 import { editTrackedMessage } from "@/lib/discord/messageState";
 import { actionRow, button, CARD_IDS } from "@/lib/discord/components";
 import { rsvpStatus, claimedStatus, pollStatus } from "@/lib/discord/cardStatus";
@@ -101,6 +102,7 @@ export async function handleInteraction(interaction: Interaction): Promise<objec
     if (name === "unlink") return handleUnlink(discordUser);
     // Discord Administrator gate — no UDM+ link required.
     if (name === "uwu") return handleUwu(interaction);
+    if (name === "oxford") return handleOxford(interaction);
 
     // Every other command acts as a UDM+ user.
     const user = await db.user.findUnique({ where: { discordUserId: discordUser.id } });

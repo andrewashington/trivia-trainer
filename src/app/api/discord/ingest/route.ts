@@ -57,7 +57,7 @@ async function handleEvent(payload: IngestPayload) {
     const message = parseMessage(payload.message);
     if (!message) return;
     if (payload.kind === "create") {
-      // Uwu first: archive failures must not skip the live rewrite.
+      // Rewrites first: archive failures must not skip the live transform.
       if (!message.isBot) {
         await applyUwuIfNeeded({
           id: message.id,

@@ -1676,6 +1676,15 @@ model DiscordUwuTarget {
   updatedAt              DateTime @updatedAt
 }
 
+// Discord users currently having missing Oxford commas inserted. Same
+// snowflake key as DiscordUwuTarget so an admin can toggle someone unlinked.
+model DiscordOxfordTarget {
+  discordUserId          String   @id
+  enabledByDiscordUserId String
+  enabledAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
 // ── The Pump (fitness) ──────────────────────────────────────────────────────
 // Workout programs forged from raw pastes by AI (src/modules/fitness). Like
 // the Discord tables, these use bare `userId` columns (no relation to User)

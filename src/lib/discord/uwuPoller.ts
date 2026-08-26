@@ -3,16 +3,16 @@ import { botConfig, discordApi, DISCORD_API } from "@/lib/discord/bot";
 import { applyUwuIfNeeded } from "@/lib/discord/uwuRepost";
 
 /**
- * App-side fallback for /uwu live-transform.
+ * App-side fallback for live message rewrites (/uwu, /oxford).
  *
  * The rewrite is supposed to ride discord-gateway → /api/discord/ingest, but
  * that sidecar is a separate Railway service: it does not auto-deploy with
  * trivia-trainer, and APP_INGEST_URL is optional there. If ingest never
- * fires, /uwu "works" (the toggle saves) and messages stay untouched.
+ * fires, the toggle saves and messages stay untouched.
  *
  * This poller lives in the Next process (which we know deploys) and only
- * runs while someone is actually uwu'd. First sight of a channel records
- * the latest message id and does NOT rewrite history.
+ * runs while someone is actually on a rewrite list. First sight of a channel
+ * records the latest message id and does NOT rewrite history.
  *
  * Speed: list channels each tick (cheap) and only GET messages on channels
  * whose last_message_id moved — polling every text channel was the lag.
@@ -46,9 +46,15 @@ async function tick(guildId: string) {
   if (ticking) return;
   ticking = true;
   try {
-    const targets = await db.discordUwuTarget.findMany({ select: { discordUserId: true } });
-    if (!targets.length) return;
-    const wanted = new Set(targets.map((t) => t.discordUserId));
+    const [uwuTargets, oxfordTargets] = await Promise.all([
+      db.discordUwuTarget.findMany({ select: { discordUserId: true } }),
+      db.discordOxfordTarget.findMany({ select: { discordUserId: true } }),
+    ]);
+    if (!uwuTargets.length && !oxfordTargets.length) return;
+    const wanted = new Set([
+      ...uwuTargets.map((t) => t.discordUserId),
+      ...oxfordTargets.map((t) => t.discordUserId),
+    ]);
     const channels = await listTextChannels(guildId);
     const dirty: ChannelRef[] = [];
 
@@ -91,7 +97,7 @@ async function maybeApply(ch: ChannelRef, msg: ApiMessage, wanted: Set<string>, 
   const authorId = author?.id;
   if (!author || !authorId || isAppMessage(msg, author)) return;
   if (!wanted.has(authorId)) return;
-  console.log(`[discord] uwu poller hit user=${authorId} channel=${ch.id} msg=${msg.id}`);
+  console.log(`[discord] rewrite poller hit user=${authorId} channel=${ch.id} msg=${msg.id}`);
   await applyUwuIfNeeded({
     id: msg.id,
     channelId: ch.id,

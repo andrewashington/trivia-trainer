@@ -109,6 +109,25 @@ const COMMANDS = [
       },
     ],
   },
+  {
+    name: "oxford",
+    description: "Toggle Oxford-comma enforcement on a member (all channels, until turned off)",
+    type: 1,
+    default_member_permissions: "8",
+    options: [
+      { name: "user", description: "Who to Oxford-comma-ify", type: 6, required: true },
+      {
+        name: "mode",
+        description: "on or off",
+        type: 3,
+        required: true,
+        choices: [
+          { name: "on", value: "on" },
+          { name: "off", value: "off" },
+        ],
+      },
+    ],
+  },
   { name: "marketplace", description: "What's for sale, with claim buttons", type: 1 },
   { name: "ideas", description: "Top open ideas, with upvote buttons", type: 1 },
   { name: "recipes", description: "Latest cookbook additions", type: 1 },
