@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { botConfig, discordApi, DISCORD_API } from "@/lib/discord/bot";
 import { addOxfordCommas } from "@/lib/discord/oxfordComma";
+import { chandlerify } from "@/lib/discord/chandlerMode";
 import { uwuify, type UwuLevel } from "@/lib/discord/uwuify";
 
 const WEBHOOK_NAME = "UDM+ uwu";
@@ -22,10 +23,11 @@ const memberCache = new Map<string, { name: string; avatar: string | null; at: n
 const MEMBER_CACHE_MS = 15_000;
 
 /**
- * If this author is on the uwu and/or Oxford-comma list, webhook-repost the
- * transformed text as them, then delete the original. Oxford runs first so a
- * serial list is corrected before uwu mangles the letters. Posts first so a
- * failed delete leaves a duplicate instead of eating the message.
+ * If this author is on the uwu, Oxford-comma, and/or chandler-mode list,
+ * webhook-repost the transformed text as them, then delete the original.
+ * Oxford runs first so a serial list is corrected before letter-mangling.
+ * Posts first so a failed delete leaves a duplicate instead of eating the
+ * message.
  */
 export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
   if (!botConfig().botToken) {
@@ -36,11 +38,12 @@ export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
   if (recentlyApplied.has(message.id)) return;
 
   const authorId = String(message.authorId);
-  const [uwuTarget, oxfordTarget] = await Promise.all([
+  const [uwuTarget, oxfordTarget, chandlerTarget] = await Promise.all([
     db.discordUwuTarget.findUnique({ where: { discordUserId: authorId } }),
     db.discordOxfordTarget.findUnique({ where: { discordUserId: authorId } }),
+    db.discordChandlerTarget.findUnique({ where: { discordUserId: authorId } }),
   ]);
-  if (!uwuTarget && !oxfordTarget) return;
+  if (!uwuTarget && !oxfordTarget && !chandlerTarget) return;
 
   if (!message.content.trim() && !(message.attachments && message.attachments.length)) {
     console.warn(
@@ -59,6 +62,7 @@ export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
 
   let content = message.content;
   if (oxfordTarget) content = addOxfordCommas(content);
+  if (chandlerTarget) content = chandlerify(content);
   const level = uwuTarget
     ? ((uwuTarget.level === 2 || uwuTarget.level === 3 ? uwuTarget.level : 1) as UwuLevel)
     : null;
@@ -68,7 +72,13 @@ export async function applyUwuIfNeeded(message: UwuMessage): Promise<void> {
     return;
   }
   const profile = await resolveGuildProfile(message);
-  const tags = [oxfordTarget ? "oxford" : null, level ? `uwu:${level}` : null].filter(Boolean).join("+");
+  const tags = [
+    oxfordTarget ? "oxford" : null,
+    chandlerTarget ? "chandler" : null,
+    level ? `uwu:${level}` : null,
+  ]
+    .filter(Boolean)
+    .join("+");
   console.log(`[discord] rewrite apply user=${message.authorId} ${tags} channel=${message.channelId} as=${profile.name}`);
 
   const webhookChannelId = message.parentChannelId || message.channelId;

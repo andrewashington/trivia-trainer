@@ -1685,6 +1685,15 @@ model DiscordOxfordTarget {
   updatedAt              DateTime @updatedAt
 }
 
+// Discord users currently having every "l" rewritten as "r" (chandler-mode).
+// Same snowflake key so an admin can toggle someone who has never linked.
+model DiscordChandlerTarget {
+  discordUserId          String   @id
+  enabledByDiscordUserId String
+  enabledAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
 // ── The Pump (fitness) ──────────────────────────────────────────────────────
 // Workout programs forged from raw pastes by AI (src/modules/fitness). Like
 // the Discord tables, these use bare `userId` columns (no relation to User)

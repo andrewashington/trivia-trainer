@@ -106,5 +106,6 @@ export async function ensureFeatures(): Promise<void> {
   await import("@/lib/discord/features/fitness"); // The Pump's "Run it" button
   await import("@/lib/discord/features/uwu"); // /uwu live message transform
   await import("@/lib/discord/features/oxford"); // /oxford serial-comma transform
+  await import("@/lib/discord/features/chandler"); // /chandler-mode l→r transform
   // Wave 3: await import("@/lib/discord/features/economy");
 }

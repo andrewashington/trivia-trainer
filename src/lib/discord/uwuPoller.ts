@@ -3,7 +3,7 @@ import { botConfig, discordApi, DISCORD_API } from "@/lib/discord/bot";
 import { applyUwuIfNeeded } from "@/lib/discord/uwuRepost";
 
 /**
- * App-side fallback for live message rewrites (/uwu, /oxford).
+ * App-side fallback for live message rewrites (/uwu, /oxford, /chandler-mode).
  *
  * The rewrite is supposed to ride discord-gateway → /api/discord/ingest, but
  * that sidecar is a separate Railway service: it does not auto-deploy with
@@ -46,14 +46,16 @@ async function tick(guildId: string) {
   if (ticking) return;
   ticking = true;
   try {
-    const [uwuTargets, oxfordTargets] = await Promise.all([
+    const [uwuTargets, oxfordTargets, chandlerTargets] = await Promise.all([
       db.discordUwuTarget.findMany({ select: { discordUserId: true } }),
       db.discordOxfordTarget.findMany({ select: { discordUserId: true } }),
+      db.discordChandlerTarget.findMany({ select: { discordUserId: true } }),
     ]);
-    if (!uwuTargets.length && !oxfordTargets.length) return;
+    if (!uwuTargets.length && !oxfordTargets.length && !chandlerTargets.length) return;
     const wanted = new Set([
       ...uwuTargets.map((t) => t.discordUserId),
       ...oxfordTargets.map((t) => t.discordUserId),
+      ...chandlerTargets.map((t) => t.discordUserId),
     ]);
     const channels = await listTextChannels(guildId);
     const dirty: ChannelRef[] = [];
