@@ -1,0 +1,80 @@
+import type { Quote } from "./engine";
+
+/** Original lines plus a few public-domain scraps. Nothing scraped. */
+export const QUOTES: Quote[] = [
+  { id: "q01", length: "short", text: "type like you mean it and then type again" },
+  { id: "q02", length: "short", text: "the quiet keys are the ones that betray you" },
+  { id: "q03", length: "short", text: "speed is just accuracy that got impatient" },
+  { id: "q04", length: "short", text: "home row is a suggestion not a personality" },
+  { id: "q05", length: "short", text: "you can hide from q but it will find you" },
+  { id: "q06", length: "short", text: "backspace is a teacher with poor manners" },
+  { id: "q07", length: "short", text: "fingers remember what the brain pretends" },
+  { id: "q08", length: "short", text: "a clean sixty feels better than a sloppy eighty" },
+  { id: "q09", length: "short", text: "the daily is the same words for everyone" },
+  { id: "q10", length: "short", text: "weak letters do not improve by being avoided" },
+  { id: "q11", length: "short", text: "rhythm first then reach then regret less" },
+  { id: "q12", length: "short", text: "if it feels easy you picked the wrong drill" },
+  { id: "q13", length: "short", text: "spacebar counts even when you ignore it" },
+  { id: "q14", length: "short", text: "one more round is how streaks get honest" },
+  { id: "q15", length: "short", text: "the heatmap never lies and rarely comforts" },
+  { id: "q16", length: "short", text: "b and v have been feuding since forever" },
+  { id: "q17", length: "short", text: "punctuation is just letters with opinions" },
+  { id: "q18", length: "short", text: "friends will see the board so do not farm fifteen" },
+  { id: "q19", length: "short", text: "placement is a snapshot not a sentence" },
+  { id: "q20", length: "short", text: "finish the workout then go play if you want" },
+  { id: "q21", length: "short", text: "to be or not to be that is the question" },
+  { id: "q22", length: "short", text: "it was the best of times it was the worst" },
+  { id: "q23", length: "short", text: "call me ishmael some years ago never mind" },
+  { id: "q24", length: "short", text: "all happy families are alike in the usual way" },
+  { id: "q25", length: "short", text: "in the beginning was the word and then more words" },
+  {
+    id: "q26",
+    length: "medium",
+    text: "a good typer is not born on the home row they are built by repeating the letters that make them flinch until the flinch gets bored and leaves",
+  },
+  {
+    id: "q27",
+    length: "medium",
+    text: "today the group types the same passage so the board is fair tomorrow you go back to the letters you keep missing because fair and useful are not the same job",
+  },
+  {
+    id: "q28",
+    length: "medium",
+    text: "there is no secret setting that makes q easier there is only a pile of words that contain q and the decision to sit still until they stop winning",
+  },
+  {
+    id: "q29",
+    length: "medium",
+    text: "we measure the time between keys because slowness is an error that never turns red it just sits there looking like a personal best you have not earned yet",
+  },
+  {
+    id: "q30",
+    length: "medium",
+    text: "when you finish the workout you get a streak and a little coin drip when you skip it the heatmap stays the same and so do you that is the whole economy",
+  },
+  {
+    id: "q31",
+    length: "medium",
+    text: "it is a truth universally acknowledged that a typer in possession of a fast wpm must still be in want of a cleaner left pinky and fewer excuses",
+  },
+  {
+    id: "q32",
+    length: "medium",
+    text: "shall i compare thee to a summer day thou art more temperate until the quote mode starts and then you are just another person missing the letter v",
+  },
+  {
+    id: "q33",
+    length: "medium",
+    text: "the unexamined key is not worth hitting keep a record of what you miss and then ask the next drill to throw those letters back until the record looks different",
+  },
+  {
+    id: "q34",
+    length: "medium",
+    text: "friends can watch the daily and the wall but they cannot take the workout for you the journey is personal the bragging is optional and the letters do not care",
+  },
+  {
+    id: "q35",
+    length: "medium",
+    text: "if you want to target a key you may just say so the picker is not a punishment it is a door you open when you already know which letter has been stealing time",
+  },
+];

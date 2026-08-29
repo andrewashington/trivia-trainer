@@ -33,7 +33,7 @@ export async function recentActivity(limit = 16, userId?: string): Promise<Activ
     take: userId ? Math.min(limit, 12) : PER_KIND,
     orderBy: { createdAt: "desc" },
   } as const;
-  const [recipes, events, listings, ideas, polls, wishlist, pins, files, reveals, claims, countdowns, playing, tanksGames, tierLists] =
+  const [recipes, events, listings, ideas, polls, wishlist, pins, files, reveals, claims, countdowns, playing, tanksGames, tierLists, typeSessions, typeWorkouts] =
     await Promise.all([
       db.recipe.findMany({ ...recent, where: userId ? { authorId: userId } : undefined, include: { author: who } }),
       db.event.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
@@ -67,6 +67,20 @@ export async function recentActivity(limit = 16, userId?: string): Promise<Activ
         include: { challenger: who, opponent: who },
       }),
       db.tierList.findMany({ ...recent, where: userId ? { creatorId: userId } : undefined, include: { creator: who } }),
+      db.typingSession.findMany({
+        ...recent,
+        where: {
+          ...(userId ? { userId } : {}),
+          OR: [{ kind: "placement" }, { kind: "daily", official: true }],
+        },
+      }),
+      db.typingWorkout.findMany({
+        ...recent,
+        where: {
+          ...(userId ? { userId } : {}),
+          completedAt: { not: null },
+        },
+      }),
     ]);
 
   // FitnessPlan keeps a bare authorId (no relation to User, by convention),
@@ -81,7 +95,31 @@ export async function recentActivity(limit = 16, userId?: string): Promise<Activ
     ).map((u) => [u.id, u])
   );
 
+  const typeActors = new Map(
+    (
+      await db.user.findMany({
+        where: {
+          id: { in: [...new Set([...typeSessions.map((s) => s.userId), ...typeWorkouts.map((w) => w.userId)])] },
+        },
+        select: { id: true, displayName: true, avatarUrl: true },
+      })
+    ).map((u) => [u.id, u])
+  );
+
   const items: Activity[] = [
+    ...typeSessions.flatMap((s) => {
+      const a = typeActors.get(s.userId);
+      if (!a) return [];
+      if (s.kind === "placement") {
+        return [mk(s.id, "type", a, "placed at", `${Math.round(s.wpm)} WPM`, "/type", s.createdAt)];
+      }
+      return [mk(s.id, "type", a, "ran the daily at", `${Math.round(s.wpm)} WPM`, "/type", s.createdAt)];
+    }),
+    ...typeWorkouts.flatMap((w) => {
+      const a = typeActors.get(w.userId);
+      if (!a || !w.completedAt) return [];
+      return [mk(w.id, "type", a, "finished today's Type workout", "the letters that hurt", "/type", w.completedAt)];
+    }),
     ...plans.flatMap((p) => {
       const a = planAuthors.get(p.authorId);
       return a ? [mk(p.id, "fitness", a, "forged a program", p.title, `/pump/${p.id}`, p.createdAt)] : [];

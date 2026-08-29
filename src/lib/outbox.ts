@@ -92,7 +92,12 @@ export type OutboxEventType =
   | "fitness.plan.adopted"
   | "fitness.log.created"
   | "fitness.pr.set"
-  | "fitness.week.conquered";
+  | "fitness.week.conquered"
+  | "type.placed"
+  | "type.workout.completed"
+  | "type.daily.finished"
+  | "type.pb"
+  | "type.badge.earned";
 
 /**
  * Write a domain event (and apply any coin award it earns) on an open

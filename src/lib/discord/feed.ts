@@ -60,6 +60,7 @@ export type ModuleKey =
   | "challenges"
   | "book"
   | "fitness"
+  | "type"
   | "home";
 
 /** Accent hexes mirror tailwind.config.ts — Satori can't read Tailwind. */
@@ -87,6 +88,7 @@ export const moduleStyle: Record<
   challenges: { accent: "#C1440E", accentText: "#FFFFFF", icon: "bullseye-arrow", label: "Challenges" },
   book: { accent: "#243B8F", accentText: "#FFFFFF", icon: "notebook", label: "The Book" },
   fitness: { accent: "#B87333", accentText: "#101010", icon: "dumbbell", label: "The Pump" },
+  type: { accent: "#C45C26", accentText: "#FFFFFF", icon: "keyboard", label: "Type" },
   home: { accent: "#FFD60A", accentText: "#101010", icon: "home", label: "UDM+" },
 };
 
@@ -407,6 +409,51 @@ export function specFor(type: OutboxEventType, payload: Payload): CardSpec | nul
         sub: "{actor} showed up. again. and again. and again.",
         actorId: str(payload, "userId"),
         path: "/pump",
+      };
+    case "type.placed":
+      return {
+        module: "type",
+        kicker: "PLACED",
+        headline: `${num(payload, "wpm")?.toFixed(0) ?? "?"} WPM`,
+        sub: "{actor} sat the Type test",
+        actorId: str(payload, "userId"),
+        path: "/type",
+      };
+    case "type.workout.completed":
+      return {
+        module: "type",
+        kicker: "WORKOUT DONE",
+        headline: "Today's Type plan",
+        sub: "{actor} typed the letters that hurt",
+        actorId: str(payload, "userId"),
+        path: "/type",
+      };
+    case "type.daily.finished":
+      return {
+        module: "type",
+        kicker: "DAILY",
+        headline: `${num(payload, "wpm")?.toFixed(0) ?? "?"} WPM`,
+        sub: "{actor} took the Type daily",
+        actorId: str(payload, "userId"),
+        path: "/type",
+      };
+    case "type.pb":
+      return {
+        module: "type",
+        kicker: "TYPE PB",
+        headline: `${num(payload, "wpm")?.toFixed(0) ?? "?"} WPM`,
+        sub: "{actor} has a new rated best",
+        actorId: str(payload, "userId"),
+        path: "/type",
+      };
+    case "type.badge.earned":
+      return {
+        module: "type",
+        kicker: "BADGE",
+        headline: str(payload, "badgeKey") ?? "A badge",
+        sub: "{actor} earned something on Type",
+        actorId: str(payload, "userId"),
+        path: "/type",
       };
     default:
       return null;

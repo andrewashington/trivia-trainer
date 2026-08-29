@@ -662,6 +662,21 @@ export const modules: ModuleDef[] = [
       "Think you've got it? Drop a guess. First one right wins",
     ],
   },
+  {
+    key: "type",
+    label: "Type",
+    icon: "keyboard",
+    category: "arcade",
+    navOrder: 32,
+    href: "/type",
+    accentBg: "bg-accent-typewriter",
+    intro: "Take the test. Then we make you type the letters you suck at. Friends can watch.",
+    tips: [
+      "Finish placement — 60 seconds, same rules as everyone",
+      "Do today's workout. The weak keys are not a suggestion",
+      "The daily is the same passage for the group. First finish counts",
+    ],
+  },
 ];
 
 export function sortedModules(): ModuleDef[] {

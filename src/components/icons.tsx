@@ -118,6 +118,7 @@ const PATHS = {
   // Hand-drawn on the 24px grid (no pixelarticons dumbbell exists): two
   // plates a side + bar, for The Pump.
   "dumbbell": "M2 8h2v8H2zM5 6h2v12H5zM7 11h10v2H7zM17 6h2v12h-2zM20 8h2v8h-2z",
+  "keyboard": "M2 6h20v2H2zm0 12h20v2H2zM0 8h2v10H0zm22 0h2v10h-2zM4 10h2v2H4zm3 0h2v2H7zm3 0h2v2h-2zm3 0h2v2h-2zm3 0h2v2h-2zm3 0h2v2h-2zM5 14h14v2H5z",
 } as const;
 
 /**

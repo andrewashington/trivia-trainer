@@ -26,4 +26,9 @@ export const DISCORD_EVENTS: DiscordEventDef[] = [
   { type: "fitness.plan.created", label: "Program forged", group: "The Pump" },
   { type: "fitness.pr.set", label: "PR set", group: "The Pump" },
   { type: "fitness.week.conquered", label: "Week conquered (3+ sessions)", group: "The Pump" },
+  { type: "type.placed", label: "Type placement", group: "Type" },
+  { type: "type.workout.completed", label: "Type workout finished", group: "Type" },
+  { type: "type.daily.finished", label: "Type daily finished", group: "Type" },
+  { type: "type.pb", label: "Type personal best", group: "Type" },
+  { type: "type.badge.earned", label: "Type badge earned", group: "Type" },
 ];

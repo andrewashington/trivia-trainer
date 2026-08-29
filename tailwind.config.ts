@@ -52,6 +52,7 @@ const config: Config = {
           blurple: "#5865F2", // discord stats
           book: "#243B8F", // the book
           bronze: "#B87333", // the pump (fitness)
+          typewriter: "#C45C26", // type
 
         },
       },

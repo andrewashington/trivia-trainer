@@ -1799,3 +1799,99 @@ model DiscordAssistantRun {
 
   @@index([createdAt])
 }
+
+// Type — personalized typing trainer. Bare userId (no User FK) so parallel
+// sessions don't fight over the User model. See docs/superpowers/specs/2026-08-29-type-design.md.
+
+model TypingProfile {
+  userId                 String    @id
+  placementCompletedAt   DateTime?
+  lastPlacementWpm       Float?
+  lastPlacementAccuracy  Float?
+  bestStandardWpm        Float?
+  bestStandardAccuracy   Float?
+  bestStandardSessionId  String?
+  workoutStreak          Int       @default(0)
+  lastWorkoutDate        String? // UTC YYYY-MM-DD
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+}
+
+model TypingSession {
+  id              String   @id
+  userId          String
+  kind            String // placement | workout | daily | sandbox | targeted
+  mode            String // time | words | quote
+  durationSec     Int?
+  wordCount       Int?
+  punctuation     Boolean  @default(false)
+  numbers         Boolean  @default(false)
+  targetKeys      String[] @default([])
+  rated           Boolean  @default(false)
+  dailyDate       String?
+  quoteId         String?
+  workoutId       String?
+  pieceId         String?
+  official        Boolean  @default(false)
+  seed            String
+  wpm             Float
+  rawWpm          Float
+  accuracy        Float
+  correctChars    Int
+  incorrectChars  Int
+  createdAt       DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([kind, rated, wpm])
+  @@index([dailyDate, official, wpm])
+}
+
+model TypingKeyStat {
+  userId        String
+  grapheme      String
+  hits          Int      @default(0)
+  misses        Int      @default(0)
+  latencyEmaMs  Float    @default(200)
+  wasWeakAt     DateTime?
+  updatedAt     DateTime @updatedAt
+
+  @@id([userId, grapheme])
+}
+
+model TypingWorkout {
+  id          String    @id @default(cuid())
+  userId      String
+  date        String // UTC YYYY-MM-DD
+  pieces      Json
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, date])
+}
+
+model TypingDaily {
+  date    String @id // UTC YYYY-MM-DD
+  kind    String // words | quote
+  words   Json?
+  quoteId String?
+}
+
+model TypingDailyResult {
+  userId    String
+  date      String
+  sessionId String
+  wpm       Float
+  accuracy  Float
+  createdAt DateTime @default(now())
+
+  @@id([userId, date])
+  @@index([date, wpm])
+}
+
+model TypingBadge {
+  userId    String
+  badgeKey  String
+  earnedAt  DateTime @default(now())
+
+  @@id([userId, badgeKey])
+}

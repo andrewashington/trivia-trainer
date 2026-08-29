@@ -72,6 +72,15 @@ export const COIN_RULES: Partial<Record<OutboxEventType, CoinRule>> = {
   "fitness.log.created": { amount: 25, userId: (p) => p.userId, label: "Logged a workout" },
   "fitness.pr.set": { amount: 100, userId: (p) => p.userId, label: "Set a PR" },
   "fitness.week.conquered": { amount: 300, userId: (p) => p.userId, label: "Conquered the week" },
+
+  // ---- Type ----
+  // Each event is one-shot by construction (first placement, one workout/daily
+  // per UTC day, PB only when the stored best rises, badge once per key).
+  "type.placed": { amount: 150, userId: (p) => p.userId, label: "Took the Type test" },
+  "type.workout.completed": { amount: 50, userId: (p) => p.userId, label: "Finished today's Type workout" },
+  "type.daily.finished": { amount: 50, userId: (p) => p.userId, label: "Ran the Type daily" },
+  "type.pb": { amount: 100, userId: (p) => p.userId, label: "Type personal best" },
+  "type.badge.earned": { amount: 25, userId: (p) => p.userId, label: "Earned a Type badge" },
 };
 
 /**
