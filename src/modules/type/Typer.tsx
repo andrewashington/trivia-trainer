@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui";
 import { scoreRun, type RunConfig, type Stroke } from "./engine";
 
@@ -52,7 +51,6 @@ export function Typer({
   nextHref?: string;
   nextLabel?: string;
 }) {
-  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const startedAt = useRef<number | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -300,20 +298,21 @@ export function Typer({
           )}
           {error && <p className="text-sm text-accent-red">{error}</p>}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={reset}>
-              Again
-            </Button>
-            {nextHref ? (
-              <LinkButton href={nextHref}>{nextLabel}</LinkButton>
+            {config.kind === "placement" ? (
+              <LinkButton href={backHref}>Continue</LinkButton>
             ) : (
-              <LinkButton href={backHref} variant="ghost">
-                Back
-              </LinkButton>
-            )}
-            {!nextHref && (
-              <Button type="button" variant="ghost" onClick={() => router.push(backHref)}>
-                Hub
-              </Button>
+              <>
+                <Button type="button" onClick={reset}>
+                  Again
+                </Button>
+                {nextHref ? (
+                  <LinkButton href={nextHref}>{nextLabel}</LinkButton>
+                ) : (
+                  <LinkButton href={backHref} variant="ghost">
+                    Back
+                  </LinkButton>
+                )}
+              </>
             )}
           </div>
         </div>
