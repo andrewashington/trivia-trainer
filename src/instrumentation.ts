@@ -11,5 +11,7 @@ export async function register() {
     startDiscordScheduler();
     const { startUwuPoller } = await import("@/lib/discord/uwuPoller");
     startUwuPoller();
+    const { startJeopardyEngine } = await import("@/lib/discord/jeopardy/engine");
+    startJeopardyEngine();
   }
 }

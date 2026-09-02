@@ -1,12 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/client";
 import { Button } from "@/components/ui";
 import { DISCORD_EVENTS } from "@/modules/admin/discordEvents";
 import type { DiscordSettings } from "@/lib/discord/settings";
 
 export type DiscordFeedEvent = { type: string; label: string; group: string };
+
+type JeopardyBank = {
+  clues: number;
+  import: { status: "idle" | "running" | "done" | "error"; detail: string; imported: number; finishedAt: string | null };
+};
 
 const MODE_COPY: Record<string, { tint: string; text: string }> = {
   bot: { tint: "bg-accent-green", text: "Bot connected — cards post with buttons." },
@@ -67,6 +72,33 @@ export function DiscordPanel({
   const [settings, setSettings] = useState<DiscordSettings>(initialSettings);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [jeopardy, setJeopardy] = useState<JeopardyBank | null>(null);
+
+  async function refreshJeopardy() {
+    try {
+      setJeopardy(await api<JeopardyBank>("/api/admin/discord/jeopardy"));
+    } catch {
+      /* panel stays quiet if the route is unavailable */
+    }
+  }
+  useEffect(() => {
+    void refreshJeopardy();
+  }, []);
+  useEffect(() => {
+    if (jeopardy?.import.status !== "running") return;
+    const t = setTimeout(() => void refreshJeopardy(), 3000);
+    return () => clearTimeout(t);
+  }, [jeopardy]);
+
+  async function importJeopardy() {
+    setStatus(null);
+    try {
+      await api("/api/admin/discord/jeopardy", { method: "POST", body: {} });
+      await refreshJeopardy();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Import failed to start.");
+    }
+  }
 
   const groups = useMemo(() => {
     const byGroup: Record<string, DiscordFeedEvent[]> = {};
@@ -231,6 +263,33 @@ export function DiscordPanel({
             </ul>
           </div>
         ))}
+      </div>
+
+      {/* Jeopardy clue bank (Discord-only game, /jeopardy) */}
+      <div className="brutal-card space-y-2 p-3">
+        <p className="brutal-label">Jeopardy clue bank</p>
+        <p className="font-mono text-[11px] text-ink/60">
+          Powers <b>/jeopardy</b> in Discord. Imports ~554k clues (1984–2026) from the public
+          jwolle1/jeopardy_clue_dataset on GitHub; re-running replaces the bank. A couple of minutes.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="yellow"
+            disabled={jeopardy?.import.status === "running"}
+            onClick={importJeopardy}
+          >
+            {jeopardy?.import.status === "running"
+              ? "Importing…"
+              : jeopardy && jeopardy.clues > 0
+                ? "Re-import clue bank"
+                : "Import clue bank"}
+          </Button>
+          <span className="font-mono text-xs font-bold">
+            {jeopardy ? `${jeopardy.clues.toLocaleString()} clues loaded` : "…"}
+            {jeopardy?.import.detail ? ` · ${jeopardy.import.detail}` : ""}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

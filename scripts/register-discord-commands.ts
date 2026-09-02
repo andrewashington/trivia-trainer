@@ -21,7 +21,7 @@ if (existsSync(envPath)) {
   }
 }
 
-// Option types: 1 sub-command, 3 string, 6 user.
+// Option types: 1 sub-command, 3 string, 4 integer, 6 user.
 const COMMANDS = [
   {
     name: "link",
@@ -156,6 +156,45 @@ const COMMANDS = [
   { name: "birthdays", description: "Upcoming birthdays", type: 1 },
   { name: "arcade", description: "Game leaderboards", type: 1 },
   { name: "tanks", description: "Your active duels and whose turn it is", type: 1 },
+  {
+    name: "jeopardy",
+    description: "Run a Jeopardy! game in this channel",
+    type: 1,
+    options: [
+      {
+        name: "start",
+        description: "Start a game here",
+        type: 1,
+        options: [
+          {
+            name: "mode",
+            description: "quickfire = endless rapid clues · board = pick from a 6×5 board",
+            type: 3,
+            required: false,
+            choices: [
+              { name: "quickfire (endless, rapid-fire)", value: "quickfire" },
+              { name: "board (6×5, winner picks next)", value: "board" },
+            ],
+          },
+          { name: "seconds", description: "Seconds per clue (default 20)", type: 4, required: false, min_value: 8, max_value: 90 },
+          { name: "clues", description: "Quickfire only: stop after this many clues (default endless)", type: 4, required: false, min_value: 5, max_value: 100 },
+          {
+            name: "round",
+            description: "Board only: Jeopardy ($200–$1000) or Double Jeopardy ($400–$2000)",
+            type: 3,
+            required: false,
+            choices: [
+              { name: "Jeopardy", value: "1" },
+              { name: "Double Jeopardy", value: "2" },
+            ],
+          },
+        ],
+      },
+      { name: "stop", description: "End the game running here", type: 1 },
+      { name: "skip", description: "Throw out the current clue", type: 1 },
+      { name: "scores", description: "Scores for this game, or all-time standings", type: 1 },
+    ],
+  },
   {
     name: "wishlist",
     description: "Wishlist quick actions",

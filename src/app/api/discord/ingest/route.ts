@@ -10,6 +10,7 @@ import {
   type ArchiveAttachment,
 } from "@/lib/discord/archive";
 import { applyUwuIfNeeded } from "@/lib/discord/uwuRepost";
+import { handleJeopardyMessage } from "@/lib/discord/jeopardy/engine";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,14 @@ async function handleEvent(payload: IngestPayload) {
     if (payload.kind === "create") {
       // Rewrites first: archive failures must not skip the live transform.
       if (!message.isBot) {
+        // Jeopardy answers first: a live clue is on a 20s clock.
+        await handleJeopardyMessage({
+          channelId: message.channelId,
+          authorId: message.authorId,
+          authorName: message.authorName,
+          content: message.content,
+          isBot: message.isBot,
+        }).catch((err) => console.error("[discord] jeopardy answer failed", err));
         await applyUwuIfNeeded({
           id: message.id,
           channelId: message.channelId,

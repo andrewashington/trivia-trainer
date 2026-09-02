@@ -7,6 +7,7 @@ import { ensureFeatures, commandHandler, componentHandler } from "@/lib/discord/
 import { handleUwu } from "@/lib/discord/features/uwu";
 import { handleOxford } from "@/lib/discord/features/oxford";
 import { handleChandler } from "@/lib/discord/features/chandler";
+import { handleJeopardy, handleJeopardyComponent } from "@/lib/discord/features/jeopardy";
 import { editTrackedMessage } from "@/lib/discord/messageState";
 import { actionRow, button, CARD_IDS } from "@/lib/discord/components";
 import { rsvpStatus, claimedStatus, pollStatus } from "@/lib/discord/cardStatus";
@@ -105,6 +106,8 @@ export async function handleInteraction(interaction: Interaction): Promise<objec
     if (name === "uwu") return handleUwu(interaction);
     if (name === "oxford") return handleOxford(interaction);
     if (name === "chandler-mode") return handleChandler(interaction);
+    // Discord-only game — anyone in the server, no link needed.
+    if (name === "jeopardy") return handleJeopardy(interaction);
 
     // Every other command acts as a UDM+ user.
     const user = await db.user.findUnique({ where: { discordUserId: discordUser.id } });
@@ -166,6 +169,10 @@ export async function handleInteraction(interaction: Interaction): Promise<objec
   }
 
   if (interaction.type === 3) {
+    const customId = interaction.data?.custom_id ?? "";
+    if (customId.startsWith("jeopardy:")) {
+      return handleJeopardyComponent(interaction, customId.split(":").slice(1));
+    }
     const user = await db.user.findUnique({ where: { discordUserId: discordUser.id } });
     if (!user) {
       return ephemeralReply(

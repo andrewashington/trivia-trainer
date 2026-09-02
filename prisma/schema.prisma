@@ -1895,3 +1895,60 @@ model TypingBadge {
 
   @@id([userId, badgeKey])
 }
+
+// ── Jeopardy (Discord-only game) ────────────────────────────────────────────
+// Clue bank imported from the public jwolle1/jeopardy_clue_dataset TSV via the
+// admin panel (src/lib/discord/jeopardy/import.ts). `clue` is what the host
+// reads (the dataset's "answer" column); `response` is the accepted answer.
+model JeopardyClue {
+  id       Int      @id @default(autoincrement())
+  airDate  DateTime @db.Date
+  round    Int // 1 Jeopardy, 2 Double Jeopardy, 3 Final
+  value    Int // board value as aired (0 when unknown)
+  category String
+  comments String?
+  clue     String
+  response String
+  notes    String?
+
+  @@index([airDate, round])
+  @@index([category])
+  @@map("jeopardy_clues")
+}
+
+// One live (or finished) game per Discord channel. The whole game — board,
+// queue, open clue, scores — lives in `state` and every transition is a
+// compare-and-swap on `version`, so two near-simultaneous answers can't both
+// claim a clue (src/lib/discord/jeopardy/engine.ts).
+model JeopardyGame {
+  id            String    @id @default(cuid())
+  guildId       String?
+  channelId     String
+  mode          String // quickfire | board
+  status        String // active | ended
+  startedById   String
+  startedByName String
+  version       Int       @default(0)
+  state         Json
+  createdAt     DateTime  @default(now())
+  endedAt       DateTime?
+
+  @@index([channelId, status])
+  @@map("jeopardy_games")
+}
+
+// Final per-player results, written once when a game ends — feeds the
+// all-time standings in `/jeopardy scores`.
+model JeopardyResult {
+  gameId        String
+  discordUserId String
+  name          String
+  score         Int
+  correct       Int
+  wrong         Int
+  createdAt     DateTime @default(now())
+
+  @@id([gameId, discordUserId])
+  @@index([discordUserId])
+  @@map("jeopardy_results")
+}
